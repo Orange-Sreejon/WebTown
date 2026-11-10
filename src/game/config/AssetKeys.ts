@@ -49,6 +49,21 @@ export const AssetKeys = {
   TREE_1: 'tree-1',
   TREE_2: 'tree-2',
   TREE_3: 'tree-3',
+
+  // ── Cute Fantasy Free pack (non-commercial licence — see docs/ASSETS.md)
+  CUTE_HOUSE: 'cute-house',
+  CUTE_BRIDGE: 'cute-bridge',
+  OAK_TREE: 'oak-tree',
+  /** 7×12 sheet of 16×16 outdoor props (see CuteFrame in maps/cute-props.ts). */
+  CUTE_DECOR: 'cute-decor',
+  CHICKEN: 'chicken',
+  COW: 'cow',
+  PIG: 'pig',
+  SHEEP: 'sheep',
+
+  // ── Farm RPG 16x16 pack (no licence file shipped — see docs/ASSETS.md)
+  /** 5 growth stages, 32×48 frames. */
+  MAPLE_TREE: 'maple-tree',
 } as const
 
 export type AssetKey = (typeof AssetKeys)[keyof typeof AssetKeys]
@@ -93,4 +108,16 @@ export const AssetPaths: Record<AssetKey, string> = {
   [AssetKeys.TREE_1]: '/assets/tilesets/village-top-down/tree-1-day.png',
   [AssetKeys.TREE_2]: '/assets/tilesets/village-top-down/tree-2-day.png',
   [AssetKeys.TREE_3]: '/assets/tilesets/village-top-down/tree-3-day.png',
+
+  // Folder and file names here contain spaces, so they are percent-encoded.
+  [AssetKeys.CUTE_HOUSE]:  '/assets/Cute_Fantasy_Free/Outdoor%20decoration/House_1_Wood_Base_Blue.png',
+  [AssetKeys.CUTE_BRIDGE]: '/assets/Cute_Fantasy_Free/Outdoor%20decoration/Bridge_Wood.png',
+  [AssetKeys.OAK_TREE]:    '/assets/Cute_Fantasy_Free/Outdoor%20decoration/Oak_Tree.png',
+  [AssetKeys.CUTE_DECOR]:  '/assets/Cute_Fantasy_Free/Outdoor%20decoration/Outdoor_Decor_Free.png',
+  [AssetKeys.CHICKEN]:     '/assets/Cute_Fantasy_Free/Animals/Chicken/Chicken.png',
+  [AssetKeys.COW]:         '/assets/Cute_Fantasy_Free/Animals/Cow/Cow.png',
+  [AssetKeys.PIG]:         '/assets/Cute_Fantasy_Free/Animals/Pig/Pig.png',
+  [AssetKeys.SHEEP]:       '/assets/Cute_Fantasy_Free/Animals/Sheep/Sheep.png',
+
+  [AssetKeys.MAPLE_TREE]:  '/assets/Farm%20RPG%20FREE%2016x16%20-%20Tiny%20Asset%20Pack/Objects/Maple%20Tree.png',
 }

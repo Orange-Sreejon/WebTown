@@ -52,9 +52,9 @@ export const CANVAS_HEIGHT = 720
  */
 export const PLAYER_SPRITE_SCALE = 0.55
 
-/** Player start position in tile coordinates — on main path intersection. */
-export const PLAYER_START_TILE_X = 28
-export const PLAYER_START_TILE_Y = 28
+/** Player start position in tile coordinates — on the central crossroads. */
+export const PLAYER_START_TILE_X = 40
+export const PLAYER_START_TILE_Y = 30
 
 /** Phaser depth values — higher = drawn on top. */
 export const DEPTH_GROUND     = 0

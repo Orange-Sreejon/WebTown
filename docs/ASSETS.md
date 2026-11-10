@@ -221,3 +221,55 @@ must be included:
 
 > Tileset art by **Pixeljad** — https://pixeljad.itch.io/villagetopdown
 > Character sprites by **nanasha** — https://nanasha.itch.io/nashas-tiny-cast-village-folk (credit appreciated, not required)
+
+---
+
+## Asset Pack 3 — CUTE FANTASY (Free)
+
+| Field       | Value |
+|-------------|-------|
+| Location    | `public/assets/Cute_Fantasy_Free/` |
+| Licence file| `read_me.txt` (bundled) |
+| Licence     | **Non-commercial use only.** Modification allowed. Redistribution and resale prohibited, even if modified. |
+
+### Files used in game
+
+| File | Use |
+|------|-----|
+| `Outdoor decoration/House_1_Wood_Base_Blue.png` (96×128) | Third house type |
+| `Outdoor decoration/Bridge_Wood.png` (144×64) | Pond bridge |
+| `Outdoor decoration/Oak_Tree.png` (64×80) | Large tree species |
+| `Outdoor decoration/Outdoor_Decor_Free.png` (112×192) | 7×12 grid of 16×16 props (signposts, pots, bushes, rocks, logs) — frame indices in `src/game/maps/cute-props.ts` |
+| `Animals/{Chicken,Cow,Pig,Sheep}/*.png` (64×64) | 2×2 sheets of 32×32 frames, used in the pasture |
+
+> ⚠️ **Non-commercial only.** This pack cannot be used in a commercial release,
+> and the raw files must not be redistributed (including a public git repo).
+> If WebTown is ever sold or monetised, these assets must be replaced.
+
+---
+
+## Asset Pack 4 — FARM RPG FREE 16×16 TINY ASSET PACK
+
+| Field       | Value |
+|-------------|-------|
+| Location    | `public/assets/Farm RPG FREE 16x16 - Tiny Asset Pack/` |
+| Licence file| **None bundled** |
+| Licence     | **Unverified.** The folder name says "FREE", but no terms are included in the download, so usage rights cannot be confirmed from the files themselves. |
+
+### Files used in game
+
+| File | Use |
+|------|-----|
+| `Objects/Maple Tree.png` (160×48) | Spritesheet of 5 growth stages, 32×48 each; frame 3 is used as a tree species |
+
+> ⚠️ **Verify before publishing.** Confirm the licence on the download page and
+> record it here. Until then, treat it with the same caution as Pack 1.
+
+---
+
+## Path encoding note
+
+The two packs above contain folder and file names with spaces. They are
+percent-encoded in `src/game/config/AssetKeys.ts` (e.g. `Outdoor%20decoration`),
+and the on-disk folder names are case-sensitive (`Cute_Fantasy_Free`), which
+matters when deploying to a case-sensitive server.

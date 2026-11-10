@@ -1,42 +1,68 @@
 import { AssetKeys } from '../config/AssetKeys'
 import {
-  TILE_SIZE,
-  MAP_TILES_W,
-  MAP_TILES_H,
-  DEPTH_GROUND,
-  DEPTH_ROAD,
-  DEPTH_DECORATION,
   DEPTH_STRUCTURE,
+  MAP_TILES_H,
+  MAP_TILES_W,
+  TILE_SIZE,
 } from '../config/GameConfig'
-
-export { DEPTH_GROUND, DEPTH_ROAD, DEPTH_DECORATION, DEPTH_STRUCTURE }
+import {
+  carveRoadH,
+  carveRoadV,
+  createMask,
+  createRng,
+  fillBlob,
+  fillRect,
+  kindAt,
+  setTile,
+  surroundWithBank,
+  TILE_GRASS,
+  TILE_PATH,
+  TILE_WATER,
+  type TerrainMask,
+} from './terrain'
 
 export interface StructurePlacement {
+  label: string
   key: string
   tileX: number
   tileY: number
-  pxW: number
-  pxH: number
+  wTiles: number
+  hTiles: number
+  /** Solid buildings get collision; the bridge does not. */
+  solid: boolean
+  /** Rows of the sprite that are roof overhang — walkable up to, not into. */
+  solidInsetTop: number
   depth: number
 }
 
-export interface TilePlacement {
+export interface TreePlacement {
   key: string
+  /** Omitted for single-image trees; set for spritesheet trees. */
+  frame?: number
   tileX: number
   tileY: number
+  wTiles: number
+  hTiles: number
   depth: number
 }
 
 export interface FenceRun {
   key: string
-  /** start tile */
+  /** Start tile. */
   x: number
   y: number
-  /** horizontal length in tiles (0 = vertical run) */
+  /** Horizontal length in tiles (0 = vertical run). */
   lenH: number
-  /** vertical length in tiles (0 = horizontal run) */
+  /** Vertical length in tiles (0 = horizontal run). */
   lenV: number
   depth: number
+}
+
+export interface TileArea {
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 /** Tile → pixel top-left. */
@@ -44,311 +70,363 @@ export function tileToPixel(tx: number, ty: number): { x: number; y: number } {
   return { x: tx * TILE_SIZE, y: ty * TILE_SIZE }
 }
 
-// ─── MAP OVERVIEW ──────────────────────────────────────────────────────────
-//
-// 80 × 64 tile map.  Inspired by Pokémon-style top-down towns:
-//   • Dense tree border 2–3 tiles thick around all 4 edges
-//   • Central dirt-path cross (+)
-//   • NORTH cluster  (cols 10–45, rows 4–17): 3 houses + church, fences
-//   • SOUTH cluster  (cols 20–55, rows 35–55): 2 houses + bridge + stairs
-//   • WEST  pond     (cols 2–12,  rows 38–54): water + details + bridge
-//   • Heavy grass/detail coverage in every open green area
-//
-// Player spawns at the path intersection (~tile 28, 28).
-
-// ─── PATH NETWORK ──────────────────────────────────────────────────────────
-// Main H road: rows 27–28, full width
-export const H_ROAD_ROW = 27
-// Main V road: cols 26–27, full height
-export const V_ROAD_COL = 26
-
-// Secondary H spur: rows 14–15, cols 10–26  (leads to north cluster)
-export const SPUR_H_ROW  = 14
-export const SPUR_H_COL_START = 10
-export const SPUR_H_COL_END   = 26
-
-// Secondary V spur: cols 44–45, rows 14–27  (east side of north cluster)
-export const SPUR_V_COL  = 44
-export const SPUR_V_ROW_START = 14
-export const SPUR_V_ROW_END   = 27
-
-// South spur: cols 36–37, rows 28–50  (leads to south cluster)
-export const SOUTH_SPUR_COL       = 36
-export const SOUTH_SPUR_ROW_START = 28
-export const SOUTH_SPUR_ROW_END   = 50
-
 // ─── STRUCTURES ────────────────────────────────────────────────────────────
-// NORTH CLUSTER
-//   House A (small):  tile (10,  5) — 80×112 px  (5 w × 7 h tiles)
-//   House B (large):  tile (20,  5) — 128×112 px (8 w × 7 h tiles)
-//   House C (small):  tile (35,  5) — 80×112 px
-//   Church:           tile (48,  5) — 128×112 px
-//
-// SOUTH CLUSTER
-//   House D (large):  tile (20, 38) — 128×112 px
-//   House E (small):  tile (45, 40) — 80×112 px
-//
-// DECORATIVE
-//   Bridge:           tile (3,  36) — 96×48 px  (over pond edge)
-//   Stairs:           tile (27, 36) — 32×64 px  (leads down from main path)
-
+// Footprints are exact tile sizes of the source art:
+//   HOUSE 1              80×112 px = 5×7 tiles (Pixeljad)
+//   HOUSE 2 / CHURCH    128×112 px = 8×7 tiles (Pixeljad)
+//   Cute Fantasy house   96×128 px = 6×8 tiles
+//   Cute Fantasy bridge 144×64  px = 9×4 tiles
+// Doors are drawn at the bottom centre of each building, so every building
+// faces south and is placed directly above the street it opens onto.
 export const STRUCTURES: StructurePlacement[] = [
-  // North cluster
-  { key: AssetKeys.HOUSE_1, tileX: 10, tileY:  5, pxW:  80, pxH: 112, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.HOUSE_2, tileX: 20, tileY:  5, pxW: 128, pxH: 112, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.HOUSE_1, tileX: 35, tileY:  5, pxW:  80, pxH: 112, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.CHURCH,  tileX: 48, tileY:  5, pxW: 128, pxH: 112, depth: DEPTH_STRUCTURE },
-  // South cluster
-  { key: AssetKeys.HOUSE_2, tileX: 20, tileY: 38, pxW: 128, pxH: 112, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.HOUSE_1, tileX: 45, tileY: 40, pxW:  80, pxH: 112, depth: DEPTH_STRUCTURE },
-  // Decorative
-  { key: AssetKeys.BRIDGE,  tileX: 10, tileY: 36, pxW:  96, pxH:  48, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.STAIRS,  tileX: 27, tileY: 36, pxW:  32, pxH:  64, depth: DEPTH_STRUCTURE },
+  // North residential street (row 14): houses face south onto it.
+  { label: 'house-a', key: AssetKeys.HOUSE_1, tileX: 14, tileY: 5, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  { label: 'house-b', key: AssetKeys.HOUSE_2, tileX: 22, tileY: 5, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  { label: 'house-c', key: AssetKeys.CUTE_HOUSE, tileX: 31, tileY: 4, wTiles: 6, hTiles: 8, solid: true, solidInsetTop: 4, depth: DEPTH_STRUCTURE },
+  // Church sits on its own path north of the main road.
+  { label: 'church', key: AssetKeys.CHURCH, tileX: 48, tileY: 5, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  // South-east street (row 46).
+  { label: 'house-d', key: AssetKeys.HOUSE_2, tileX: 44, tileY: 37, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  { label: 'house-e', key: AssetKeys.HOUSE_1, tileX: 55, tileY: 37, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  // South-west, above the pond street.
+  { label: 'house-f', key: AssetKeys.HOUSE_1, tileX: 8, tileY: 35, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  // East park, on its own spur off the main road.
+  { label: 'house-g', key: AssetKeys.CUTE_HOUSE, tileX: 59, tileY: 17, wTiles: 6, hTiles: 8, solid: true, solidInsetTop: 4, depth: DEPTH_STRUCTURE },
+  // Bridge across the pond to the island (walkable, so not solid).
+  { label: 'bridge', key: AssetKeys.CUTE_BRIDGE, tileX: 11, tileY: 52, wTiles: 9, hTiles: 4, solid: false, solidInsetTop: 0, depth: DEPTH_STRUCTURE },
 ]
 
-// ─── TREE KEY SEQUENCES ────────────────────────────────────────────────────
-// Must be declared BEFORE the TREES array below: `const` bindings are not
-// hoisted, so referencing them earlier in the module throws a
-// "Cannot access '<name>' before initialization" reference error.
-const TILE_ROW_TREES_TOP   = [AssetKeys.TREE_1, AssetKeys.TREE_2, AssetKeys.TREE_3, AssetKeys.TREE_2]
-const TILE_ROW_TREES_BOT   = [AssetKeys.TREE_3, AssetKeys.TREE_1, AssetKeys.TREE_2, AssetKeys.TREE_3]
-const TILE_COL_TREES_LEFT  = [AssetKeys.TREE_2, AssetKeys.TREE_3, AssetKeys.TREE_1, AssetKeys.TREE_2]
-const TILE_COL_TREES_RIGHT = [AssetKeys.TREE_1, AssetKeys.TREE_3, AssetKeys.TREE_2, AssetKeys.TREE_1]
+const BRIDGE_TILES = { x: 11, y: 52, w: 9, h: 4 }
 
-// ─── TREE BORDER + INTERIOR ─────────────────────────────────────────────────
-// Tree positions are top-left tile of each 3×3 (48×48 px) tree sprite.
-// The border is 2–3 trees deep on each edge; interior clusters fill gaps.
-export const TREES: TilePlacement[] = [
-  // ── TOP border (rows 0–3) ──────────────────────────────────────────
-  ..._row(0,  3,  TILE_ROW_TREES_TOP),
-  // ── BOTTOM border (rows 58–61) ────────────────────────────────────
-  ..._row(0, 58, TILE_ROW_TREES_BOT),
-  // ── LEFT border (col 0–3, every 3 rows) ──────────────────────────
-  ..._col(0,  4, TILE_COL_TREES_LEFT),
-  // ── RIGHT border (col 74–77) ─────────────────────────────────────
-  ..._col(74, 4, TILE_COL_TREES_RIGHT),
+// ─── FARM ──────────────────────────────────────────────────────────────────
+/** Fenced pasture holding the farm animals, south-east of the crossroads. */
+export const PASTURE: TileArea = { x: 46, y: 48, w: 12, h: 8 }
 
-  // ── Interior clusters — north area (above main road) ──────────────
-  // Between north cluster houses and left border
-  { key: AssetKeys.TREE_2, tileX:  3, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX:  6, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX:  3, tileY:  8, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX:  6, tileY:  8, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX:  3, tileY: 12, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX:  6, tileY: 12, depth: DEPTH_STRUCTURE },
-  // Between house A and B
-  { key: AssetKeys.TREE_1, tileX: 16, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 16, tileY:  8, depth: DEPTH_STRUCTURE },
-  // Between house B and C
-  { key: AssetKeys.TREE_2, tileX: 29, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 29, tileY:  8, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 32, tileY:  4, depth: DEPTH_STRUCTURE },
-  // Between house C and church
-  { key: AssetKeys.TREE_1, tileX: 41, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 41, tileY:  8, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 44, tileY:  8, depth: DEPTH_STRUCTURE },
-  // Right of church → right border
-  { key: AssetKeys.TREE_1, tileX: 57, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 60, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 63, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 57, tileY:  8, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 63, tileY:  8, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 60, tileY: 11, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 66, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 69, tileY:  4, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 69, tileY:  8, depth: DEPTH_STRUCTURE },
-  // North of main road, between spurs (open park area — a few trees)
-  { key: AssetKeys.TREE_3, tileX:  3, tileY: 16, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX:  6, tileY: 16, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX:  3, tileY: 20, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX:  6, tileY: 22, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 48, tileY: 17, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 54, tileY: 17, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 60, tileY: 17, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 66, tileY: 17, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 69, tileY: 17, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 54, tileY: 21, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 60, tileY: 21, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 66, tileY: 21, depth: DEPTH_STRUCTURE },
+/** Gap in the pasture's north fence so the player can walk in. */
+export const PASTURE_GATE = { x: 50, w: 2 }
 
-  // ── Interior clusters — south area (below main road) ──────────────
-  // Left of south spur
-  { key: AssetKeys.TREE_2, tileX:  3, tileY: 31, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX:  6, tileY: 31, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX:  3, tileY: 36, depth: DEPTH_STRUCTURE },
-  // Right of south spur, north side
-  { key: AssetKeys.TREE_1, tileX: 40, tileY: 31, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 45, tileY: 31, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 51, tileY: 31, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 57, tileY: 31, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 63, tileY: 31, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 69, tileY: 31, depth: DEPTH_STRUCTURE },
-  // Around south houses
-  { key: AssetKeys.TREE_1, tileX: 16, tileY: 36, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 29, tileY: 46, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 29, tileY: 51, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 32, tileY: 51, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 51, tileY: 36, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 54, tileY: 40, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 54, tileY: 45, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 57, tileY: 45, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 60, tileY: 36, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 63, tileY: 40, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 66, tileY: 36, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 69, tileY: 40, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 69, tileY: 45, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_1, tileX: 63, tileY: 51, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX: 66, tileY: 51, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX: 69, tileY: 51, depth: DEPTH_STRUCTURE },
-  // Around pond (left side)
-  { key: AssetKeys.TREE_1, tileX:  3, tileY: 42, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_2, tileX:  3, tileY: 48, depth: DEPTH_STRUCTURE },
-  { key: AssetKeys.TREE_3, tileX:  3, tileY: 54, depth: DEPTH_STRUCTURE },
+/** Vegetable patch beside the pasture. */
+export const GARDEN: TileArea = { x: 59, y: 49, w: 4, h: 3 }
+
+function inArea(area: TileArea, tx: number, ty: number): boolean {
+  return tx >= area.x && ty >= area.y && tx < area.x + area.w && ty < area.y + area.h
+}
+
+export function isInPasture(tx: number, ty: number): boolean {
+  return inArea(PASTURE, tx, ty)
+}
+
+export function isInGarden(tx: number, ty: number): boolean {
+  return inArea(GARDEN, tx, ty)
+}
+
+// ─── ROADS ────────────────────────────────────────────────────────────────
+// `thickness` is in tiles; the carving routine drifts the edges by ±1 tile so
+// paths have an uneven, hand-drawn outline instead of dead-straight borders.
+interface RoadSegment {
+  dir: 'h' | 'v'
+  at: number
+  from: number
+  to: number
+  thickness: number
+  seed: number
+}
+
+const ROADS: RoadSegment[] = [
+  // Main east-west road and north-south road (the crossroads).
+  { dir: 'h', at: 30, from: 0, to: MAP_TILES_W - 1, thickness: 2, seed: 0.4 },
+  { dir: 'v', at: 40, from: 0, to: MAP_TILES_H - 1, thickness: 2, seed: 2.1 },
+  // North residential street, running west to the church path.
+  { dir: 'h', at: 14, from: 12, to: 54, thickness: 2, seed: 1.3 },
+  { dir: 'v', at: 16, from: 14, to: 30, thickness: 2, seed: 0.9 },
+  { dir: 'v', at: 54, from: 14, to: 30, thickness: 2, seed: 3.3 },
+  // South-east street and its link back to the main road.
+  { dir: 'h', at: 46, from: 40, to: 68, thickness: 2, seed: 2.7 },
+  { dir: 'v', at: 66, from: 30, to: 46, thickness: 2, seed: 1.1 },
+  // Pond approach.
+  { dir: 'v', at: 24, from: 31, to: 44, thickness: 2, seed: 4.2 },
+  { dir: 'h', at: 44, from: 8, to: 24, thickness: 2, seed: 5.6 },
+  // Spur to the east park house.
+  { dir: 'v', at: 62, from: 25, to: 30, thickness: 2, seed: 6.1 },
 ]
 
-// ─── WATER POND (bottom-left) ───────────────────────────────────────────────
-// Irregular oval shape approximated with tiles: cols 7–18, rows 40–54
-export const WATER_REGION = {
-  tileX:  7,
-  tileY: 40,
-  tilesW: 12,
-  tilesH: 14,
+// Open dirt clearings at the junctions — the reference towns all widen at
+// junctions rather than crossing two narrow strips.
+interface Plaza {
+  x: number
+  y: number
+  rx: number
+  ry: number
+  seed: number
 }
 
-// ─── FENCES ────────────────────────────────────────────────────────────────
-// Runs of fence tiles placed around houses and along path edges.
-// lenH = number of horizontal tiles; lenV = vertical tiles.
-export const FENCES: FenceRun[] = [
-  // North of house A — separates it from path
-  { key: AssetKeys.FENCE_1, x: 10, y: 13, lenH: 5, lenV: 0, depth: DEPTH_DECORATION },
-  // East of house A
-  { key: AssetKeys.FENCE_2, x: 15, y: 13, lenH: 0, lenV: 4, depth: DEPTH_DECORATION },
-  // North of house B
-  { key: AssetKeys.FENCE_1, x: 20, y: 13, lenH: 8, lenV: 0, depth: DEPTH_DECORATION },
-  // North of house C
-  { key: AssetKeys.FENCE_1, x: 35, y: 13, lenH: 5, lenV: 0, depth: DEPTH_DECORATION },
-  // Along south spur east side (decorative border)
-  { key: AssetKeys.FENCE_2, x: 38, y: 29, lenH: 0, lenV: 8, depth: DEPTH_DECORATION },
-  // Around south house D (north side)
-  { key: AssetKeys.FENCE_1, x: 20, y: 36, lenH: 8, lenV: 0, depth: DEPTH_DECORATION },
-  // Around south house E (north side)
-  { key: AssetKeys.FENCE_1, x: 45, y: 38, lenH: 5, lenV: 0, depth: DEPTH_DECORATION },
+const PLAZAS: Plaza[] = [
+  { x: 40, y: 30, rx: 5, ry: 3.6, seed: 0.6 }, // central crossroads
+  { x: 16, y: 14, rx: 3.4, ry: 2.4, seed: 2.2 }, // north junction
+  { x: 52, y: 15, rx: 3.2, ry: 2.2, seed: 6.6 }, // church forecourt
+  { x: 66, y: 46, rx: 3.4, ry: 3, seed: 4.4 }, // south-east junction
+  { x: 24, y: 44, rx: 3, ry: 2.4, seed: 5.2 }, // pond approach
 ]
 
-// ─── GRASS DETAILS ─────────────────────────────────────────────────────────
-// Dense scatter across all open green areas — avoids roads, structures, water.
-// All 6 grass detail variants used.
-export const GRASS_DETAILS: TilePlacement[] = buildGrassDetails()
+// ─── POND ─────────────────────────────────────────────────────────────────
+const POND = { x: 20, y: 53, rx: 8.5, ry: 5.2, seed: 1.4, wobble: 0.16 }
+const ISLAND = { x: 22, y: 53, rx: 3, ry: 2.6, seed: 2.9, wobble: 0.1 }
 
-function buildGrassDetails(): TilePlacement[] {
-  const K = AssetKeys
-  const D = DEPTH_DECORATION
-  // Explicit hand-placed positions for natural feel
-  // Format: [tx, ty, variant 1-6]
-  const pts: Array<[number, number, number]> = [
-    // Top-left open area (cols 3–9, rows 4–26)
-    [3,4,1],[4,6,3],[5,9,2],[6,12,4],[4,15,5],[5,18,1],[4,21,3],[5,24,6],
-    [7,5,2],[8,8,4],[9,11,1],[7,14,3],[8,17,5],[9,20,2],[7,23,4],[8,25,6],
-    // Between top cluster and right border (cols 57–73, rows 4–26)
-    [57,5,1],[60,5,3],[63,5,5],[66,5,2],[69,5,4],[72,5,6],
-    [57,10,2],[60,10,4],[63,10,1],[66,10,3],[69,10,5],[72,10,1],
-    [57,14,3],[60,14,5],[63,14,2],[66,14,4],[69,14,6],[72,14,3],
-    [57,18,4],[60,18,1],[63,18,3],[66,18,5],[69,18,2],[72,18,4],
-    [57,22,5],[60,22,2],[63,22,4],[66,22,6],[69,22,1],[72,22,3],
-    // Middle corridor (cols 29–43, rows 16–26) — open park
-    [29,16,1],[31,16,3],[33,16,5],[38,16,2],[40,16,4],[42,16,6],
-    [29,19,3],[31,20,5],[33,21,2],[38,19,4],[40,20,6],[42,21,1],
-    [29,23,2],[31,24,4],[33,25,6],[38,22,1],[40,23,3],[42,24,5],
-    // South-left (cols 3–19, rows 29–57)
-    [3,29,1],[5,30,3],[7,31,5],[9,32,2],[11,33,4],[13,34,6],
-    [3,33,2],[5,34,4],[7,35,1],[9,36,3],[11,37,5],[13,38,2],
-    [3,37,3],[5,38,5],[7,55,1],[9,55,3],[11,55,5],[13,55,2],
-    [15,30,4],[17,31,6],[19,32,1],[15,35,3],[17,36,5],[19,37,2],
-    [15,42,4],[17,43,6],[19,44,1],[15,47,3],[17,48,5],[19,49,2],
-    [15,52,4],[17,53,6],[19,54,1],
-    // South-right (cols 40–73, rows 29–57)
-    [40,29,1],[43,29,3],[46,29,5],[49,29,2],[52,29,4],[55,29,6],
-    [58,29,1],[61,29,3],[64,29,5],[67,29,2],[70,29,4],[73,29,6],
-    [40,34,2],[43,34,4],[46,34,6],[49,34,1],[52,34,3],[55,34,5],
-    [58,34,2],[61,34,4],[64,34,6],[67,34,1],[70,34,3],[73,34,5],
-    [40,46,3],[43,47,5],[46,48,2],[49,49,4],[52,50,6],[55,51,1],
-    [58,46,3],[61,47,5],[64,48,2],[67,49,4],[70,50,6],[73,51,1],
-    [40,54,4],[43,54,6],[46,54,1],[49,54,3],[52,54,5],[55,54,2],
-    [58,54,4],[61,54,6],[64,54,1],[67,54,3],[70,54,5],[73,54,2],
-    // South house areas — scattered between structures
-    [29,36,1],[31,37,3],[33,38,5],[29,40,2],[31,41,4],[33,42,6],
-    [29,46,3],[31,47,5],[33,48,2],
-  ]
+/** Carve a short 2-tile path from a building's door down to the nearest street. */
+function carveDriveway(mask: TerrainMask, structure: StructurePlacement): void {
+  const doorCol = structure.tileX + Math.floor(structure.wTiles / 2)
+  const startRow = structure.tileY + structure.hTiles
 
-  const detailMap: Record<number, string> = {
-    1: K.GRASS_DETAIL_1, 2: K.GRASS_DETAIL_2, 3: K.GRASS_DETAIL_3,
-    4: K.GRASS_DETAIL_4, 5: K.GRASS_DETAIL_5, 6: K.GRASS_DETAIL_6,
+  for (let i = 0; i <= 5; i++) {
+    const ty = startRow + i
+    if (ty >= MAP_TILES_H) break
+
+    const alreadyConnected =
+      kindAt(mask, doorCol, ty) === TILE_PATH ||
+      kindAt(mask, doorCol - 1, ty) === TILE_PATH
+
+    setTile(mask, doorCol, ty, TILE_PATH)
+    setTile(mask, doorCol - 1, ty, TILE_PATH)
+
+    if (alreadyConnected) break
   }
-
-  return pts
-    .filter(([tx, ty]) => tx < MAP_TILES_W && ty < MAP_TILES_H)
-    .map(([tx, ty, v]) => ({
-      key: detailMap[v]!,
-      tileX: tx,
-      tileY: ty,
-      depth: D,
-    }))
 }
 
-// ─── GROUND DETAILS (path edge pebbles) ────────────────────────────────────
-export function getRoadEdgeTiles(): TilePlacement[] {
-  const edges: TilePlacement[] = []
-  const K = AssetKeys
+function buildTerrain(): TerrainMask {
+  const mask = createMask()
 
-  // Main H road edges
-  for (let tx = 0; tx < MAP_TILES_W; tx++) {
-    edges.push({ key: K.GROUND_DETAIL_1, tileX: tx, tileY: H_ROAD_ROW - 1, depth: DEPTH_ROAD })
-    edges.push({ key: K.GROUND_DETAIL_2, tileX: tx, tileY: H_ROAD_ROW + 2, depth: DEPTH_ROAD })
-  }
-  // Main V road edges
-  for (let ty = 0; ty < MAP_TILES_H; ty++) {
-    edges.push({ key: K.GROUND_DETAIL_3, tileX: V_ROAD_COL - 1,     tileY: ty, depth: DEPTH_ROAD })
-    edges.push({ key: K.GROUND_DETAIL_4, tileX: V_ROAD_COL + 2, tileY: ty, depth: DEPTH_ROAD })
-  }
-  // North spur edges
-  for (let tx = SPUR_H_COL_START; tx <= SPUR_H_COL_END; tx++) {
-    edges.push({ key: K.GROUND_DETAIL_5, tileX: tx, tileY: SPUR_H_ROW - 1, depth: DEPTH_ROAD })
-    edges.push({ key: K.GROUND_DETAIL_1, tileX: tx, tileY: SPUR_H_ROW + 2, depth: DEPTH_ROAD })
-  }
-  // East spur edges
-  for (let ty = SPUR_V_ROW_START; ty <= SPUR_V_ROW_END; ty++) {
-    edges.push({ key: K.GROUND_DETAIL_2, tileX: SPUR_V_COL - 1,    tileY: ty, depth: DEPTH_ROAD })
-    edges.push({ key: K.GROUND_DETAIL_3, tileX: SPUR_V_COL + 2, tileY: ty, depth: DEPTH_ROAD })
-  }
-  // South spur edges
-  for (let ty = SOUTH_SPUR_ROW_START; ty <= SOUTH_SPUR_ROW_END; ty++) {
-    edges.push({ key: K.GROUND_DETAIL_4, tileX: SOUTH_SPUR_COL - 1,    tileY: ty, depth: DEPTH_ROAD })
-    edges.push({ key: K.GROUND_DETAIL_5, tileX: SOUTH_SPUR_COL + 2, tileY: ty, depth: DEPTH_ROAD })
+  for (const road of ROADS) {
+    if (road.dir === 'h') {
+      carveRoadH(mask, road.at, road.from, road.to, road.thickness, road.seed)
+    } else {
+      carveRoadV(mask, road.at, road.from, road.to, road.thickness, road.seed)
+    }
   }
 
-  return edges
+  for (const plaza of PLAZAS) {
+    fillBlob(mask, plaza.x, plaza.y, plaza.rx, plaza.ry, TILE_PATH, plaza.seed, 0.2)
+  }
+
+  for (const structure of STRUCTURES) {
+    if (structure.solid) carveDriveway(mask, structure)
+  }
+
+  // Water last so it can never be punched through by a road, then the island
+  // and the bridge deck, then the shoreline ring.
+  fillBlob(mask, POND.x, POND.y, POND.rx, POND.ry, TILE_WATER, POND.seed, POND.wobble)
+  fillBlob(mask, ISLAND.x, ISLAND.y, ISLAND.rx, ISLAND.ry, TILE_GRASS, ISLAND.seed, ISLAND.wobble)
+  fillRect(mask, BRIDGE_TILES.x, BRIDGE_TILES.y, BRIDGE_TILES.w, BRIDGE_TILES.h, TILE_PATH)
+  surroundWithBank(mask)
+
+  return mask
 }
 
-// ─── HELPERS ───────────────────────────────────────────────────────────────
+export const TERRAIN: TerrainMask = buildTerrain()
 
-/** Generate a full row of trees across the top/bottom border. */
-function _row(colStart: number, rowY: number, keys: string[]): TilePlacement[] {
-  const result: TilePlacement[] = []
-  let ki = 0
-  for (let tx = colStart; tx < MAP_TILES_W - 2; tx += 3) {
-    result.push({ key: keys[ki % keys.length]!, tileX: tx, tileY: rowY, depth: DEPTH_STRUCTURE })
-    ki++
+// ─── FENCES ───────────────────────────────────────────────────────────────
+/**
+ * One continuous fence line per street frontage, broken only by a three-tile
+ * gate in front of each door, plus the pasture perimeter. Short per-house
+ * stubs read as scattered crates; a long unbroken line reads as a boundary.
+ */
+function buildFences(): FenceRun[] {
+  const runs: FenceRun[] = []
+  const rows = new Map<number, StructurePlacement[]>()
+
+  for (const structure of STRUCTURES) {
+    if (!structure.solid || structure.key === AssetKeys.CHURCH) continue
+    const row = structure.tileY + structure.hTiles
+    const houses = rows.get(row) ?? []
+    houses.push(structure)
+    rows.set(row, houses)
   }
-  return result
+
+  for (const [row, houses] of rows) {
+    houses.sort((a, b) => a.tileX - b.tileX)
+
+    const first = houses[0]!
+    const last = houses[houses.length - 1]!
+    const startX = first.tileX - 1
+    const endX = last.tileX + last.wTiles
+
+    const gates = houses.map(house => {
+      const doorCol = house.tileX + Math.floor(house.wTiles / 2)
+      return [doorCol - 1, doorCol + 1] as const
+    })
+
+    let runStart = startX
+    for (let x = startX; x <= endX + 1; x++) {
+      const inGate = gates.some(([from, to]) => x >= from && x <= to)
+
+      if (inGate || x > endX) {
+        const length = x - runStart
+        if (length >= 2) {
+          runs.push({
+            key: AssetKeys.FENCE_1,
+            x: runStart,
+            y: row,
+            lenH: length,
+            lenV: 0,
+            depth: DEPTH_STRUCTURE,
+          })
+        }
+        runStart = x + 1
+      }
+    }
+  }
+
+  // ── Pasture perimeter, with a two-tile gate in the north fence ──────────
+  const top = PASTURE.y
+  const bottom = PASTURE.y + PASTURE.h - 1
+  const left = PASTURE.x
+  const right = PASTURE.x + PASTURE.w - 1
+  const gateEnd = PASTURE_GATE.x + PASTURE_GATE.w
+
+  runs.push(
+    { key: AssetKeys.FENCE_1, x: left, y: top, lenH: PASTURE_GATE.x - left, lenV: 0, depth: DEPTH_STRUCTURE },
+    { key: AssetKeys.FENCE_1, x: gateEnd, y: top, lenH: right - gateEnd + 1, lenV: 0, depth: DEPTH_STRUCTURE },
+    { key: AssetKeys.FENCE_1, x: left, y: bottom, lenH: PASTURE.w, lenV: 0, depth: DEPTH_STRUCTURE },
+    { key: AssetKeys.FENCE_1, x: left, y: top, lenH: 0, lenV: PASTURE.h, depth: DEPTH_STRUCTURE },
+    { key: AssetKeys.FENCE_1, x: right, y: top, lenH: 0, lenV: PASTURE.h, depth: DEPTH_STRUCTURE },
+  )
+
+  return runs
 }
 
-/** Generate a full column of trees down the left/right border. */
-function _col(colX: number, _colW: number, keys: string[]): TilePlacement[] {
-  const result: TilePlacement[] = []
-  let ki = 0
-  for (let ty = 0; ty < MAP_TILES_H - 2; ty += 3) {
-    result.push({ key: keys[ki % keys.length]!, tileX: colX, tileY: ty, depth: DEPTH_STRUCTURE })
-    ki++
-  }
-  return result
+export const FENCES: FenceRun[] = buildFences()
+
+// ─── TREES ────────────────────────────────────────────────────────────────
+// Mostly green canopies with the occasional autumn/blossom tree — an even mix
+// of all three reads as confetti rather than a forest.
+const TREE_KEYS = [
+  AssetKeys.TREE_1,
+  AssetKeys.TREE_1,
+  AssetKeys.TREE_1,
+  AssetKeys.TREE_1,
+  AssetKeys.TREE_2,
+  AssetKeys.TREE_3,
+]
+
+/** A tree species and the tile footprint it occupies. */
+interface TreeSpecies {
+  key: string
+  frame?: number
+  wTiles: number
+  hTiles: number
 }
+
+const PIXEL_TREE: TreeSpecies = { key: AssetKeys.TREE_1, wTiles: 3, hTiles: 3 }
+// Farm RPG maple: 32×48 frames, frame 3 is the mature tree.
+const MAPLE: TreeSpecies = { key: AssetKeys.MAPLE_TREE, frame: 3, wTiles: 2, hTiles: 3 }
+// Cute Fantasy oak: a single 64×80 sprite.
+const OAK: TreeSpecies = { key: AssetKeys.OAK_TREE, wTiles: 4, hTiles: 5 }
+
+// Woodland pockets. Trees are packed inside these and left sparse elsewhere, so
+// the town gets real groves instead of an evenly salted field of single trees.
+const TREE_GROVES: ReadonlyArray<{ x: number; y: number; r: number }> = [
+  { x: 7, y: 6, r: 7 },
+  { x: 8, y: 21, r: 7 },
+  { x: 13, y: 27, r: 4 },
+  { x: 30, y: 23, r: 5 },
+  { x: 38, y: 8, r: 5 },
+  { x: 45, y: 24, r: 4 },
+  { x: 68, y: 9, r: 7 },
+  { x: 72, y: 24, r: 5 },
+  { x: 4, y: 52, r: 5 },
+  { x: 33, y: 54, r: 6 },
+  { x: 42, y: 55, r: 5 },
+  { x: 64, y: 54, r: 6 },
+  { x: 74, y: 40, r: 6 },
+  { x: 30, y: 38, r: 4 },
+  { x: 62, y: 32, r: 4 },
+]
+
+function isFenceTile(tx: number, ty: number): boolean {
+  for (const fence of FENCES) {
+    if (fence.lenH > 0) {
+      if (ty !== fence.y) continue
+      if (tx >= fence.x && tx < fence.x + fence.lenH) return true
+    } else {
+      if (tx !== fence.x) continue
+      if (ty >= fence.y && ty < fence.y + fence.lenV) return true
+    }
+  }
+  return false
+}
+
+function pickSpecies(rng: () => number): TreeSpecies {
+  const roll = rng()
+  if (roll < 0.74) {
+    return { ...PIXEL_TREE, key: TREE_KEYS[Math.floor(rng() * TREE_KEYS.length)]! }
+  }
+  if (roll < 0.9) return MAPLE
+  return OAK
+}
+
+/**
+ * Trees are scattered on a jittered lattice: dense along the map borders and
+ * inside woodland pockets, sparse between. Every placement is rejected if it
+ * would land on a path, the pond, a building, a fence, the pasture or the
+ * vegetable garden.
+ */
+function buildTrees(): TreePlacement[] {
+  const rng = createRng(1337)
+  const trees: TreePlacement[] = []
+
+  const canPlace = (tx: number, ty: number, wTiles: number, hTiles: number): boolean => {
+    for (let dy = 0; dy < hTiles; dy++) {
+      for (let dx = 0; dx < wTiles; dx++) {
+        const px = tx + dx
+        const py = ty + dy
+        if (kindAt(TERRAIN, px, py) !== TILE_GRASS) return false
+        if (isFenceTile(px, py)) return false
+        if (isInPasture(px, py) || isInGarden(px, py)) return false
+      }
+    }
+
+    for (const structure of STRUCTURES) {
+      const overlaps =
+        tx + wTiles > structure.tileX - 1 &&
+        tx < structure.tileX + structure.wTiles + 1 &&
+        ty + hTiles > structure.tileY - 1 &&
+        ty < structure.tileY + structure.hTiles + 1
+      if (overlaps) return false
+    }
+
+    return true
+  }
+
+  for (let gy = 1; gy < MAP_TILES_H - 6; gy += 3) {
+    for (let gx = 1; gx < MAP_TILES_W - 6; gx += 3) {
+      const tx = gx + Math.floor(rng() * 3) - 1
+      const ty = gy + Math.floor(rng() * 3) - 1
+
+      if (tx < 1 || ty < 1 || tx > MAP_TILES_W - 6 || ty > MAP_TILES_H - 6) continue
+
+      const species = pickSpecies(rng)
+      if (!canPlace(tx, ty, species.wTiles, species.hTiles)) continue
+
+      const onBorder =
+        tx < 6 || ty < 6 || tx > MAP_TILES_W - 7 || ty > MAP_TILES_H - 7
+      const inGrove = TREE_GROVES.some(
+        grove => Math.hypot(tx - grove.x, ty - grove.y) <= grove.r,
+      )
+      const chance = onBorder ? 0.95 : inGrove ? 0.8 : 0.06
+      if (rng() > chance) continue
+
+      trees.push({
+        key: species.key,
+        frame: species.frame,
+        tileX: tx,
+        tileY: ty,
+        wTiles: species.wTiles,
+        hTiles: species.hTiles,
+        depth: DEPTH_STRUCTURE,
+      })
+    }
+  }
+
+  return trees
+}
+
+export const TREES: TreePlacement[] = buildTrees()

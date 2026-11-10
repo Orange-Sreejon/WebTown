@@ -57,6 +57,25 @@ export class BootScene extends Phaser.Scene {
     this.load.image(AssetKeys.TREE_1, AssetPaths[AssetKeys.TREE_1])
     this.load.image(AssetKeys.TREE_2, AssetPaths[AssetKeys.TREE_2])
     this.load.image(AssetKeys.TREE_3, AssetPaths[AssetKeys.TREE_3])
+
+    // ── Cute Fantasy Free pack ────────────────────────────────────────
+    // Non-commercial use only, no redistribution of the raw assets.
+    this.load.image(AssetKeys.CUTE_HOUSE, AssetPaths[AssetKeys.CUTE_HOUSE])
+    this.load.image(AssetKeys.CUTE_BRIDGE, AssetPaths[AssetKeys.CUTE_BRIDGE])
+    this.load.image(AssetKeys.OAK_TREE, AssetPaths[AssetKeys.OAK_TREE])
+    this.load.spritesheet(AssetKeys.CUTE_DECOR, AssetPaths[AssetKeys.CUTE_DECOR], {
+      frameWidth: 16,
+      frameHeight: 16,
+    })
+    for (const animal of [AssetKeys.CHICKEN, AssetKeys.COW, AssetKeys.PIG, AssetKeys.SHEEP]) {
+      this.load.spritesheet(animal, AssetPaths[animal], { frameWidth: 32, frameHeight: 32 })
+    }
+
+    // ── Farm RPG 16x16 pack ───────────────────────────────────────────
+    this.load.spritesheet(AssetKeys.MAPLE_TREE, AssetPaths[AssetKeys.MAPLE_TREE], {
+      frameWidth: 32,
+      frameHeight: 48,
+    })
   }
 
   create(): void {
