@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebTown</title>
+    <style>
+      #crash-overlay {
+        display: none;
+        position: fixed; inset: 0; z-index: 99999;
+        background: #1a0000; color: #ff6666;
+        font-family: monospace; font-size: 13px;
+        padding: 24px; white-space: pre-wrap;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="crash-overlay"></div>
+    <div id="root"></div>
+    <script>
+      // Catch any error before React loads and show it on screen
+      const overlay = document.getElementById('crash-overlay')
+      window.addEventListener('error', (e) => {
+        overlay.style.display = 'block'
+        overlay.textContent += '[ERROR] ' + e.message + '\n  at ' + e.filename + ':' + e.lineno + '\n'
+      })
+      window.addEventListener('unhandledrejection', (e) => {
+        overlay.style.display = 'block'
+        overlay.textContent += '[PROMISE] ' + String(e.reason) + '\n'
+      })
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

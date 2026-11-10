@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Vite cache
+.vite/
+
+# Test coverage
+coverage/
+
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript build info cache
+*.tsbuildinfo
+
+# .kiro is intentionally NOT ignored — steering, specs and hooks belong in source control
+
+# Raw asset source packs — licence terms prohibit redistribution as raw assets.
+# These folders contain the original downloads and must not be published in a public repo.
+# The game uses copies placed under public/assets/ which are part of the built application.
+# See docs/ASSETS.md for full licence analysis.
+TILESET VILLAGE TOP DOWN/
+tiny_cast_village_folk_v1.0/

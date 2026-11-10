@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run Tests on Test File Save",
+      "trigger": "PostFileSave",
+      "description": "Run the full Vitest suite (single pass) whenever a test file is saved, so failures are caught immediately.",
+      "matcher": "\\.test\\.tsx?$",
+      "action": {
+        "type": "command",
+        "command": "cd \"c:\\it_was_him\\WebTown\\WebTown\" && npx vitest run --reporter=verbose 2>&1",
+        "timeout": 60
+      }
+    }
+  ]
+}
