@@ -15,9 +15,17 @@ import {
   buildYardPots,
   type FrameProp,
 } from './cute-props'
+import { addAnimalMotion, addWaterMotion } from './ambient'
 import { buildGrassDecor, buildPathEdges, buildWaterProps, type DecorTile } from './decor'
 import { kindAt, TILE_BANK, TILE_PATH, TILE_WATER } from './terrain'
 import { FENCES, STRUCTURES, TERRAIN, TREES } from './town-layout'
+
+/** Minimal shape of the FX controller we use, kept structural on purpose. */
+interface ColorMatrixLike {
+  saturate(value: number, multiply?: boolean): ColorMatrixLike
+  contrast(value: number, multiply?: boolean): ColorMatrixLike
+  brightness(value: number, multiply?: boolean): ColorMatrixLike
+}
 
 /**
  * Builds the town map using a single RenderTexture for every flat layer.
@@ -29,7 +37,8 @@ import { FENCES, STRUCTURES, TERRAIN, TREES } from './town-layout'
  *   decoration become one draw call.
  *
  *   Only structures, fences, trees, props, animals and the player remain as
- *   individual sprites because they need to interact with the depth system.
+ *   individual sprites because they need to interact with the depth system or
+ *   are animated.
  *
  * Every flat layer is derived from the terrain mask (see terrain.ts), so a
  * grass detail can never be stamped onto water or a path.
@@ -48,7 +57,6 @@ export class TownMap {
 
     this.bakeTerrain(rt)
     this.stampDecor(rt, buildPathEdges(TERRAIN))
-    this.stampDecor(rt, buildWaterProps(TERRAIN))
     this.stampDecor(rt, buildGrassDecor(TERRAIN))
     this.stampFrames(rt, buildGardenTiles())
 
@@ -57,7 +65,8 @@ export class TownMap {
     this.placeTrees()
     this.placeProps(buildYardPots(TERRAIN))
     this.placeProps(buildCuteDecor(TERRAIN))
-    this.placeProps(buildAnimals())
+    this.placeWaterProps()
+    this.placeAnimals()
   }
 
   // ── Ground, roads, shoreline and water baked in one pass ────────────────
@@ -124,10 +133,33 @@ export class TownMap {
       const x = structure.tileX * T
       const y = structure.tileY * T
 
-      this.scene.add
+      const image = this.scene.add
         .image(x + width / 2, y + height / 2, structure.key)
         .setDepth(structure.depth)
+
+      if (structure.key === AssetKeys.CUTE_HOUSE) this.harmonisePalette(image)
     }
+  }
+
+  /**
+   * The Cute Fantasy house is drawn with a darker, more saturated palette and
+   * near-black outlines than the Pixeljad tileset. Easing off the colour,
+   * compressing the tonality so the outlines lift to a soft dark brown, and
+   * then nudging the whole sprite brighter puts it in the same light as its
+   * neighbours.
+   *
+   * Phaser's colour matrix operations overwrite the matrix by default, hence
+   * `multiply = true` on every step after the first.
+   *
+   * This is a WebGL effect, so on a Canvas fallback it is skipped and the
+   * sprite simply renders untouched.
+   */
+  private harmonisePalette(image: Phaser.GameObjects.Image): void {
+    const fx = (
+      image as unknown as { preFX?: { addColorMatrix(): ColorMatrixLike } | null }
+    ).preFX
+
+    fx?.addColorMatrix().saturate(-0.25).contrast(0.82, true).brightness(1.12, true)
   }
 
   // ── Trees (three different species) ─────────────────────────────────────
@@ -157,5 +189,34 @@ export class TownMap {
 
       this.scene.add.image(x, y, item.key, item.frame).setDepth(item.depth)
     }
+  }
+
+  /** Reeds and lily pads sit on the pond surface and bob very slightly. */
+  private placeWaterProps(): void {
+    const T = TILE_SIZE
+    const props = buildWaterProps(TERRAIN)
+
+    props.forEach((tile, index) => {
+      const image = this.scene.add
+        .image(tile.tileX * T + T / 2, tile.tileY * T + T / 2, tile.key)
+        .setDepth(tile.depth)
+
+      addWaterMotion(this.scene, image, index)
+    })
+  }
+
+  private placeAnimals(): void {
+    const T = TILE_SIZE
+
+    buildAnimals().forEach((animal, index) => {
+      const x = animal.tileX * T + (animal.sizeTiles * T) / 2
+      const y = animal.tileY * T + (animal.sizeTiles * T) / 2
+
+      const sprite = this.scene.add
+        .image(x, y, animal.key, animal.frame)
+        .setDepth(animal.depth)
+
+      addAnimalMotion(this.scene, sprite, index)
+    })
   }
 }

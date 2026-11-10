@@ -10,7 +10,15 @@ import {
   TILE_WATER,
   type TileKind,
 } from './terrain'
-import { FENCES, GARDEN, isInPasture, STRUCTURES, TERRAIN, TREES } from './town-layout'
+import {
+  doorColumn,
+  FENCES,
+  GARDEN,
+  isInPasture,
+  STRUCTURES,
+  TERRAIN,
+  TREES,
+} from './town-layout'
 import { buildGrassDecor, buildPathEdges, buildWaterProps } from './decor'
 import {
   buildAnimals,
@@ -79,12 +87,15 @@ describe('terrain mask', () => {
     for (const structure of STRUCTURES) {
       if (!structure.solid) continue
 
-      const doorCol = structure.tileX + Math.floor(structure.wTiles / 2)
-      const below = kindAt(TERRAIN, doorCol, structure.tileY + structure.hTiles)
+      const doorCol = doorColumn(structure)
+      const doorRow = structure.tileY + structure.hTiles
 
-      expect(below, `${structure.label} doorstep at (${doorCol},${structure.tileY + structure.hTiles})`).toBe(
-        TILE_PATH,
-      )
+      for (const col of [doorCol - 1, doorCol, doorCol + 1]) {
+        expect(
+          kindAt(TERRAIN, col, doorRow),
+          `${structure.label} doorstep at (${col},${doorRow})`,
+        ).toBe(TILE_PATH)
+      }
     }
   })
 
@@ -147,6 +158,31 @@ describe('terrain mask', () => {
 
     for (const fence of FENCES) {
       expect(fence.lenH + fence.lenV).toBeGreaterThan(0)
+    }
+  })
+
+  it('never puts a fence post in front of a front door', () => {
+    const fenced = new Set<string>()
+    for (const fence of FENCES) {
+      if (fence.lenH > 0) {
+        for (let i = 0; i < fence.lenH; i++) fenced.add(`${fence.x + i},${fence.y}`)
+      } else {
+        for (let i = 0; i < fence.lenV; i++) fenced.add(`${fence.x},${fence.y + i}`)
+      }
+    }
+
+    for (const structure of STRUCTURES) {
+      if (!structure.solid) continue
+
+      const doorCol = doorColumn(structure)
+      const doorRow = structure.tileY + structure.hTiles
+
+      for (const col of [doorCol - 1, doorCol, doorCol + 1]) {
+        expect(
+          fenced.has(`${col},${doorRow}`),
+          `${structure.label} has a fence post in front of its door at (${col},${doorRow})`,
+        ).toBe(false)
+      }
     }
   })
 

@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { MAP_HEIGHT_PX, MAP_WIDTH_PX, TILE_SIZE } from '../config/GameConfig'
 import { mergeRects, TILE_WATER } from './terrain'
 import { FENCES, STRUCTURES, TERRAIN, TREES } from './town-layout'
+import { measureSpriteShape, outlineRects, type SpriteShape } from './sprite-shape'
 
 export interface CollisionRect {
   label: string
@@ -11,22 +12,56 @@ export interface CollisionRect {
   h: number
 }
 
+/** Resolves the measured pixel shape of a sprite, or null when unavailable. */
+export type ShapeResolver = (key: string, frame?: number) => SpriteShape | null
+
+/**
+ * One collider per outline band. The bottom band is the part resting on the
+ * ground, so it keeps the plain label; the ones above are suffixed.
+ */
+function outlineColliders(
+  shape: SpriteShape,
+  spriteX: number,
+  spriteY: number,
+  label: string,
+): CollisionRect[] {
+  const bands = outlineRects(shape, spriteX, spriteY)
+  return bands.map((band, index) => ({
+    label: index === bands.length - 1 ? label : `${label}-band-${index + 1}`,
+    ...band,
+  }))
+}
 
 /**
  * All solid obstacle collision rectangles. Coordinates in pixels at 1× scale.
  *
- * Everything is derived from the layout data, so collision can never drift out
- * of sync with what is drawn: buildings from their footprints, tree trunks from
- * the tree positions, the pond from the water tiles in the terrain mask.
+ * Everything is derived from the layout data and, for buildings and trees,
+ * from the sprite's own alpha channel, so collision can never drift out of
+ * sync with what is drawn: a house is solid along its silhouette rather than
+ * its bounding box, and a tree blocks its trunk instead of a whole tile.
+ *
+ * Without a shape resolver (pure unit tests, or a texture that could not be
+ * read) each object falls back to its tile footprint.
  */
-export function getCollisionRects(): CollisionRect[] {
+export function getCollisionRects(shapeOf?: ShapeResolver): CollisionRect[] {
   const T = TILE_SIZE
   const rects: CollisionRect[] = []
 
   // ── Buildings ────────────────────────────────────────────────────────────
   for (const structure of STRUCTURES) {
     if (!structure.solid) continue
-    // The top rows are roof overhang, so collision starts below them.
+
+    const shape = shapeOf?.(structure.key)
+    if (shape) {
+      // The sprite is centred on its footprint; carry that offset into the
+      // measured shape so transparent padding stays empty.
+      const spriteX = structure.tileX * T + (structure.wTiles * T - shape.width) / 2
+      const spriteY = structure.tileY * T + (structure.hTiles * T - shape.height) / 2
+      rects.push(...outlineColliders(shape, spriteX, spriteY, structure.label))
+      continue
+    }
+
+    // Fallback: the old footprint box, starting below the roof overhang.
     const inset = structure.solidInsetTop
     rects.push({
       label: structure.label,
@@ -37,12 +72,29 @@ export function getCollisionRects(): CollisionRect[] {
     })
   }
 
-  // ── Tree trunks ──────────────────────────────────────────────────────────
-  // Only the bottom-centre tile of a tree footprint (the trunk) blocks, so the
-  // player can walk under the canopy of every tree species.
+  // ── Trees ────────────────────────────────────────────────────────────────
+  // Trees are drawn centred on their footprint. When the sprite has been
+  // measured the colliders follow the canopy outline, so a round tree blocks
+  // a rounded area rather than its whole footprint; otherwise the box falls
+  // back to the bottom-centre tile.
   TREES.forEach((tree, index) => {
+    const shape = shapeOf?.(tree.key, tree.frame)
+    if (shape) {
+      const centreX = tree.tileX * T + (tree.wTiles * T) / 2
+      const centreY = tree.tileY * T + (tree.hTiles * T) / 2
+      rects.push(
+        ...outlineColliders(
+          shape,
+          centreX - shape.width / 2,
+          centreY - shape.height / 2,
+          `tree-${index}`,
+        ),
+      )
+      return
+    }
+
     rects.push({
-      label: `tree-trunk-${index}`,
+      label: `tree-${index}`,
       x: (tree.tileX + Math.floor(tree.wTiles / 2)) * T,
       y: (tree.tileY + tree.hTiles - 1) * T,
       w: T,
@@ -95,7 +147,17 @@ export function getCollisionRects(): CollisionRect[] {
 export function createCollisionObjects(scene: Phaser.Scene): Phaser.Physics.Arcade.StaticGroup {
   const group = scene.physics.add.staticGroup()
 
-  for (const rect of getCollisionRects()) {
+  const shapes = new Map<string, SpriteShape | null>()
+  const shapeOf: ShapeResolver = (key, frame) => {
+    const cacheKey = frame === undefined ? key : `${key}#${frame}`
+    const cached = shapes.get(cacheKey)
+    if (cached !== undefined) return cached
+    const measured = measureSpriteShape(scene, key, frame)
+    shapes.set(cacheKey, measured)
+    return measured
+  }
+
+  for (const rect of getCollisionRects(shapeOf)) {
     const zone = scene.add.zone(
       rect.x + rect.w / 2,
       rect.y + rect.h / 2,

@@ -30,8 +30,18 @@ export interface StructurePlacement {
   hTiles: number
   /** Solid buildings get collision; the bridge does not. */
   solid: boolean
-  /** Rows of the sprite that are roof overhang — walkable up to, not into. */
+  /**
+   * Rows of the sprite that are roof overhang — walkable up to, not into.
+   * Only used when the sprite cannot be measured (see sprite-shape.ts).
+   */
   solidInsetTop: number
+  /**
+   * Horizontal centre of the front door, in texture pixels from the sprite's
+   * left edge, measured from the porch/steps in the art. Not every house is
+   * symmetric — house 2's door sits 40px in, well left of its centre — so the
+   * driveway and the yard gate follow this rather than the footprint centre.
+   */
+  doorOffsetPx: number
   depth: number
 }
 
@@ -80,20 +90,20 @@ export function tileToPixel(tx: number, ty: number): { x: number; y: number } {
 // faces south and is placed directly above the street it opens onto.
 export const STRUCTURES: StructurePlacement[] = [
   // North residential street (row 14): houses face south onto it.
-  { label: 'house-a', key: AssetKeys.HOUSE_1, tileX: 14, tileY: 5, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
-  { label: 'house-b', key: AssetKeys.HOUSE_2, tileX: 22, tileY: 5, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
-  { label: 'house-c', key: AssetKeys.CUTE_HOUSE, tileX: 31, tileY: 4, wTiles: 6, hTiles: 8, solid: true, solidInsetTop: 4, depth: DEPTH_STRUCTURE },
+  { label: 'house-a', key: AssetKeys.HOUSE_1, tileX: 14, tileY: 5, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, doorOffsetPx: 40, depth: DEPTH_STRUCTURE },
+  { label: 'house-b', key: AssetKeys.HOUSE_2, tileX: 22, tileY: 5, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, doorOffsetPx: 40, depth: DEPTH_STRUCTURE },
+  { label: 'house-c', key: AssetKeys.CUTE_HOUSE, tileX: 31, tileY: 4, wTiles: 6, hTiles: 8, solid: true, solidInsetTop: 4, doorOffsetPx: 48, depth: DEPTH_STRUCTURE },
   // Church sits on its own path north of the main road.
-  { label: 'church', key: AssetKeys.CHURCH, tileX: 48, tileY: 5, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  { label: 'church', key: AssetKeys.CHURCH, tileX: 48, tileY: 5, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, doorOffsetPx: 64, depth: DEPTH_STRUCTURE },
   // South-east street (row 46).
-  { label: 'house-d', key: AssetKeys.HOUSE_2, tileX: 44, tileY: 37, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
-  { label: 'house-e', key: AssetKeys.HOUSE_1, tileX: 55, tileY: 37, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  { label: 'house-d', key: AssetKeys.HOUSE_2, tileX: 44, tileY: 37, wTiles: 8, hTiles: 7, solid: true, solidInsetTop: 2, doorOffsetPx: 40, depth: DEPTH_STRUCTURE },
+  { label: 'house-e', key: AssetKeys.HOUSE_1, tileX: 55, tileY: 37, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, doorOffsetPx: 40, depth: DEPTH_STRUCTURE },
   // South-west, above the pond street.
-  { label: 'house-f', key: AssetKeys.HOUSE_1, tileX: 8, tileY: 35, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, depth: DEPTH_STRUCTURE },
+  { label: 'house-f', key: AssetKeys.HOUSE_1, tileX: 8, tileY: 35, wTiles: 5, hTiles: 7, solid: true, solidInsetTop: 2, doorOffsetPx: 40, depth: DEPTH_STRUCTURE },
   // East park, on its own spur off the main road.
-  { label: 'house-g', key: AssetKeys.CUTE_HOUSE, tileX: 59, tileY: 17, wTiles: 6, hTiles: 8, solid: true, solidInsetTop: 4, depth: DEPTH_STRUCTURE },
+  { label: 'house-g', key: AssetKeys.CUTE_HOUSE, tileX: 59, tileY: 17, wTiles: 6, hTiles: 8, solid: true, solidInsetTop: 4, doorOffsetPx: 48, depth: DEPTH_STRUCTURE },
   // Bridge across the pond to the island (walkable, so not solid).
-  { label: 'bridge', key: AssetKeys.CUTE_BRIDGE, tileX: 11, tileY: 52, wTiles: 9, hTiles: 4, solid: false, solidInsetTop: 0, depth: DEPTH_STRUCTURE },
+  { label: 'bridge', key: AssetKeys.CUTE_BRIDGE, tileX: 11, tileY: 52, wTiles: 9, hTiles: 4, solid: false, solidInsetTop: 0, doorOffsetPx: 0, depth: DEPTH_STRUCTURE },
 ]
 
 const BRIDGE_TILES = { x: 11, y: 52, w: 9, h: 4 }
@@ -172,9 +182,19 @@ const PLAZAS: Plaza[] = [
 const POND = { x: 20, y: 53, rx: 8.5, ry: 5.2, seed: 1.4, wobble: 0.16 }
 const ISLAND = { x: 22, y: 53, rx: 3, ry: 2.6, seed: 2.9, wobble: 0.1 }
 
-/** Carve a short 2-tile path from a building's door down to the nearest street. */
+/** The tile column the front door sits on. */
+export function doorColumn(structure: StructurePlacement): number {
+  return structure.tileX + Math.floor(structure.doorOffsetPx / TILE_SIZE)
+}
+
+/**
+ * Carve a short path from a building's door down to the nearest street.
+ *
+ * Three tiles wide: the same width as the gap left in the yard fence, so the
+ * driveway lines up with the gate instead of being pinched to two tiles.
+ */
 function carveDriveway(mask: TerrainMask, structure: StructurePlacement): void {
-  const doorCol = structure.tileX + Math.floor(structure.wTiles / 2)
+  const doorCol = doorColumn(structure)
   const startRow = structure.tileY + structure.hTiles
 
   for (let i = 0; i <= 5; i++) {
@@ -183,10 +203,12 @@ function carveDriveway(mask: TerrainMask, structure: StructurePlacement): void {
 
     const alreadyConnected =
       kindAt(mask, doorCol, ty) === TILE_PATH ||
-      kindAt(mask, doorCol - 1, ty) === TILE_PATH
+      kindAt(mask, doorCol - 1, ty) === TILE_PATH ||
+      kindAt(mask, doorCol + 1, ty) === TILE_PATH
 
     setTile(mask, doorCol, ty, TILE_PATH)
     setTile(mask, doorCol - 1, ty, TILE_PATH)
+    setTile(mask, doorCol + 1, ty, TILE_PATH)
 
     if (alreadyConnected) break
   }
@@ -249,8 +271,10 @@ function buildFences(): FenceRun[] {
     const startX = first.tileX - 1
     const endX = last.tileX + last.wTiles
 
+    // The gate is three tiles wide, centred on the door, so no fence post ever
+    // stands in front of a front door.
     const gates = houses.map(house => {
-      const doorCol = house.tileX + Math.floor(house.wTiles / 2)
+      const doorCol = doorColumn(house)
       return [doorCol - 1, doorCol + 1] as const
     })
 
