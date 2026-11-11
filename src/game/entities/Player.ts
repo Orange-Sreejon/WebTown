@@ -8,7 +8,7 @@ import {
   PLAYER_BODY_OFFSET_X,
   PLAYER_BODY_OFFSET_Y,
   PLAYER_SPRITE_SCALE,
-  DEPTH_PLAYER,
+  depthForFeetY,
 } from '../config/GameConfig'
 import { computeVelocity, inputToDirection, type Direction, type InputState } from '../systems/movement'
 
@@ -50,7 +50,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setOffset(PLAYER_BODY_OFFSET_X, PLAYER_BODY_OFFSET_Y)
     body.setCollideWorldBounds(true)
 
-    this.setDepth(DEPTH_PLAYER)
+    this.setDepth(depthForFeetY(this.y + this.displayHeight / 2))
     this.play('idle-down')
   }
 
@@ -72,6 +72,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const { vx, vy } = computeVelocity(input, PLAYER_SPEED)
     const body = this.body as Phaser.Physics.Arcade.Body
     body.setVelocity(vx, vy)
+
+    // Y-sorting: the feet decide who is in front, so a lamp post the player
+    // walks behind covers them, and one they walk in front of does not.
+    this.setDepth(depthForFeetY(body.bottom))
 
     const isMoving = vx !== 0 || vy !== 0
 

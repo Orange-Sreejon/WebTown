@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { AssetKeys } from '../config/AssetKeys'
 import {
   DEPTH_GROUND,
+  depthForFeetY,
   MAP_HEIGHT_PX,
   MAP_TILES_H,
   MAP_TILES_W,
@@ -256,10 +257,16 @@ export class TownMap {
 
       // A lamp is a light source, so it keeps its full brightness and carries a
       // wide soft light instead of a tint. That light starts dark and is raised
-      // by the day-night cycle — see setNightFactor.
+      // by the day-night cycle — see setLampLight.
       if (prop.key === AssetKeys.MARKET_LAMP) {
+        // The post is tall enough to overlap the player, so it is sorted by the
+        // point where it meets the ground: walk behind it and it covers you.
+
+        const lampDepth = depthForFeetY(baseY)
+        image.setDepth(lampDepth)
+
         this.lampLights.push(
-          createLampGlow(this.scene, centreX, baseY - size * 0.45, size, prop.depth + 0.2),
+          createLampGlow(this.scene, centreX, baseY - size * 0.45, size, lampDepth - 0.01),
         )
         continue
       }

@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { MAP_HEIGHT_PX, MAP_WIDTH_PX, TILE_SIZE } from '../config/GameConfig'
 import { mergeRects, TILE_WATER } from './terrain'
+import { AssetKeys } from '../config/AssetKeys'
 import { FENCES, STRUCTURES, TERRAIN, TREES, VILLAGE_PROPS } from './town-layout'
 import { measureSpriteShape, outlineRects, type SpriteShape } from './sprite-shape'
 
@@ -107,6 +108,19 @@ export function getCollisionRects(shapeOf?: ShapeResolver): CollisionRect[] {
   // ground are decorative and can be walked over.
   VILLAGE_PROPS.forEach((prop, index) => {
     if (!prop.solid) return
+
+    // A lamp is a thin pole on a small base, so it blocks just the post rather
+    // than the two tiles of air its light reaches across.
+    if (prop.key === AssetKeys.MARKET_LAMP) {
+      rects.push({
+        label: `prop-${prop.key}-${index}`,
+        x: prop.tileX * T + T / 2 - 5,
+        y: (prop.tileY + 1) * T - 10,
+        w: 10,
+        h: 10,
+      })
+      return
+    }
 
     // Solid props block their own footprint: the bottom half of the scaled
     // sprite, which is the counter/basin that actually stands on the ground.

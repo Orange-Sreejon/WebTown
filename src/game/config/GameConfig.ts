@@ -63,3 +63,17 @@ export const DEPTH_DECORATION = 2
 export const DEPTH_STRUCTURE  = 3
 export const DEPTH_PLAYER     = 4
 export const DEPTH_TREETOP    = 5
+
+/**
+ * Depth for anything tall enough to overlap the player — lamp posts, and the
+ * player itself.
+ *
+ * Both are sorted by the ground point at their feet, inside a band just above
+ * the structures and just below the tree tops. Sorting by `feetY` means whoever
+ * is lower on screen draws in front, so walking behind a lamp puts you behind
+ * its post and walking in front of it puts the post behind you.
+ */
+export function depthForFeetY(feetY: number): number {
+  const clamped = Math.min(Math.max(feetY, 0), MAP_HEIGHT_PX)
+  return DEPTH_PLAYER + (clamped / MAP_HEIGHT_PX) * 0.9
+}

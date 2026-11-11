@@ -168,6 +168,8 @@ describe('village props', () => {
     expect(walkable.length).toBeGreaterThan(3)
 
     for (const prop of solid) {
+      if (prop.key === AssetKeys.MARKET_LAMP) continue // lamp posts are thin
+
       const label = `prop-${prop.key}-${VILLAGE_PROPS.indexOf(prop)}`
       const rect = rects.find(r => r.label === label)
       expect(rect, `missing collider for ${label}`).toBeDefined()
@@ -184,6 +186,25 @@ describe('village props', () => {
     for (const prop of walkable) {
       const label = `prop-${prop.key}-${VILLAGE_PROPS.indexOf(prop)}`
       expect(rects.some(r => r.label === label), `${label} should not collide`).toBe(false)
+    }
+  })
+
+  it('makes the lamp posts solid, but only by the post itself', () => {
+    const rects = getCollisionRects()
+    const lamps = VILLAGE_PROPS.filter(p => p.key === AssetKeys.MARKET_LAMP)
+
+    expect(lamps.length).toBeGreaterThan(3)
+
+    for (const lamp of lamps) {
+      const label = `prop-${lamp.key}-${VILLAGE_PROPS.indexOf(lamp)}`
+      const rect = rects.find(r => r.label === label)
+      expect(rect, `missing collider for ${label}`).toBeDefined()
+
+      // Thin post on the ground: walkable within the tile, blocked at the pole.
+      expect(rect!.w).toBeLessThanOrEqual(12)
+      expect(rect!.h).toBeLessThanOrEqual(12)
+      expect(rect!.x + rect!.w / 2).toBe(lamp.tileX * TILE_SIZE + TILE_SIZE / 2)
+      expect(rect!.y + rect!.h).toBe((lamp.tileY + 1) * TILE_SIZE)
     }
   })
 

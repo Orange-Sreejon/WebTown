@@ -562,12 +562,12 @@ function buildVillageProps(): VillagePropPlacement[] {
   // than studded with posts.
   for (let x = 6; x < MAP_TILES_W - 6; x += 14) {
     const row = LAMP_ROWS.find(y => canPlace(AssetKeys.MARKET_LAMP, x, y))
-    if (row !== undefined) add(AssetKeys.MARKET_LAMP, x, row)
+    if (row !== undefined) add(AssetKeys.MARKET_LAMP, x, row, true)
   }
 
   for (let y = 8; y < MAP_TILES_H - 8; y += 14) {
     const col = LAMP_COLS.find(x => canPlace(AssetKeys.MARKET_LAMP, x, y))
-    if (col !== undefined) add(AssetKeys.MARKET_LAMP, col, y)
+    if (col !== undefined) add(AssetKeys.MARKET_LAMP, col, y, true)
   }
 
   return props

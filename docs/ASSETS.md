@@ -314,7 +314,12 @@ tint) and carries a light instead: a very wide, very soft additive falloff
 (`createLampGlow` in `src/game/maps/ambient.ts`) that fades to nothing across
 four tiles, so the grass around the post simply brightens with no disc or ring
 visible. It starts at zero alpha — the lamps only come up as the day-night
-cycle darkens (see `src/game/systems/day-night.ts`, a 15-minute day).
+cycle darkens (see `src/game/systems/day-night.ts`, a 15-minute day). Each lamp
+is also solid, but only by a thin 10 px box at the base of the post
+(`collision-objects.ts`), so you bump into the pole and still walk around it
+inside its tile. Lamp posts and the player are **y-sorted** by the point where
+they meet the ground (`depthForFeetY` in `GameConfig.ts`): walk behind a post
+and it draws over you, walk in front and it passes behind you.
 
 The rest of the set gets a light warm wash so it sits with the Pixeljad tileset
 rather than reading as a separate pack. Each prop is tinted with `0xe8e1d4` in
