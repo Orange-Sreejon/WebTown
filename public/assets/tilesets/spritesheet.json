@@ -1,0 +1,508 @@
+{
+ "meta": {
+  "name": "Pixel Medieval Market Props",
+  "tile_size": 16,
+  "columns": 10,
+  "rows": 7,
+  "image": "spritesheet.png",
+  "count": 62
+ },
+ "frames": {
+  "stall_red": {
+   "x": 0,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "stalls",
+   "index": 0
+  },
+  "stall_blue": {
+   "x": 16,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "stalls",
+   "index": 1
+  },
+  "stall_green": {
+   "x": 32,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "stalls",
+   "index": 2
+  },
+  "stall_yellow": {
+   "x": 48,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "stalls",
+   "index": 3
+  },
+  "barrel": {
+   "x": 64,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 4
+  },
+  "crate": {
+   "x": 80,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 5
+  },
+  "sack_grain": {
+   "x": 96,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 6
+  },
+  "basket": {
+   "x": 112,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 7
+  },
+  "basket_apples": {
+   "x": 128,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 8
+  },
+  "basket_bread": {
+   "x": 144,
+   "y": 0,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 9
+  },
+  "chest_small": {
+   "x": 0,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 10
+  },
+  "cart": {
+   "x": 16,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 11
+  },
+  "wheelbarrow": {
+   "x": 32,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 12
+  },
+  "bucket": {
+   "x": 48,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 13
+  },
+  "jug": {
+   "x": 64,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "containers",
+   "index": 14
+  },
+  "apple": {
+   "x": 80,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 15
+  },
+  "pear": {
+   "x": 96,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 16
+  },
+  "orange": {
+   "x": 112,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 17
+  },
+  "cheese": {
+   "x": 128,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 18
+  },
+  "bread_loaf": {
+   "x": 144,
+   "y": 16,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 19
+  },
+  "baguette": {
+   "x": 0,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 20
+  },
+  "fish": {
+   "x": 16,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 21
+  },
+  "meat_ham": {
+   "x": 32,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 22
+  },
+  "sausage": {
+   "x": 48,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 23
+  },
+  "egg_basket": {
+   "x": 64,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 24
+  },
+  "carrot_bunch": {
+   "x": 80,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 25
+  },
+  "cabbage": {
+   "x": 96,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 26
+  },
+  "pumpkin": {
+   "x": 112,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 27
+  },
+  "grapes": {
+   "x": 128,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 28
+  },
+  "wheat_bundle": {
+   "x": 144,
+   "y": 32,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 29
+  },
+  "wine_bottle": {
+   "x": 0,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 30
+  },
+  "ale_mug": {
+   "x": 16,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 31
+  },
+  "honey_pot": {
+   "x": 32,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 32
+  },
+  "flour_sack": {
+   "x": 48,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "goods",
+   "index": 33
+  },
+  "cloth_roll_red": {
+   "x": 64,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 34
+  },
+  "cloth_roll_blue": {
+   "x": 80,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 35
+  },
+  "candle": {
+   "x": 96,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 36
+  },
+  "lantern": {
+   "x": 112,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 37
+  },
+  "coin_purse": {
+   "x": 128,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 38
+  },
+  "coins_pile": {
+   "x": 144,
+   "y": 48,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 39
+  },
+  "scales": {
+   "x": 0,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 40
+  },
+  "pot_clay": {
+   "x": 16,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 41
+  },
+  "pot_flowers": {
+   "x": 32,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 42
+  },
+  "tools_hammer": {
+   "x": 48,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 43
+  },
+  "tools_anvil": {
+   "x": 64,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 44
+  },
+  "horseshoe": {
+   "x": 80,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 45
+  },
+  "keys_ring": {
+   "x": 96,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 46
+  },
+  "book": {
+   "x": 112,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 47
+  },
+  "scroll": {
+   "x": 128,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "trade",
+   "index": 48
+  },
+  "sign_hanging_inn": {
+   "x": 144,
+   "y": 64,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 49
+  },
+  "sign_post": {
+   "x": 0,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 50
+  },
+  "sign_potion": {
+   "x": 16,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 51
+  },
+  "sign_bread": {
+   "x": 32,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 52
+  },
+  "sign_sword": {
+   "x": 48,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 53
+  },
+  "well": {
+   "x": 64,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 54
+  },
+  "lamp_post": {
+   "x": 80,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 55
+  },
+  "bench": {
+   "x": 96,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 56
+  },
+  "banner_red": {
+   "x": 112,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 57
+  },
+  "banner_blue": {
+   "x": 128,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 58
+  },
+  "hay_bale": {
+   "x": 144,
+   "y": 80,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 59
+  },
+  "tent_merchant": {
+   "x": 0,
+   "y": 96,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 60
+  },
+  "table_market": {
+   "x": 16,
+   "y": 96,
+   "w": 16,
+   "h": 16,
+   "category": "street",
+   "index": 61
+  }
+ }
+}

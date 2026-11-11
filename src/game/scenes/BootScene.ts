@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { AssetKeys, AssetPaths } from '../config/AssetKeys'
+import { AssetKeys, AssetPaths, MARKET_IMAGE_KEYS } from '../config/AssetKeys'
 import { WALK_FRAME_RATE } from '../config/GameConfig'
 import { emit } from '../../lib/event-bus'
 
@@ -76,6 +76,12 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 32,
       frameHeight: 48,
     })
+
+    // ── Pixel Medieval Market Props ───────────────────────────────────
+    // 28 single-tile 16×16 props (stalls, containers, street furniture).
+    for (const key of MARKET_IMAGE_KEYS) {
+      this.load.image(key, AssetPaths[key])
+    }
   }
 
   create(): void {

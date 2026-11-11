@@ -319,6 +319,267 @@ function buildFences(): FenceRun[] {
 
 export const FENCES: FenceRun[] = buildFences()
 
+// ─── VILLAGE PROPS ────────────────────────────────────────────────────────
+// Street furniture and a market row from the 16×16 Pixel Medieval Market Props
+// pack. Purely additive: a prop is only ever placed on bare grass that no
+// building, fence, path, animal or crop already uses, so the existing layout
+// does not move. `solid` props get a collision box (stalls, the well, barrels);
+// the small goods lying on the ground are decorative only.
+export interface VillagePropPlacement {
+  key: string
+  tileX: number
+  tileY: number
+  scale: number
+  solid: boolean
+  depth: number
+}
+
+interface PropSpec {
+  key: string
+  x: number
+  y: number
+  solid?: boolean
+}
+
+/**
+ * World scale per prop.
+ *
+ * The market pack draws a whole stall, well or barrel inside one 16×16 cell —
+ * the same box as a single grass tile — so at 1× they read as toys beside the
+ * 5–8 tile houses and a player who is two tiles tall. These scales put them at
+ * the size the town implies: market furniture is 2× (32 px, the height of a
+ * person), hand props like benches and barrels 1.5×, and produce lying on the
+ * ground stays at 1×.
+ *
+ * Only 1, 1.5 and 2 are used, so the pixel grid never lands on a third of a
+ * pixel.
+ */
+const PROP_SCALE: Record<string, number> = {
+  // Only the shop stalls keep the statement size — they are the thing that
+  // should read as a shop from across the street.
+  [AssetKeys.MARKET_STALL_RED]: 2.5,
+  [AssetKeys.MARKET_STALL_GREEN]: 2.5,
+  [AssetKeys.MARKET_STALL_BLUE]: 2.5,
+
+  // Everything else from the pack is a size down, so the furniture supports
+  // the stalls instead of competing with them.
+  [AssetKeys.MARKET_TENT]: 2,
+  [AssetKeys.MARKET_WELL]: 2,
+  [AssetKeys.MARKET_HAY_BALE]: 2,
+  [AssetKeys.MARKET_LAMP]: 2,
+  [AssetKeys.MARKET_TABLE]: 2,
+
+  [AssetKeys.MARKET_CART]: 1.5,
+  [AssetKeys.MARKET_WHEELBARROW]: 1.5,
+  [AssetKeys.MARKET_BENCH]: 1.5,
+  [AssetKeys.MARKET_SIGN_POST]: 1.5,
+  [AssetKeys.MARKET_SIGN_BREAD]: 1.5,
+  [AssetKeys.MARKET_SIGN_INN]: 1.5,
+  [AssetKeys.MARKET_SIGN_POTION]: 1.5,
+  [AssetKeys.MARKET_BANNER_RED]: 1.5,
+  [AssetKeys.MARKET_BANNER_BLUE]: 1.5,
+  [AssetKeys.MARKET_BARREL]: 1.5,
+  [AssetKeys.MARKET_CRATE]: 1.5,
+  [AssetKeys.MARKET_CHEST]: 1.5,
+  [AssetKeys.MARKET_SACK_GRAIN]: 1.5,
+  [AssetKeys.MARKET_BUCKET]: 1.5,
+}
+
+const DEFAULT_PROP_SCALE = 1
+
+/** Tiles a prop occupies in each direction, counted from its anchor tile. */
+export function propTileSpan(scale: number): number {
+  return Math.max(1, Math.ceil(scale))
+}
+
+/** The world scale a prop key is drawn at. */
+export function propScale(key: string): number {
+  return PROP_SCALE[key] ?? DEFAULT_PROP_SCALE
+}
+
+/**
+ * Every tile a prop's sprite covers. Sprites are anchored on the bottom of
+ * their tile and grow up and to the right, so a 2× stall covers two columns
+ * and its own row plus the one above.
+ */
+export function propCoversTile(
+  prop: { tileX: number; tileY: number; scale: number },
+  tx: number,
+  ty: number,
+): boolean {
+  const span = propTileSpan(prop.scale)
+  return (
+    tx >= prop.tileX &&
+    tx < prop.tileX + span &&
+    ty > prop.tileY - span &&
+    ty <= prop.tileY
+  )
+}
+
+/**
+ * Hand-placed props, in placement order (first come, first served). The market
+ * sits on the grass south of the main road just east of the crossroads — close
+ * enough to read as a square, far enough not to crowd the junction.
+ */
+const PLACED_PROPS: readonly PropSpec[] = [
+  // ── Market row, facing the main road ──────────────────────────────────
+  // Shops are spread across the village instead of crowded into one square:
+  // a stall on the main road east of the crossroads, one on the north street,
+  // one on the pond approach, and the merchant's tent out in the east park.
+  // Nothing is laid out on the grass — the goods a stall sells are drawn on
+  // the stall itself, the way the reference towns do it.
+  { key: AssetKeys.MARKET_STALL_RED, x: 46, y: 33, solid: true },
+  { key: AssetKeys.MARKET_TABLE, x: 49, y: 34, solid: true },
+  { key: AssetKeys.MARKET_CART, x: 43, y: 34, solid: true },
+
+  { key: AssetKeys.MARKET_STALL_GREEN, x: 50, y: 17, solid: true },
+  { key: AssetKeys.MARKET_CRATE, x: 54, y: 18 },
+
+  { key: AssetKeys.MARKET_STALL_BLUE, x: 27, y: 45, solid: true },
+  { key: AssetKeys.MARKET_BARREL, x: 31, y: 45 },
+
+  { key: AssetKeys.MARKET_TENT, x: 63, y: 26, solid: true },
+  { key: AssetKeys.MARKET_BENCH, x: 60, y: 27 },
+
+  // ── Street furniture ─────────────────────────────────────────────────
+  // These are searched into place (see `NEAR_OFFSETS`) so they still land if
+  // the road's uneven edge happens to cover the preferred tile.
+  // Village well by the north junction, in sight of the crossroads.
+  // A signpost at the crossroads, the village well by the north junction, and
+  // a bench and bucket at the pond.
+  { key: AssetKeys.MARKET_SIGN_POST, x: 37, y: 34 },
+  { key: AssetKeys.MARKET_SIGN_BREAD, x: 42, y: 35 },
+  { key: AssetKeys.MARKET_WELL, x: 20, y: 18, solid: true },
+  { key: AssetKeys.MARKET_BENCH, x: 14, y: 46 },
+  { key: AssetKeys.MARKET_BUCKET, x: 16, y: 47 },
+
+  // ── Farm yard beside the pasture and the vegetable patch ─────────────
+  { key: AssetKeys.MARKET_HAY_BALE, x: 44, y: 49, solid: true },
+  { key: AssetKeys.MARKET_WHEELBARROW, x: 41, y: 48 },
+]
+
+// Lamp posts follow the main roads. Each one tries a few rows/columns in turn
+// so it settles on the grass edge no matter how the road's outline drifted.
+const LAMP_ROWS: readonly number[] = [28, 27, 32, 33]
+const LAMP_COLS: readonly number[] = [38, 37, 42, 43]
+
+/** Nearest-first search order for street furniture, out to two tiles. */
+const NEAR_OFFSETS: ReadonlyArray<readonly [number, number]> = [
+  [0, 0],
+  [1, 0], [-1, 0], [0, 1], [0, -1],
+  [1, 1], [-1, -1], [1, -1], [-1, 1],
+  [2, 0], [-2, 0], [0, 2], [0, -2],
+  [3, 0], [-3, 0], [0, 3], [0, -3],
+]
+
+function isOnStructure(tx: number, ty: number): boolean {
+  return STRUCTURES.some(
+    structure =>
+      tx >= structure.tileX &&
+      ty >= structure.tileY &&
+      tx < structure.tileX + structure.wTiles &&
+      ty < structure.tileY + structure.hTiles,
+  )
+}
+
+function buildVillageProps(): VillagePropPlacement[] {
+  const props: VillagePropPlacement[] = []
+  const occupied = new Set<string>()
+
+  // A prop now covers up to 2×2 tiles, so every tile under its sprite has to
+  // be free — otherwise a stall's awning would hang over the road, a fence or
+  // a neighbour's counter.
+  const canPlace = (key: string, tx: number, ty: number): boolean => {
+    const span = propTileSpan(propScale(key))
+
+    for (let dx = 0; dx < span; dx++) {
+      for (let dy = 0; dy < span; dy++) {
+        const px = tx + dx
+        const py = ty - dy
+
+        if (px < 1 || py < 1 || px > MAP_TILES_W - 2 || py > MAP_TILES_H - 2) return false
+        if (occupied.has(`${px},${py}`)) return false
+        if (kindAt(TERRAIN, px, py) !== TILE_GRASS) return false
+        if (isFenceTile(px, py)) return false
+        if (isInPasture(px, py) || isInGarden(px, py)) return false
+        if (isOnStructure(px, py)) return false
+      }
+    }
+
+    return true
+  }
+
+  const add = (key: string, tx: number, ty: number, solid = false): boolean => {
+    if (!canPlace(key, tx, ty)) return false
+
+    const scale = propScale(key)
+    const span = propTileSpan(scale)
+    props.push({ key, tileX: tx, tileY: ty, scale, solid, depth: DEPTH_STRUCTURE })
+
+    for (let dx = 0; dx < span; dx++) {
+      for (let dy = 0; dy < span; dy++) {
+        occupied.add(`${tx + dx},${ty - dy}`)
+      }
+    }
+
+    return true
+  }
+
+  // Street furniture may nudge up to two tiles to find clear grass; the market
+  // row and farm yard must sit exactly where they were laid out, or the
+  // composition falls apart.
+  const NEARBY_KEYS: readonly string[] = [
+    AssetKeys.MARKET_WELL,
+    AssetKeys.MARKET_BENCH,
+    AssetKeys.MARKET_BUCKET,
+    AssetKeys.MARKET_SIGN_INN,
+    AssetKeys.MARKET_SIGN_POST,
+    AssetKeys.MARKET_SIGN_POTION,
+    AssetKeys.MARKET_SIGN_BREAD,
+    AssetKeys.MARKET_CART,
+    AssetKeys.MARKET_STALL_RED,
+    AssetKeys.MARKET_STALL_GREEN,
+    AssetKeys.MARKET_STALL_BLUE,
+    AssetKeys.MARKET_TENT,
+    AssetKeys.MARKET_TABLE,
+    AssetKeys.MARKET_HAY_BALE,
+    AssetKeys.MARKET_WHEELBARROW,
+    AssetKeys.MARKET_CRATE,
+    AssetKeys.MARKET_BARREL,
+  ]
+
+  for (const spec of PLACED_PROPS) {
+    if (!NEARBY_KEYS.includes(spec.key)) {
+      add(spec.key, spec.x, spec.y, spec.solid)
+      continue
+    }
+
+    const spot = NEAR_OFFSETS.find(([dx, dy]) => canPlace(spec.key, spec.x + dx, spec.y + dy))
+    if (spot) add(spec.key, spec.x + spot[0], spec.y + spot[1], spec.solid)
+  }
+
+  // Lamps line the main road, widely spaced, so the street reads as lit rather
+  // than studded with posts.
+  for (let x = 6; x < MAP_TILES_W - 6; x += 14) {
+    const row = LAMP_ROWS.find(y => canPlace(AssetKeys.MARKET_LAMP, x, y))
+    if (row !== undefined) add(AssetKeys.MARKET_LAMP, x, row)
+  }
+
+  for (let y = 8; y < MAP_TILES_H - 8; y += 14) {
+    const col = LAMP_COLS.find(x => canPlace(AssetKeys.MARKET_LAMP, x, y))
+    if (col !== undefined) add(AssetKeys.MARKET_LAMP, col, y)
+  }
+
+  return props
+}
+
+export const VILLAGE_PROPS: VillagePropPlacement[] = buildVillageProps()
+
+/** True when a tree would grow through a market prop's sprite. */
+function isVillagePropTile(tx: number, ty: number): boolean {
+  return VILLAGE_PROPS.some(prop => propCoversTile(prop, tx, ty))
+}
+
 // ─── TREES ────────────────────────────────────────────────────────────────
 // Mostly green canopies with the occasional autumn/blossom tree — an even mix
 // of all three reads as confetti rather than a forest.
@@ -404,6 +665,7 @@ function buildTrees(): TreePlacement[] {
         const py = ty + dy
         if (kindAt(TERRAIN, px, py) !== TILE_GRASS) return false
         if (isFenceTile(px, py)) return false
+        if (isVillagePropTile(px, py)) return false
         if (isInPasture(px, py) || isInGarden(px, py)) return false
       }
     }

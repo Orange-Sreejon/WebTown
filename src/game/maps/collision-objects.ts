@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { MAP_HEIGHT_PX, MAP_WIDTH_PX, TILE_SIZE } from '../config/GameConfig'
 import { mergeRects, TILE_WATER } from './terrain'
-import { FENCES, STRUCTURES, TERRAIN, TREES } from './town-layout'
+import { FENCES, STRUCTURES, TERRAIN, TREES, VILLAGE_PROPS } from './town-layout'
 import { measureSpriteShape, outlineRects, type SpriteShape } from './sprite-shape'
 
 export interface CollisionRect {
@@ -99,6 +99,24 @@ export function getCollisionRects(shapeOf?: ShapeResolver): CollisionRect[] {
       y: (tree.tileY + tree.hTiles - 1) * T,
       w: T,
       h: T,
+    })
+  })
+
+  // ── Village props ────────────────────────────────────────────────────────
+  // Stalls, the well, tents and barrels are solid; baskets and produce on the
+  // ground are decorative and can be walked over.
+  VILLAGE_PROPS.forEach((prop, index) => {
+    if (!prop.solid) return
+
+    // Solid props block their own footprint: the bottom half of the scaled
+    // sprite, which is the counter/basin that actually stands on the ground.
+    const size = T * prop.scale
+    rects.push({
+      label: `prop-${prop.key}-${index}`,
+      x: prop.tileX * T + 1,
+      y: prop.tileY * T + T - size * 0.5,
+      w: Math.round(size) - 2,
+      h: Math.round(size * 0.5),
     })
   })
 

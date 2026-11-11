@@ -15,10 +15,10 @@ import {
   buildYardPots,
   type FrameProp,
 } from './cute-props'
-import { addAnimalMotion, addWaterMotion } from './ambient'
+import { addAnimalMotion, addChimneySmoke, createLampGlow, addWaterMotion } from './ambient'
 import { buildGrassDecor, buildPathEdges, buildWaterProps, type DecorTile } from './decor'
 import { kindAt, TILE_BANK, TILE_PATH, TILE_WATER } from './terrain'
-import { FENCES, STRUCTURES, TERRAIN, TREES } from './town-layout'
+import { FENCES, STRUCTURES, TERRAIN, TREES, VILLAGE_PROPS } from './town-layout'
 
 /** Minimal shape of the FX controller we use, kept structural on purpose. */
 interface ColorMatrixLike {
@@ -45,6 +45,8 @@ interface ColorMatrixLike {
  */
 export class TownMap {
   private scene: Phaser.Scene
+  /** Street-lamp lights, dimmed or lit by the day-night cycle. */
+  private lampLights: Phaser.GameObjects.Image[] = []
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -65,6 +67,7 @@ export class TownMap {
     this.placeTrees()
     this.placeProps(buildYardPots(TERRAIN))
     this.placeProps(buildCuteDecor(TERRAIN))
+    this.placeVillageProps()
     this.placeWaterProps()
     this.placeAnimals()
   }
@@ -124,8 +127,19 @@ export class TownMap {
   }
 
   // ── Structures (houses, church, bridge) ─────────────────────────────────
+  /**
+   * How lit the street lamps are: 0 leaves them dark (daylight), 1 is the full
+   * pool of light they throw at night. Driven by the evening/night part of the
+   * day-night cycle, so they are still off in the morning and afternoon.
+   */
+  setLampLight(level: number): void {
+    const alpha = 0.55 * level
+    for (const light of this.lampLights) light.setAlpha(alpha)
+  }
+
   private placeStructures(): void {
     const T = TILE_SIZE
+    let smokeIndex = 0
 
     for (const structure of STRUCTURES) {
       const width = structure.wTiles * T
@@ -138,6 +152,11 @@ export class TownMap {
         .setDepth(structure.depth)
 
       if (structure.key === AssetKeys.CUTE_HOUSE) this.harmonisePalette(image)
+
+      // A faint wisp above every inhabited roof. The church has no chimney.
+      if (structure.solid && structure.key !== AssetKeys.CHURCH) {
+        addChimneySmoke(this.scene, x + width * 0.45, y + 18, smokeIndex++)
+      }
     }
   }
 
@@ -154,12 +173,17 @@ export class TownMap {
    * This is a WebGL effect, so on a Canvas fallback it is skipped and the
    * sprite simply renders untouched.
    */
-  private harmonisePalette(image: Phaser.GameObjects.Image): void {
+  private harmonisePalette(
+    image: Phaser.GameObjects.Image,
+    saturate = -0.25,
+    contrast = 0.82,
+    brightness = 1.12,
+  ): void {
     const fx = (
       image as unknown as { preFX?: { addColorMatrix(): ColorMatrixLike } | null }
     ).preFX
 
-    fx?.addColorMatrix().saturate(-0.25).contrast(0.82, true).brightness(1.12, true)
+    fx?.addColorMatrix().saturate(saturate).contrast(contrast, true).brightness(brightness, true)
   }
 
   // ── Trees (three different species) ─────────────────────────────────────
@@ -188,6 +212,59 @@ export class TownMap {
       const y = item.tileY * T + (item.sizeTiles * T) / 2
 
       this.scene.add.image(x, y, item.key, item.frame).setDepth(item.depth)
+    }
+  }
+
+  /**
+   * Street furniture and the market square: lamp posts along the main roads,
+   * benches, signposts, the well, hay bales and a row of market stalls.
+   */
+  private placeVillageProps(): void {
+    const T = TILE_SIZE
+
+    for (const prop of VILLAGE_PROPS) {
+      // Anchored on the bottom edge of its tile and scaled to world size, so a
+      // stall stands on the ground and grows upward like the houses do.
+      const size = T * prop.scale
+
+      // A soft shadow pools under every prop so it sits on the ground instead
+      // of floating on it. Drawn just beneath the sprite, above the decor.
+      this.scene.add
+        .ellipse(
+          prop.tileX * T + size / 2,
+          prop.tileY * T + T - size * 0.06,
+          size * 0.86,
+          size * 0.26,
+          0x000000,
+          0.17,
+        )
+        .setDepth(prop.depth - 0.5)
+
+      const centreX = prop.tileX * T + size / 2
+      const baseY = prop.tileY * T + T
+
+      // A warm, dark multiply: the pack ships much brighter than the Pixeljad
+      // tileset it stands on, and tinting it down pulls it into the town's
+      // light. A colour-matrix effect (as the Cute Fantasy houses use) is
+      // deliberately not applied here — with a preFX pipeline active Phaser
+      // bypasses the tint entirely, which is why the props stayed bright.
+      const image = this.scene.add
+        .image(centreX, baseY, prop.key)
+        .setOrigin(0.5, 1)
+        .setScale(prop.scale)
+        .setDepth(prop.depth)
+
+      // A lamp is a light source, so it keeps its full brightness and carries a
+      // wide soft light instead of a tint. That light starts dark and is raised
+      // by the day-night cycle — see setNightFactor.
+      if (prop.key === AssetKeys.MARKET_LAMP) {
+        this.lampLights.push(
+          createLampGlow(this.scene, centreX, baseY - size * 0.45, size, prop.depth + 0.2),
+        )
+        continue
+      }
+
+      image.setTint(0xe8e1d4)
     }
   }
 

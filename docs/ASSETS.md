@@ -267,6 +267,77 @@ must be included:
 
 ---
 
+## Asset Pack 5 — PIXEL MEDIEVAL MARKET PROPS (16×16)
+
+| Field       | Value |
+|-------------|-------|
+| Location    | `public/assets/tilesets/PNG/16x16/` (plus `spritesheet.png` at the pack root) |
+| Licence file| `public/assets/tilesets/LICENSE.txt` (bundled) |
+| Licence     | Free for use in projects, **no resale or redistribution of the pack itself**. |
+
+62 single-tile 16×16 props grouped into `street/`, `stalls/`, `containers/`,
+`goods/` and `trade/`. Every file is exactly 16×16 px, so each prop occupies
+one map tile — no frame maths needed (unlike the Cute Fantasy decor sheet).
+
+### Files used in game
+
+28 of the 62, loaded as plain images in `BootScene` (see
+`MARKET_IMAGE_KEYS` in `src/game/config/AssetKeys.ts`). Only the shops and
+street furniture are placed — **no produce is scattered on the grass**, because
+each stall sprite already has its goods drawn on it:
+
+| Category | Props | Where they go |
+|----------|-------|---------------|
+| Stalls | `stall_red`, `stall_green`, `stall_blue` | Three separate shops, spread across the village: main road east of the crossroads, the north street, the pond approach |
+| Street | `tent_merchant`, `table_market`, `cart`, `well`, `bench`, `bucket`, `lamp_post`, `sign_post`, `sign_bread`, `hay_bale` | Merchant's tent out in the east park, the well by the north junction, benches at the pond, lamps spaced along the main roads, signposts at the crossroads |
+| Containers | `barrel`, `crate`, `wheelbarrow` | One or two beside each stall, wheelbarrow and hay by the pasture |
+| Goods | `basket_apples`, `basket_bread`, `sack_grain`, `pumpkin`, `cheese`, `egg_basket`, `wheat_bundle` | Loaded but **not placed** — kept available if a sold-goods prop is ever wanted |
+
+### World scale
+
+The pack draws a whole stall inside one 16×16 cell, so at 1× its props read as
+toys next to the 5–8 tile houses. `PROP_SCALE` in
+`src/game/maps/town-layout.ts` scales them up, but only the stalls take the
+statement size — they are what should read as a shop from across the street:
+
+| Group | Scale | Size |
+|-------|-------|------|
+| Market stalls (red, green, blue) | 2.5× | 40 px (2½ tiles) |
+| Well, tent, hay bale, lamp post, market table | 2× | 32 px (2 tiles) |
+| Cart, bench, barrel, crate, wheelbarrow, signposts, bucket | 1.5× | 24 px (1½ tiles) |
+
+Sprites are bottom-anchored so they stand on the ground, and placement checks
+every tile their scaled sprite covers.
+
+**Street lamps are the exception.** A lamp keeps its full brightness (no dark
+tint) and carries a light instead: a very wide, very soft additive falloff
+(`createLampGlow` in `src/game/maps/ambient.ts`) that fades to nothing across
+four tiles, so the grass around the post simply brightens with no disc or ring
+visible. It starts at zero alpha — the lamps only come up as the day-night
+cycle darkens (see `src/game/systems/day-night.ts`, a 15-minute day).
+
+The rest of the set gets a light warm wash so it sits with the Pixeljad tileset
+rather than reading as a separate pack. Each prop is tinted with `0xe8e1d4` in
+`TownMap` — a near-white multiply, only about a 10% drop in luma, so the
+stalls stay bright and readable — and a soft elliptical shadow is drawn under it
+so it pools on the grass instead of floating on it.
+
+> Note: a colour-matrix effect (the way the Cute Fantasy houses are
+t> harmonised) is deliberately **not** used for these props. With a `preFX`
+> pipeline active Phaser bypasses `setTint`, so the two cannot be combined —
+> the tint alone is what darkens them.
+
+The rest of the pack (trade items, cloth rolls, fish, wine, extra signs) is
+unused for now — it is all the same 16×16 grid, so adding one is a single
+entry in `AssetKeys` and one line in `PLACED_PROPS` in
+`src/game/maps/town-layout.ts`.
+
+> ⚠️ The licence prohibits redistributing the pack *as an asset pack*. Serving
+the files to the game from `public/` is normal use; the same public-repository
+caution as the packs above applies.
+
+---
+
 ## Path encoding note
 
 The two packs above contain folder and file names with spaces. They are
