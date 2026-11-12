@@ -77,6 +77,13 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 48,
     })
 
+    // ── Halloween pumpkins ────────────────────────────────────────────
+    // 15×14 sheet of 16×16 cells; only the small-pumpkin block is used.
+    this.load.spritesheet(AssetKeys.HALLOWEEN_PUMPKINS, AssetPaths[AssetKeys.HALLOWEEN_PUMPKINS], {
+      frameWidth: 16,
+      frameHeight: 16,
+    })
+
     // ── Pixel Medieval Market Props ───────────────────────────────────
     // 28 single-tile 16×16 props (stalls, containers, street furniture).
     for (const key of MARKET_IMAGE_KEYS) {

@@ -6,9 +6,16 @@ import {
   PLAYER_START_TILE_X,
   PLAYER_START_TILE_Y,
 } from '../config/GameConfig'
+import { DEFAULT_START_HOUR } from '../config/halloween'
 import { TownMap } from '../maps/TownMap'
 import { createCollisionObjects } from '../maps/collision-objects'
-import { DAY_CYCLE_MS, skyAt } from '../systems/day-night'
+import { HalloweenLayer } from '../maps/halloween-layer'
+import { skyAtHour, type SkyFrame } from '../systems/day-night'
+import {
+  GameClock,
+  parseFrozenOverride,
+  parseTimeOverride,
+} from '../systems/game-clock'
 import { Player } from '../entities/Player'
 import { emit } from '../../lib/event-bus'
 
@@ -25,7 +32,11 @@ export class TownScene extends Phaser.Scene {
   private map!: TownMap
   /** Multiply overlay that carries the time of day across the whole view. */
   private sky!: Phaser.GameObjects.Rectangle
-  private elapsedMs = 0
+  /** In-game clock. Elapsed play time only — never the system clock. */
+  private clock!: GameClock
+  /** Seasonal layer: hidden by day, lit at night. */
+  private halloween!: HalloweenLayer
+  private devKeyHandlers: Array<{ event: string; handler: () => void }> = []
 
   constructor() {
     super({ key: 'TownScene' })
@@ -71,7 +82,22 @@ export class TownScene extends Phaser.Scene {
         .setDepth(90)
         .setBlendMode('MULTIPLY')
 
-      this.applySky(0)
+      const search = typeof window === 'undefined' ? '' : window.location.search
+      this.clock = new GameClock(parseTimeOverride(search) ?? DEFAULT_START_HOUR)
+      const frozen = parseFrozenOverride(search)
+      if (frozen) this.clock.freeze(true)
+
+      this.halloween = new HalloweenLayer(this)
+      this.halloween.build()
+
+      // Pumpkins are solid while they are visible; the layer switches their
+      // bodies off during the day.
+      this.physics.add.collider(this.player, this.halloween.obstacles)
+
+      this.registerDevTimeKeys()
+      this.events.once('shutdown', () => this.teardown())
+
+      this.applySky(skyAtHour(this.clock.hour))
 
       console.log('[TownScene] create complete')
     } catch (e) {
@@ -83,17 +109,17 @@ export class TownScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.player?.update(this.cursors, this.wasd)
 
-    this.elapsedMs += delta
-    this.applySky((this.elapsedMs % DAY_CYCLE_MS) / DAY_CYCLE_MS)
+    this.clock?.tick(delta)
+    if (this.clock) this.applySky(skyAtHour(this.clock.hour))
   }
 
   /**
    * Paints the time of day over the whole camera and passes the darkness on to
-   * the street lamps. The overlay is sized to the camera every frame so it
-   * still covers the view after a resize or zoom change.
+   * the street lamps and the seasonal layer. The overlay is sized to the
+   * camera every frame so it still covers the view after a resize or zoom
+   * change.
    */
-  private applySky(t: number): void {
-    const frame = skyAt(t)
+  private applySky(frame: SkyFrame): void {
     const cam = this.cameras.main
 
     this.sky
@@ -102,5 +128,42 @@ export class TownScene extends Phaser.Scene {
       .setFillStyle(frame.tint, 1)
 
     this.map.setLampLight(frame.lamp)
+    this.halloween?.setNightFactor(frame.halloween)
+  }
+
+  /**
+   * Developer-only time jumps: `1` → 09:00, `2` → 18:30, `3` → 22:00. Compiled
+   * out of production builds, and removed on scene shutdown.
+   */
+  private registerDevTimeKeys(): void {
+    const isDev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true
+    if (!isDev) return
+
+    const keyboard = this.input.keyboard
+    if (!keyboard) return
+
+    const bind = (key: string, hour: number): void => {
+      const event = `keydown-${key}`
+      const handler = (): void => {
+        this.clock.setHour(hour)
+        this.applySky(skyAtHour(hour))
+      }
+      keyboard.on(event, handler)
+      this.devKeyHandlers.push({ event, handler })
+    }
+
+    bind('ONE', 9)
+    bind('TWO', 18.5)
+    bind('THREE', 22)
+  }
+
+  private teardown(): void {
+    const keyboard = this.input.keyboard
+    if (keyboard) {
+      for (const { event, handler } of this.devKeyHandlers) keyboard.off(event, handler)
+    }
+    this.devKeyHandlers = []
+
+    this.halloween?.destroy()
   }
 }

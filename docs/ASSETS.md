@@ -343,6 +343,74 @@ caution as the packs above applies.
 
 ---
 
+## Asset Pack 6 — HALLOWEEN PUMPKINS (Grajo)
+
+| Field       | Value |
+|-------------|-------|
+| Location    | `public/assets/halloween pumpkins/` |
+| Creator     | Grajo |
+| Source      | https://grajopx.itch.io (itch: `grajopx`) |
+| Licence file| `public/assets/halloween pumpkins/readme.txt` (bundled) |
+| Licence     | Commercial **and** non-commercial use; modification allowed; **resale of the assets prohibited**. Credit appreciated but not required. |
+
+### Files used in game
+
+| File | Dimensions | Use |
+|------|-----------|-----|
+| `pumpkins-outline.png` | 240×224 | 15×14 sheet of 16×16 cells. Only the small-pumpkin block (cols 12–14, rows 0–6) is used — the sheet's large pumpkins overflow their 16×16 cells and would need manual cropping |
+
+Loaded once in `BootScene` as a 16×16 spritesheet (`AssetKeys.HALLOWEEN_PUMPKINS`),
+so `frame = row × 15 + column`. The frames used are listed in `PUMPKIN_FRAMES`
+(`src/game/config/halloween.ts`). The pack's `pumpkins-no-outline.png`,
+`.aseprite` source and the rest of the sheet are unused.
+
+### Redistribution
+
+The licence allows use and modification in commercial and non-commercial
+projects, but **not reselling the assets**. Committing the PNG to a public
+repository publishes the raw asset, which is the same caution as Packs 1–5:
+confirm with the creator before making the repository public with the asset
+folder included, or keep the raw folder out of version control. Serving the
+file from `public/` to the game is normal use.
+
+---
+
+## Generated Halloween textures (project-original)
+
+No external asset is used for the rest of Halloween Night Mode. These are
+drawn in code (`src/game/maps/halloween-layer.ts`) with hard-edged pixel steps,
+so nothing needs a licence:
+
+| Texture | Size | Use |
+|---------|------|-----|
+| `halloween-moon` | 48×48 | Moon disc with craters, fixed screen-space layer |
+| `halloween-star` | 5×5 | Star dot |
+| `halloween-bat` | 2 × 11×7 | Two-frame bat silhouette, tween-driven flight |
+| `halloween-window-glow` | 18×18 | Hard-stepped warm window light |
+| `ambient-lamp-glow` (reused) | 64×64 | Pumpkin light pool; shared with the street lamps |
+
+---
+
+## Halloween Night Mode — timings and developer overrides
+
+All timings live in `src/game/config/halloween.ts`:
+
+- **Cycle:** one in-game day is 15 real minutes (`CYCLE_DURATION_MS`), as before.
+- **Periods:** day 06:00–17:59, evening 18:00–19:59, night 20:00–05:59.
+- **Halloween visibility:** fade in 20:00–20:30, fully visible 20:30–05:30,
+fade out 05:30–06:00, **completely hidden 06:00–19:59** (day and evening).
+  The town clock starts at 09:00 and never reads the system clock.
+
+Developer-only time controls (no settings UI, no HUD):
+
+| Control | Effect |
+|---------|--------|
+| `?time=HH:MM` | Start at that in-game time, e.g. `?time=22:00` |
+| `?timeFrozen=1` | Hold that time still (combine with `?time=`) |
+| `1` / `2` / `3` | Dev builds only: jump to 09:00 / 18:30 / 22:00 |
+
+---
+
 ## Path encoding note
 
 The two packs above contain folder and file names with spaces. They are

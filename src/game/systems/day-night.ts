@@ -1,16 +1,32 @@
 /**
- * A slow day-night cycle: morning → afternoon → evening → night → dawn, once
- * every 15 minutes, so a player sees the town change light without ever being
- * rushed by it. The cycle loops forever: `skyAt` wraps any point in time back
- * onto the curve, so it never stops and simply starts morning again.
+ * The day-night lighting curve, now anchored to the in-game clock.
  *
- * Kept as pure data + maths so the lighting curve can be tested without a
- * renderer: `skyAt(t)` takes the position in the cycle (0–1) and returns the
- * multiply tint for the world, how dark it is, and how lit the street lamps are.
+ * `skyAtHour(hour)` is the primary function: it takes an in-game hour (0–24)
+ * and returns the multiply tint for the world, how dark it is, how lit the
+ * street lamps are, and how visible the Halloween decorations should be. It
+ * stays a pure function of time, so the whole 24-hour curve is testable
+ * without a renderer.
+ *
+ * `skyAt(t)` is the original cycle-position API (0–1). It is kept for
+ * backwards compatibility — the existing tests and any caller that thinks in
+ * cycle positions still work — and is now a thin wrapper that maps a cycle
+ * position onto the equivalent clock hour. Its visual curve is unchanged.
+ *
+ * There is still exactly one multiply overlay and one lamp curve; the
+ * Halloween factor rides along rather than adding a second lighting pass.
  */
 
+import {
+  CYCLE_DURATION_MS,
+  HALLOWEEN_FADE,
+  SKY_KEYFRAMES,
+} from '../config/halloween'
+
 /** One full cycle, day back to day: 15 minutes. */
-export const DAY_CYCLE_MS = 15 * 60 * 1000
+export const DAY_CYCLE_MS = CYCLE_DURATION_MS
+
+/** The hour the legacy cycle position 0 corresponds to. */
+const LEGACY_CYCLE_START_HOUR = 6
 
 export interface SkyFrame {
   /** Multiply colour laid over the world. White leaves daylight untouched. */
@@ -19,60 +35,79 @@ export interface SkyFrame {
   night: number
   /** 0 with the lamps off, 1 with them at full: only evening and night. */
   lamp: number
-}
-
-interface SkyKeyframe {
-  /** Position in the cycle, 0–1. */
-  at: number
-  tint: number
-  night: number
-  lamp: number
+  /** 0 with the Halloween decorations hidden, 1 with them fully visible. */
+  halloween: number
 }
 
 /**
- * The lighting curve. Daylight holds for the first stretch so the town looks
- * like itself when you arrive; the light then warms through evening, settles
- * into a *light* blue night — dark enough to read as night, bright enough to
- * walk around in — and lifts again through dawn.
+ * How visible the Halloween decorations are at an in-game hour.
  *
- * `lamp` runs on its own curve: the street lamps are off all morning and
- * afternoon, come up as the evening light warms, reach full at nightfall and
- * go out again in the dawn.
+ * Zero all day and all evening, ramps up across 20:00–20:30, stays at one
+ * through the night, and fades out again across 05:30–06:00. Nothing pops:
+ * the ramps are smoothstepped, so the derivative is continuous too.
  */
-const KEYFRAMES: readonly SkyKeyframe[] = [
-  { at: 0.0, tint: 0xffffff, night: 0, lamp: 0 }, // morning
-  { at: 0.42, tint: 0xfff3e0, night: 0, lamp: 0 }, // afternoon, a touch warmer
-  { at: 0.52, tint: 0xffcd93, night: 0.1, lamp: 0.35 }, // evening sets in
-  { at: 0.6, tint: 0xd79a7d, night: 0.45, lamp: 0.7 }, // sunset
-  { at: 0.68, tint: 0x8a84b0, night: 0.85, lamp: 0.9 }, // dusk
-  { at: 0.78, tint: 0x8f9bc8, night: 1, lamp: 1 }, // night
-  { at: 0.92, tint: 0x9aa6d0, night: 1, lamp: 1 }, // deep of night
-  { at: 0.97, tint: 0xb8b4c8, night: 0.5, lamp: 0.35 }, // first light
-  { at: 1.0, tint: 0xffffff, night: 0, lamp: 0 }, // back around to morning
-]
+export function halloweenAt(hour: number): number {
+  const h = wrapHour(hour)
+  const { inStartHour, inEndHour, outStartHour, outEndHour } = HALLOWEEN_FADE
 
-/** The tint, darkness and lamp level at a point in the cycle. */
-export function skyAt(t: number): SkyFrame {
-  const wrapped = ((t % 1) + 1) % 1
+  if (h >= inStartHour && h < inEndHour) {
+    return smoothstep((h - inStartHour) / (inEndHour - inStartHour))
+  }
 
-  for (let i = 0; i < KEYFRAMES.length - 1; i++) {
-    const from = KEYFRAMES[i]!
-    const to = KEYFRAMES[i + 1]!
+  if (h >= outStartHour && h < outEndHour) {
+    return 1 - smoothstep((h - outStartHour) / (outEndHour - outStartHour))
+  }
 
-    if (wrapped < from.at || wrapped > to.at) continue
+  // The stretch between the fade-out and the fade-in is the dead of night.
+  if (h >= outEndHour && h < inStartHour) return 0
+  return 1
+}
 
-    const span = to.at - from.at
-    const k = span === 0 ? 0 : (wrapped - from.at) / span
+/** The tint, darkness, lamp level and Halloween factor at an in-game hour. */
+export function skyAtHour(hour: number): SkyFrame {
+  const h = wrapHour(hour)
 
-    return {
-      tint: mixColour(from.tint, to.tint, k),
-      night: from.night + (to.night - from.night) * k,
-      lamp: from.lamp + (to.lamp - from.lamp) * k,
+  let from = SKY_KEYFRAMES[0]!
+  let to = SKY_KEYFRAMES[SKY_KEYFRAMES.length - 1]!
+
+  for (let i = 0; i < SKY_KEYFRAMES.length - 1; i++) {
+    const a = SKY_KEYFRAMES[i]!
+    const b = SKY_KEYFRAMES[i + 1]!
+
+    if (h >= a.hour && h <= b.hour) {
+      from = a
+      to = b
+      break
     }
   }
 
-  const last = KEYFRAMES[KEYFRAMES.length - 1]!
-  return { tint: last.tint, night: last.night, lamp: last.lamp }
+  const span = to.hour - from.hour
+  const k = span === 0 ? 0 : (h - from.hour) / span
+
+  return {
+    tint: mixColour(from.tint, to.tint, k),
+    night: from.night + (to.night - from.night) * k,
+    lamp: from.lamp + (to.lamp - from.lamp) * k,
+    halloween: halloweenAt(h),
+  }
+}
+
+/**
+ * The tint, darkness, lamp level and Halloween factor at a point in the
+ * original 0–1 cycle. Kept for backwards compatibility; the town itself now
+ * drives the curve from the clock with `skyAtHour`.
+ */
+export function skyAt(t: number): SkyFrame {
+  const wrapped = ((t % 1) + 1) % 1
+  return skyAtHour(wrapped * 24 + LEGACY_CYCLE_START_HOUR)
+}
+
+function wrapHour(hour: number): number {
+  return ((hour % 24) + 24) % 24
+}
+
+function smoothstep(k: number): number {
+  return k * k * (3 - 2 * k)
 }
 
 function mixColour(a: number, b: number, k: number): number {

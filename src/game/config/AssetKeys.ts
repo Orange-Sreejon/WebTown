@@ -65,6 +65,10 @@ export const AssetKeys = {
   /** 5 growth stages, 32×48 frames. */
   MAPLE_TREE: 'maple-tree',
 
+  // ── Halloween pumpkins (Grajo — see docs/ASSETS.md)
+  /** 15×14 sheet of 16×16 pumpkins; only the small block cols 12–14 is used. */
+  HALLOWEEN_PUMPKINS: 'halloween-pumpkins',
+
   // ── Pixel Medieval Market Props (16×16 tiles — see docs/ASSETS.md)
   MARKET_LAMP: 'market-lamp',
   MARKET_BENCH: 'market-bench',
@@ -150,6 +154,8 @@ export const AssetPaths: Record<AssetKey, string> = {
   [AssetKeys.SHEEP]:       '/assets/Cute_Fantasy_Free/Animals/Sheep/Sheep.png',
 
   [AssetKeys.MAPLE_TREE]:  '/assets/Farm%20RPG%20FREE%2016x16%20-%20Tiny%20Asset%20Pack/Objects/Maple%20Tree.png',
+
+  [AssetKeys.HALLOWEEN_PUMPKINS]:   '/assets/halloween%20pumpkins/pumpkins-outline.png',
 
   [AssetKeys.MARKET_LAMP]:          '/assets/tilesets/PNG/16x16/street/lamp_post.png',
   [AssetKeys.MARKET_BENCH]:         '/assets/tilesets/PNG/16x16/street/bench.png',
