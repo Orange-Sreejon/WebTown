@@ -43,3 +43,9 @@ npm-debug.log*
 # See docs/ASSETS.md for full licence analysis.
 TILESET VILLAGE TOP DOWN/
 tiny_cast_village_folk_v1.0/
+
+# Interior art (work*.png, insp*, Interior1.tmx): source and licence UNVERIFIED.
+# Must not be committed or published until redistribution permission is confirmed
+# or the files are replaced. The game loads them lazily and works without them.
+# See docs/ASSETS.md "Asset Pack 7".
+public/assets/interior/

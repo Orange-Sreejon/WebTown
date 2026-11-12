@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { BootScene } from './scenes/BootScene'
 import { TownScene } from './scenes/TownScene'
+import { InteriorScene } from './scenes/InteriorScene'
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from './config/GameConfig'
 import { emit } from '../lib/event-bus'
 
@@ -25,7 +26,7 @@ export function createPhaserGame(parent: HTMLElement): Phaser.Game {
       default: 'arcade',
       arcade: { debug: debugPhysics },
     },
-    scene: [BootScene, TownScene],
+    scene: [BootScene, TownScene, InteriorScene],
     callbacks: {
       preBoot: (game) => {
         console.log('[Phaser] preBoot — game object created', game)

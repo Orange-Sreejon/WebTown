@@ -108,5 +108,58 @@ Append `?debug=1` to the URL to show Arcade physics collision bodies.
 
 - Trees are drawn at DEPTH_STRUCTURE — the player walks in front of tree trunks but
   behind the full tree sprite is not yet implemented (canopy layering is a Phase 2 task).
-- No NPC movement, dialogue, day/night cycle or sound in Phase 1.
+- No NPC movement, dialogue or sound. (The day/night cycle and Halloween night
+  mode were added after Phase 1 — see `docs/ASSETS.md` for their dev overrides.)
 - Water area is decorative — the player is blocked by an invisible barrier at the water edge.
+
+---
+
+# Phase 2 — Houses & Interiors
+
+Needs the interior art in `public/assets/interior/` (not in version control —
+see `docs/ASSETS.md`, Asset Pack 7).
+
+## Entrances
+
+- [ ] Walk up to any of the seven houses: `E — Enter House` appears at the door
+- [ ] Walk away: the prompt disappears
+- [ ] The church shows no prompt and pressing E there does nothing
+- [ ] At night (`?time=22:00`) the prompt is still readable above the dark overlay
+
+## Entering
+
+- [ ] E fades out and into the room; holding E does not bounce straight back out
+- [ ] The player appears in front of the door, facing down, with `E — Exit` shown
+
+## The room
+
+- [ ] Floor, back wall, door, two curtained windows, painting and clock are visible
+- [ ] Bed, nightstand with lamp, chest, bookshelf, rug, table with books and a
+      notebook, chair, three plants, and the large computer desk are visible
+- [ ] The computer and notebook do nothing when approached (Phase 3)
+- [ ] Back wall, bed, nightstand, chest, bookshelf, plants, table, chair and the
+      computer desk all block the player; the room's edges block the player
+- [ ] The rug can be walked over
+- [ ] Walking behind/in front of the table and chair layers correctly
+- [ ] The whole floor can be reached; nothing traps the player
+
+## Leaving
+
+- [ ] At the door, E fades back to the town
+- [ ] The player is at exactly the spot they entered from, facing the same way,
+      with the camera where it was
+- [ ] Pressing E again immediately does nothing; after a moment it re-enters
+- [ ] The town clock did not advance while inside, and runs again outside
+- [ ] With `?time=22:00&timeFrozen=1` the clock is still frozen after a visit
+- [ ] Pumpkins, lamps, window glow and bats behave as before at night
+
+## Robustness
+
+- [ ] Enter and leave ten times: no slowdown, no duplicate prompts
+- [ ] Rename `public/assets/interior/` and press E at a door: the screen flashes
+      and the player stays in the town, still playable
+
+## Art playground
+
+`/interior-test.html` (dev server only) shows the Milestone 0 art comparison.
+It is not part of the production build.

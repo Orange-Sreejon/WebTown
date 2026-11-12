@@ -10,31 +10,32 @@ social space rendered as a game world.
 
 ## Current Phase
 
-**Phase 1 — Single-Player Playable Town**
+**Phase 2 — Houses & Interiors** (Phase 1, the single-player town, is complete.)
 
-Build a playable, fully local, single-player browser game: a walkable top-down
-pixel-art town with one player character, keyboard movement, camera following
-and working collision.
+The player can walk up to a house, press E, walk around one reusable interior
+and return to the exact outdoor spot. The interior shows a computer and a
+notebook as props only. See `.kiro/specs/phase-2-houses-interiors/`.
 
-No multiplayer, no backend, no authentication.
+Still single-player and fully local: no multiplayer, no backend, no
+authentication.
 
-## Out of Scope (all phases beyond Phase 1)
+## Out of Scope (until a later phase)
 
 - Multiplayer networking
 - Authentication / user accounts
 - Supabase or any backend service
 - House ownership model
-- House interiors / rooms
 - Furniture editor
-- Personal website content hosted in houses
+- Personal website content hosted in houses (Phase 3: the computer website and
+  the notebook application)
 - Guestbooks
 - AI features
 - Inventory system
 - Combat
 - Quests
 
-Showing houses on the map as solid, collidable structures is required in Phase 1.
-Entering houses is NOT part of Phase 1.
+Entering the church is not part of Phase 2; it stays an outdoor landmark.
+Interiors are no longer out of scope.
 
 ## Kiroween 2026 Resurrection Context
 

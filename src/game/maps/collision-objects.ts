@@ -176,20 +176,16 @@ export function getCollisionRects(shapeOf?: ShapeResolver): CollisionRect[] {
   return rects
 }
 
-export function createCollisionObjects(scene: Phaser.Scene): Phaser.Physics.Arcade.StaticGroup {
-  const group = scene.physics.add.staticGroup()
-
-  const shapes = new Map<string, SpriteShape | null>()
-  const shapeOf: ShapeResolver = (key, frame) => {
-    const cacheKey = frame === undefined ? key : `${key}#${frame}`
-    const cached = shapes.get(cacheKey)
-    if (cached !== undefined) return cached
-    const measured = measureSpriteShape(scene, key, frame)
-    shapes.set(cacheKey, measured)
-    return measured
-  }
-
-  for (const rect of getCollisionRects(shapeOf)) {
+/**
+ * Adds one invisible static Arcade body per rectangle to `group`. Shared by the
+ * town and the interiors so both build collision the same way.
+ */
+export function addStaticRects(
+  scene: Phaser.Scene,
+  group: Phaser.Physics.Arcade.StaticGroup,
+  rects: readonly CollisionRect[],
+): void {
+  for (const rect of rects) {
     const zone = scene.add.zone(
       rect.x + rect.w / 2,
       rect.y + rect.h / 2,
@@ -205,6 +201,22 @@ export function createCollisionObjects(scene: Phaser.Scene): Phaser.Physics.Arca
 
     group.add(zone)
   }
+}
+
+export function createCollisionObjects(scene: Phaser.Scene): Phaser.Physics.Arcade.StaticGroup {
+  const group = scene.physics.add.staticGroup()
+
+  const shapes = new Map<string, SpriteShape | null>()
+  const shapeOf: ShapeResolver = (key, frame) => {
+    const cacheKey = frame === undefined ? key : `${key}#${frame}`
+    const cached = shapes.get(cacheKey)
+    if (cached !== undefined) return cached
+    const measured = measureSpriteShape(scene, key, frame)
+    shapes.set(cacheKey, measured)
+    return measured
+  }
+
+  addStaticRects(scene, group, getCollisionRects(shapeOf))
 
   return group
 }

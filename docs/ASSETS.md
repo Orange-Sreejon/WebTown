@@ -417,3 +417,44 @@ The two packs above contain folder and file names with spaces. They are
 percent-encoded in `src/game/config/AssetKeys.ts` (e.g. `Outdoor%20decoration`),
 and the on-disk folder names are case-sensitive (`Cute_Fantasy_Free`), which
 matters when deploying to a case-sensitive server.
+
+---
+
+## Asset Pack 7 - INTERIOR ART (Phase 2, Milestone 0 — UNVERIFIED)
+
+**Provenance and licence of every file in this section are unknown.** No licence
+file was supplied. Do not publish these files, and do not ship a release that
+uses them, until the source and terms are recorded here.
+
+Location: `public/assets/interior/`
+
+| File | Size | Used for | Notes |
+|------|------|----------|-------|
+| `work3.png` | 288×64 | Walls, floor, door, desk-top items | Regular 16px grid. Floor and brick wall tile in 32×32 blocks; door is 32×64. |
+| `work4.png` | 675×672 | Bookshelves, windows, tables, chair, rugs, beds, doors | Irregular sprite sizes on a 16px-aligned layout. Transparent background. |
+| `work.png` | 1774×887 | Computers on desks, monitors, books, notebooks | **Opaque near-black ground** (RGB 1,0,0) and much higher resolution than the rest. Keyed and area-averaged down at load time (`maps/sprite-prep.ts`). |
+| `work2.png` | 224×432 | Not yet used | Identical bytes to the earlier `Interior.png`; different from the Farm RPG pack's `Interior.png`. |
+| `insp1.png`, `insp2.png`, `insp3.jpg` | — | Visual reference only | Never loaded by the game. |
+| `Interior1.tmx` | — | Not used | References `walls_floor.png` and `Doors_windows_animation.png`, which are not in the repo. No Tiled pipeline in this project. |
+
+Slice rectangles for each sprite are in `src/game/maps/interior-slices.ts`.
+
+### How the game uses them
+
+- Loaded **lazily** by `InteriorScene.preload`, never by `BootScene`. If the
+  files are missing, entering a house fails safe: the player stays in the
+  town and nothing else is affected (verified in a browser with the folder
+  blocked).
+- `work.png` sprites (computer desk, notebook, book stack) are cropped, keyed
+  and area-averaged at runtime; no derived image is written to disk. The
+  computer is always 48px wide.
+- `public/assets/interior/` is listed in `.gitignore`, so none of these files
+  can be committed by accident. Remove that rule only once redistribution
+  permission is confirmed or the files are replaced.
+- They are inside `public/`, so `npm run build` copies them into `dist/`.
+  **Do not deploy a build publicly** while their status is unverified.
+
+### Milestone 0 visual test
+
+Run `npm run dev` and open `/interior-test.html`. The page is a separate Vite
+entry and is not part of the production build.

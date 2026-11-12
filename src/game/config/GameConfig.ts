@@ -56,6 +56,30 @@ export const PLAYER_SPRITE_SCALE = 0.55
 export const PLAYER_START_TILE_X = 40
 export const PLAYER_START_TILE_Y = 30
 
+/**
+ * Entrance zones (Phase 2). A zone is as wide as the yard gate in front of each
+ * door (3 tiles = ±24 px of the door centre) so it always lines up with the gap
+ * in the fence. It runs 32 px south of the building's bottom edge and reaches
+ * half a tile up into the footprint, because some houses (the Cute Fantasy
+ * ones) have a recessed porch the player can step into.
+ */
+export const ENTRANCE_HALF_WIDTH = 24
+export const ENTRANCE_DEPTH = 32
+export const ENTRANCE_RISE = 8
+/** How far above the building's bottom edge the prompt hovers. */
+export const ENTRANCE_PROMPT_RISE = 26
+/** Fallback return point: this far south of the door, always on the driveway. */
+export const ENTRANCE_FALLBACK_OFFSET = 14
+
+/** Prompt labels. */
+export const PROMPT_ENTER_TEXT = 'E \u2014 Enter House'
+export const PROMPT_EXIT_TEXT = 'E \u2014 Exit'
+
+/** Fade-out / fade-in time when moving between town and interior. */
+export const TRANSITION_FADE_MS = 180
+/** After a transition, E is ignored for this long so a door cannot re-fire. */
+export const INTERACT_COOLDOWN_MS = 450
+
 /** Phaser depth values — higher = drawn on top. */
 export const DEPTH_GROUND     = 0
 export const DEPTH_ROAD       = 1
@@ -63,6 +87,9 @@ export const DEPTH_DECORATION = 2
 export const DEPTH_STRUCTURE  = 3
 export const DEPTH_PLAYER     = 4
 export const DEPTH_TREETOP    = 5
+
+/** Interaction prompts draw above everything, including the time-of-day overlay (90). */
+export const DEPTH_PROMPT = 95
 
 /**
  * Depth for anything tall enough to overlap the player — lamp posts, and the

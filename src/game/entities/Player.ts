@@ -54,6 +54,70 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play('idle-down')
   }
 
+  /** The direction the player last moved in (and so faces when idle). */
+  get facing(): Direction {
+    return this.lastDirection
+  }
+
+  /** Turns the player to face a direction and shows the matching idle frame. */
+  setFacing(direction: Direction): void {
+    this.lastDirection = direction
+    this.play(`idle-${direction}`)
+  }
+
+  /**
+   * Teleports the player so their feet (body bottom, horizontally centred) are
+   * at the given world position. Clears velocity so nothing carries over, and
+   * re-sorts the depth for the new spot.
+   *
+   * `body.reset()` alone is not enough: it places the body at the sprite's
+   * top-left and ignores the body offset, so on the next physics step the body
+   * would jump to its real position. The sprite position is therefore solved
+   * from the same formula the physics step uses —
+   * `body = sprite + scale × (offset − displayOrigin)` — and the body is then
+   * synced to it immediately.
+   */
+  placeFeet(feetX: number, feetY: number): void {
+    const body = this.body as Phaser.Physics.Arcade.Body
+
+    // A freshly created body still has its unscaled size until the first
+    // physics step; bring it up to date so the maths below uses real sizes.
+    body.updateBounds()
+
+    const bodyX = feetX - body.width / 2
+    const bodyY = feetY - body.height
+    const spriteX = bodyX - this.scaleX * (body.offset.x - this.displayOriginX)
+    const spriteY = bodyY - this.scaleY * (body.offset.y - this.displayOriginY)
+
+    // reset() moves the sprite and zeroes velocity and acceleration…
+    body.reset(spriteX, spriteY)
+    // …then put the body where the physics step will expect it, with no
+    // movement recorded between the old and new spot.
+    body.updateFromGameObject()
+    body.prev.copy(body.position)
+    body.prevFrame.copy(body.position)
+
+    this.setDepth(depthForFeetY(body.bottom))
+  }
+
+  /**
+   * The player's feet: the true horizontal middle and the bottom of the
+   * physics body. (`body.center` uses floored half-sizes, which is up to a
+   * pixel off for this body, so it is not used here.)
+   */
+  get feet(): { x: number; y: number } {
+    const body = this.body as Phaser.Physics.Arcade.Body
+    return { x: body.x + body.width / 2, y: body.bottom }
+  }
+
+  /** Stops dead and shows the idle frame. Used while a transition is running. */
+  halt(): void {
+    const body = this.body as Phaser.Physics.Arcade.Body
+    body.setVelocity(0, 0)
+    const idleKey = `idle-${this.lastDirection}`
+    if (this.anims.currentAnim?.key !== idleKey) this.play(idleKey)
+  }
+
   /**
    * Called every frame from TownScene.update().
    * Reads input, computes velocity, selects animation.

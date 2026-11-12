@@ -98,6 +98,16 @@ export const AssetKeys = {
   MARKET_CHEESE: 'market-cheese',
   MARKET_WHEAT: 'market-wheat',
   MARKET_EGG_BASKET: 'market-egg-basket',
+
+  // ── Interior art (Phase 2) — provenance/licence NOT yet confirmed, see
+  //    docs/ASSETS.md. Loaded lazily by InteriorScene, never by BootScene, so the
+  //    town keeps working if these files are absent.
+  /** 288×64: walls, floor, door and desk-top items on a 16px grid (work3.png). */
+  INTERIOR_OFFICE_KIT: 'interior-office-kit',
+  /** 675×672: loose furniture, 16px-grid aligned, irregular sizes (work4.png). */
+  INTERIOR_FURNITURE: 'interior-furniture',
+  /** 1774×887: large computers and books on an opaque near-black ground (work.png). */
+  INTERIOR_COMPUTERS: 'interior-computers',
 } as const
 
 export type AssetKey = (typeof AssetKeys)[keyof typeof AssetKeys]
@@ -185,6 +195,10 @@ export const AssetPaths: Record<AssetKey, string> = {
   [AssetKeys.MARKET_CHEESE]:        '/assets/tilesets/PNG/16x16/goods/cheese.png',
   [AssetKeys.MARKET_WHEAT]:         '/assets/tilesets/PNG/16x16/goods/wheat_bundle.png',
   [AssetKeys.MARKET_EGG_BASKET]:    '/assets/tilesets/PNG/16x16/goods/egg_basket.png',
+
+  [AssetKeys.INTERIOR_OFFICE_KIT]:  '/assets/interior/work3.png',
+  [AssetKeys.INTERIOR_FURNITURE]:   '/assets/interior/work4.png',
+  [AssetKeys.INTERIOR_COMPUTERS]:   '/assets/interior/work.png',
 }
 
 /**
