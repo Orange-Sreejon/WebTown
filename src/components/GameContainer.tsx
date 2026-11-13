@@ -3,6 +3,7 @@ import type Phaser from 'phaser'
 import { createPhaserGame } from '../game/create-game'
 import { on, off } from '../lib/event-bus'
 import { LoadingScreen } from './LoadingScreen'
+import { HouseEditorOverlay } from './house-editor/HouseEditorOverlay'
 
 /**
  * Mounts the Phaser canvas and owns the game instance lifecycle.
@@ -79,6 +80,7 @@ export function GameContainer(): React.ReactElement {
         role="application"
       />
       {loading && <LoadingScreen />}
+      <HouseEditorOverlay />
     </div>
   )
 }

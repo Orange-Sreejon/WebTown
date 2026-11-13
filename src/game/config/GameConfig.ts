@@ -114,6 +114,13 @@ export const DEPTH_TREETOP    = 5
 /** Interaction prompts draw above everything, including the time-of-day overlay (90). */
 export const DEPTH_PROMPT = 95
 
+/** Furniture editor: the grid sits over the floor and rug, under furniture and wall decor. */
+export const DEPTH_EDITOR_GRID = 2.6
+/** Furniture editor: selection outline, footprints and previews draw over the whole room. */
+export const DEPTH_EDITOR_OVERLAY = 60
+/** Screen pixels the pointer must travel before a press on furniture becomes a drag. */
+export const EDITOR_DRAG_THRESHOLD_PX = 3
+
 /**
  * Depth for anything tall enough to overlap the player — lamp posts, and the
  * player itself.

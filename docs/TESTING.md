@@ -181,3 +181,72 @@ see `docs/ASSETS.md`, Asset Pack 7).
 
 `/interior-test.html` (dev server only) shows the Milestone 0 art comparison.
 It is not part of the production build.
+
+# Furniture Editor MVP
+
+Spec: `.kiro/specs/furniture-editor-mvp/`.
+
+> **Changes are lost after a reload.** Layouts are kept in memory only (the
+> in-memory `HouseLayoutStore`). Leaving and re-entering a house keeps your
+> saved layout for the session; reloading the page resets every house to the
+> default room. There is no localStorage, account or backend yet.
+
+Your house is `house-a` (`src/game/config/ownership.ts`). In `npm run dev`,
+`?owner=house-c` makes another house yours for testing; production builds
+ignore it.
+
+## Ownership
+
+- [ ] In house A an **Edit House** button shows at the top right; walking still works
+- [ ] In any other house there is no button and nothing can be edited
+- [ ] The button disappears while leaving through the door
+
+## Edit mode
+
+- [ ] Edit House opens a panel on the right; the player stands still and E does not open the door
+- [ ] A faint grid covers the room; the doorway and the spot inside it are shaded blue ("keep clear")
+- [ ] At 1280×720 the panel does not cover the room; "Changes are kept only until you reload the page" is visible without scrolling
+- [ ] "Hide" collapses the panel to Save / Cancel / status; "Show" brings it back
+
+## Select and drag
+
+- [ ] Clicking furniture outlines it in yellow and names it in the panel; bare floor clears it
+- [ ] Clicking the notebook on the table selects the notebook, not the table; the door cannot be selected
+- [ ] A click without moving only selects; dragging moves a preview that snaps to the 16px grid
+- [ ] A free spot shows green with "This spot is free"; dropping moves the item there
+- [ ] Over the bed it shows red with "Overlaps the bed"; dropping puts it back where it was
+- [ ] In the doorway: "Blocks the way to the door"; on the spot inside the door: "Blocks the spot inside the door"
+- [ ] Dragged outside the room: "Doesn't fit on the floor here"; a picture dragged onto the floor: "Must hang on the back wall"
+- [ ] Esc during a drag cancels it
+- [ ] Dragging the table carries the notebook and the books with it
+- [ ] The notebook dragged over the floor is red ("Must rest on a table or nightstand"); over the nightstand it is green and lands there
+
+## Add and remove
+
+- [ ] Choosing Stool in the catalogue marks it pressed; a ghost follows the pointer, green or red; clicking a green spot places and selects it
+- [ ] Esc, or choosing Stool again, stops placing
+- [ ] Adding two stools names them `stool` and `stool-2`
+- [ ] The catalogue never offers the computer or the notebook
+- [ ] Remove (or the Delete key) removes the selected chest
+- [ ] With the computer or notebook selected, Remove is disabled and says why
+- [ ] With the table selected, Remove is disabled ("Move the notebook and the books off it first"); after moving both to the nightstand it can be removed
+
+## Save and cancel
+
+- [ ] Save is disabled until something changes
+- [ ] Save returns to walking; the new furniture blocks the player and sorts in front/behind correctly
+- [ ] If furniture was placed where the player stood, the player appears inside the door after saving
+- [ ] Cancel discards every change since Edit House was pressed
+- [ ] Leave and re-enter house A: the saved layout is still there; other houses are unchanged
+- [ ] Reload the page: house A is back to the default room
+
+## Regression
+
+- [ ] Enter/exit, exact return position, clock pause and Halloween night mode work as before
+
+## Known limitation
+
+At a 1920×1080 window the interior is drawn at 4.5 screen pixels per art
+pixel. `Scale.EXPAND` stretches the 1280×720 canvas by 1.5 with CSS, on top of
+the interior's ×3 camera zoom, so pixels are slightly uneven at that size. This
+predates the editor (see the Phase 2 camera work) and is tracked separately.

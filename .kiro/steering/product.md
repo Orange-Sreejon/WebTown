@@ -19,13 +19,27 @@ notebook as props only. See `.kiro/specs/phase-2-houses-interiors/`.
 Still single-player and fully local: no multiplayer, no backend, no
 authentication.
 
+### In progress — Furniture Editor MVP
+
+Every house starts as an independent copy of one default room. The owner can
+edit their own house: select, drag, add and remove furniture on a grid, then
+save or cancel. Visitors' houses are read-only. See
+`.kiro/specs/furniture-editor-mvp/`.
+
+- **Ownership stand-in:** until accounts exist, one configured house
+  (`src/game/config/ownership.ts`, currently `house-a`) is "yours". A dev-only
+  `?owner=<houseId>` URL parameter can pick another one for testing.
+- **Persistence:** layouts live in memory only. Every change is lost when the
+  page is reloaded, by design, until a backend phase.
+
 ## Out of Scope (until a later phase)
 
 - Multiplayer networking
 - Authentication / user accounts
 - Supabase or any backend service
-- House ownership model
-- Furniture editor
+- A real house ownership model (buying, renting, permissions)
+- Persistent layouts (localStorage or backend)
+- Undo/redo, multi-select and rotation art in the furniture editor
 - Personal website content hosted in houses (Phase 3: the computer website and
   the notebook application)
 - Guestbooks
@@ -35,7 +49,7 @@ authentication.
 - Quests
 
 Entering the church is not part of Phase 2; it stays an outdoor landmark.
-Interiors are no longer out of scope.
+Interiors and the furniture editor are no longer out of scope.
 
 ## Kiroween 2026 Resurrection Context
 

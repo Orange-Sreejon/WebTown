@@ -37,11 +37,17 @@ export interface Violation {
   code: ViolationCode
   /** The item at fault, when one is. */
   itemId?: string
+  /** The other item involved, for overlaps and wall clashes. */
+  otherId?: string
   message: string
 }
 
-const v = (code: ViolationCode, message: string, itemId?: string): Violation =>
-  itemId === undefined ? { code, message } : { code, message, itemId }
+const v = (code: ViolationCode, message: string, itemId?: string, otherId?: string): Violation => {
+  const out: Violation = { code, message }
+  if (itemId !== undefined) out.itemId = itemId
+  if (otherId !== undefined) out.otherId = otherId
+  return out
+}
 
 /** Cell spacing used when testing where the player can stand. */
 export const REACH_STEP_PX = 2
@@ -199,7 +205,8 @@ function geometryViolations(
       const a = wallPieces[i]!
       const b = wallPieces[j]!
       if (rectsOverlap(pieceBounds(a), pieceBounds(b))) {
-        out.push(v('wall-clash', `"${a.id}" overlaps "${b.id}" on the wall`, a.id === 'door' ? b.id : a.id))
+        const [item, other] = a.id === 'door' ? [b.id, a.id] : [a.id, b.id]
+        out.push(v('wall-clash', `"${a.id}" overlaps "${b.id}" on the wall`, item, other))
       }
     }
   }
@@ -209,7 +216,12 @@ function geometryViolations(
   for (let i = 0; i < solids.length; i++) {
     for (let j = i + 1; j < solids.length; j++) {
       if (rectsOverlap(solids[i]!.solid!, solids[j]!.solid!)) {
-        out.push(v('overlap', `"${solids[i]!.id}" overlaps "${solids[j]!.id}"`, solids[j]!.id))
+        out.push(v(
+          'overlap',
+          `"${solids[i]!.id}" overlaps "${solids[j]!.id}"`,
+          solids[j]!.id,
+          solids[i]!.id,
+        ))
       }
     }
   }
