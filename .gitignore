@@ -49,3 +49,6 @@ tiny_cast_village_folk_v1.0/
 # or the files are replaced. The game loads them lazily and works without them.
 # See docs/ASSETS.md "Asset Pack 7".
 public/assets/interior/
+
+# Screenshots of the interior art (unverified licence) - never commit.
+/previews/

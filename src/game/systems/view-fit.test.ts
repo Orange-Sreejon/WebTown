@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { INTERIOR_BORDER_PX, INTERIOR_VIEW_MARGIN_PX } from '../config/GameConfig'
-import { COZY_ROOM } from '../maps/interior-layout'
+import { DEFAULT_INTERIOR } from '../maps/house/default-interior'
 import { chooseIntegerZoom, widthFraction } from './view-fit'
 
 const view = {
-  w: COZY_ROOM.widthPx + INTERIOR_BORDER_PX * 2,
-  h: COZY_ROOM.heightPx + INTERIOR_BORDER_PX,
+  w: DEFAULT_INTERIOR.widthPx + INTERIOR_BORDER_PX * 2,
+  h: DEFAULT_INTERIOR.heightPx + INTERIOR_BORDER_PX,
 }
 const fit = (w: number, h: number) => chooseIntegerZoom(w, h, view, INTERIOR_VIEW_MARGIN_PX)
 

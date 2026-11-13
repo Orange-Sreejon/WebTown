@@ -45,6 +45,7 @@ export const OFFICE_KIT = {
   monitor: { x: 103, y: 40, w: 20, h: 23 },
   keyboard: { x: 40, y: 43, w: 16, h: 9 },
   mouse: { x: 77, y: 44, w: 6, h: 6 },
+  stickyNote: { x: 109, y: 13, w: 6, h: 6 },
   mug: { x: 12, y: 42, w: 10, h: 12 },
   paper: { x: 44, y: 11, w: 8, h: 11 },
   penCup: { x: 139, y: 9, w: 10, h: 12 },
@@ -64,6 +65,10 @@ export const FURNITURE = {
   windowPink: { x: 622, y: 250, w: 40, h: 38 },
   plankTable: { x: 140, y: 263, w: 64, h: 57 },
   rugOrange: { x: 112, y: 544, w: 110, h: 77 },
+  rugBlue: { x: 544, y: 544, w: 79, h: 60 },
+  /** Small round wooden stool, used as a desk seat. */
+  stool: { x: 496, y: 77, w: 14, h: 19 },
+  barrel: { x: 399, y: 377, w: 19, h: 23 },
   /** Single bed with blue blanket, head at the top. */
   bedBlue: { x: 64, y: 47, w: 30, h: 49 },
   nightstand: { x: 240, y: 181, w: 26, h: 27 },

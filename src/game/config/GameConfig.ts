@@ -85,6 +85,18 @@ export const INTERIOR_BORDER_PX = 12
  * the framed room when choosing a zoom. At zoom 3 it is 12 screen pixels.
  */
 export const INTERIOR_VIEW_MARGIN_PX = 4
+/**
+ * A piece of furniture whose top edge sits closer than this to the back wall
+ * (but not touching it) gets its collision extended up to the wall. A gap this
+ * small cannot hold the player, but would let them wedge into a sliver behind it.
+ */
+export const INTERIOR_WALL_FILL_GAP_PX = 12
+/**
+ * How close the player must be able to stand to the computer or the notebook
+ * for the layout to count as "reachable". Provisional: Phase 3 will define the
+ * real interaction distance.
+ */
+export const INTERIOR_PROP_REACH_PX = 40
 
 /** Fade-out / fade-in time when moving between town and interior. */
 export const TRANSITION_FADE_MS = 180

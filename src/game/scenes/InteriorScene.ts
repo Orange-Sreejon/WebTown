@@ -14,7 +14,6 @@ import { Player } from '../entities/Player'
 import { InteractionPrompt } from '../entities/InteractionPrompt'
 import { addStaticRects } from '../maps/collision-objects'
 import {
-  getInterior,
   getInteriorCollisionRects,
   interiorViewRect,
   pieceBounds,
@@ -24,6 +23,10 @@ import {
   type InteriorPiece,
 } from '../maps/interior-layout'
 import { OFFICE_KIT } from '../maps/interior-slices'
+import { getTemplate } from '../maps/house/default-interior'
+import type { HouseLayout } from '../maps/house/house-layout'
+import { validateLayout } from '../maps/house/layout-rules'
+import { resolveInterior } from '../maps/house/resolve-interior'
 import {
   interiorSheetsLoaded,
   registerInteriorTextures,
@@ -37,6 +40,11 @@ import { chooseIntegerZoom } from '../systems/view-fit'
 export interface InteriorSceneData {
   houseId: string
   interiorId: string
+  /**
+   * This house's own furniture layout, loaded from the `HouseLayoutStore`.
+   * Absent when the load failed, in which case the scene returns to the town.
+   */
+  layout?: HouseLayout
 }
 
 /**
@@ -77,10 +85,30 @@ export class InteriorScene extends Phaser.Scene {
 
   init(data: InteriorSceneData): void {
     this.interiorId = data.interiorId
-    this.definition = getInterior(data.interiorId)
+    this.definition = this.buildDefinition(data)
     this.loadFailed = false
     this.nearExit = false
     this.lock.reset()
+  }
+
+  /**
+   * This house's room: the template furnished with the house's own layout.
+   * Anything wrong (unknown template, missing or rule-breaking layout) gives
+   * undefined, and `create` then returns the player to the town.
+   */
+  private buildDefinition(data: InteriorSceneData): InteriorDefinition | undefined {
+    const template = getTemplate(data.interiorId)
+    if (!template || !data.layout) return undefined
+
+    const violations = validateLayout(template, data.layout)
+    if (violations.length > 0) {
+      console.error(
+        `[InteriorScene] layout for "${data.houseId}" breaks ${violations.length} rule(s)`,
+        violations,
+      )
+      return undefined
+    }
+    return resolveInterior(template, data.layout)
   }
 
   preload(): void {
@@ -179,15 +207,17 @@ export class InteriorScene extends Phaser.Scene {
     const kit = AssetKeys.INTERIOR_OFFICE_KIT
 
     this.add
-      .tileSprite(0, def.wallHeightPx, def.widthPx, def.heightPx - def.wallHeightPx, kit, 'floor')
+      .tileSprite(
+        0, def.wallHeightPx, def.widthPx, def.heightPx - def.wallHeightPx, kit, def.style.floor,
+      )
       .setOrigin(0, 0)
       .setDepth(DEPTH_GROUND)
 
     const tile = OFFICE_KIT.wallUpper.w
     for (let x = 0; x < def.widthPx; x += tile) {
-      this.add.image(x, 0, kit, 'wallUpper').setOrigin(0, 0).setDepth(DEPTH_ROAD)
+      this.add.image(x, 0, kit, def.style.wallUpper).setOrigin(0, 0).setDepth(DEPTH_ROAD)
       this.add
-        .image(x, OFFICE_KIT.wallUpper.h, kit, 'wallLower')
+        .image(x, OFFICE_KIT.wallUpper.h, kit, def.style.wallLower)
         .setOrigin(0, 0)
         .setDepth(DEPTH_ROAD)
     }

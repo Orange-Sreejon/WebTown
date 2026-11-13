@@ -1,5 +1,10 @@
 import type { Point, Rect } from '../../lib/geometry'
-import { DEPTH_DECORATION, DEPTH_STRUCTURE, INTERIOR_BORDER_PX, depthForFeetY } from '../config/GameConfig'
+import {
+  DEPTH_DECORATION,
+  DEPTH_STRUCTURE,
+  INTERIOR_BORDER_PX,
+  depthForFeetY,
+} from '../config/GameConfig'
 import type { Direction } from '../systems/movement'
 import type { InteractionTarget } from '../systems/interaction'
 import type { CollisionRect } from './collision-objects'
@@ -12,13 +17,14 @@ import {
 import { scaledHeight } from './sprite-prep'
 
 /**
- * Interior layouts as pure data.
+ * Interior types and pure helpers.
  *
- * A room is a floor, a back wall, and a list of pieces. Everything the scene
- * draws and everything the player collides with is derived from this one
- * description, so a second room is a second `InteriorDefinition` and nothing
- * else. Coordinates are room-local pixels at 1× scale, origin at the room's
- * top-left corner.
+ * An `InteriorDefinition` is what the scene draws and collides with: a floor,
+ * a back wall, and a list of pieces. It is no longer written by hand. It is
+ * resolved from a template plus one house's furniture layout (see
+ * `maps/house/`), so everything the scene needs still derives from one
+ * description. Coordinates are room-local pixels at 1× scale, origin at the
+ * room's top-left corner.
  */
 
 /** Which source a piece's sprite is cut from. */
@@ -62,11 +68,24 @@ export interface InteriorDefinition {
   heightPx: number
   /** Height of the back wall; the floor starts directly below it. */
   wallHeightPx: number
+  /** Which office-kit tiles make the floor and the back wall. */
+  style: InteriorStyle
   /** Where the player appears, and which way they face. */
   spawn: { feetX: number; feetY: number; facing: Direction }
   /** The door the player leaves through. */
   exit: InteractionTarget
   pieces: readonly InteriorPiece[]
+}
+
+/** Office-kit frames that can serve as floor or wall tiles. */
+export type KitTile = 'floor' | 'brickWall' | 'wallUpper' | 'wallLower'
+
+export interface InteriorStyle {
+  /** Tiled across the floor. */
+  floor: KitTile
+  /** Upper and lower halves of the back wall, each 32px tall. */
+  wallUpper: KitTile
+  wallLower: KitTile
 }
 
 // ─── Sprite sizes ──────────────────────────────────────────────────────────
@@ -116,7 +135,7 @@ export function pieceDepth(piece: InteriorPiece): number {
   }
 }
 
-// ─── Collision ─────────────────────────────────────────────────────────────
+// ─── Framing and collision ─────────────────────────────────────────────────
 
 /**
  * The rectangle the camera should frame: the room plus its decorative side and
@@ -140,157 +159,6 @@ export function getInteriorCollisionRects(def: InteriorDefinition): CollisionRec
     if (piece.solid) rects.push({ label: piece.id, ...piece.solid })
   }
   return rects
-}
-
-// ─── The cozy room ─────────────────────────────────────────────────────────
-// A 16 × 14 tile room: a 4-tile back wall over a 10-tile floor. Everything
-// against the back wall extends its solid up to the wall so the player cannot
-// squeeze into the gap behind it. Bed, nightstand and chest on the left; door,
-// shelf and decor along the wall; computer desk in the right corner; table,
-// chair and rug in the middle of the floor; plants in the corners.
-
-export const COZY_ROOM: InteriorDefinition = {
-  id: 'cozy-room',
-  widthPx: 256,
-  heightPx: 224,
-  wallHeightPx: 64,
-  spawn: { feetX: 132, feetY: 100, facing: 'down' },
-  exit: {
-    id: 'exit',
-    // Doorway width plus 4px each side; reaches from the wall base to just
-    // short of the spawn so the prompt does not greet the player on arrival.
-    zone: { x: 112, y: 66, w: 40, h: 26 },
-    promptX: 132,
-    // Bottom of the label sits on the door's lintel, so the door stays visible.
-    promptY: 10,
-  },
-  pieces: [
-    // Wall: door, windows with curtains, pictures
-    { id: 'door', sprite: { sheet: 'kit', name: 'door' }, x: 116, bottom: 64, layer: 'decor' },
-    {
-      id: 'window-blue',
-      sprite: { sheet: 'furniture', name: 'windowBlue' },
-      x: 12, bottom: 50, layer: 'decor',
-    },
-    {
-      id: 'window-pink',
-      sprite: { sheet: 'furniture', name: 'windowPink' },
-      x: 210, bottom: 50, layer: 'decor',
-    },
-    {
-      id: 'painting',
-      sprite: { sheet: 'furniture', name: 'paintingLandscape' },
-      x: 152, bottom: 43, layer: 'decor',
-    },
-    {
-      id: 'clock',
-      sprite: { sheet: 'furniture', name: 'clock' },
-      x: 192, bottom: 40, layer: 'decor',
-    },
-
-    // Floor covering
-    {
-      id: 'rug',
-      sprite: { sheet: 'furniture', name: 'rugOrange' },
-      x: 60, bottom: 197, layer: 'flat',
-    },
-
-    // Left wall: bed, nightstand with lamp, chest at the foot of the bed
-    {
-      id: 'bed',
-      sprite: { sheet: 'furniture', name: 'bedBlue' },
-      x: 12, bottom: 124, layer: 'sorted',
-      solid: { x: 12, y: 64, w: 30, h: 60 },
-    },
-    {
-      id: 'chest',
-      sprite: { sheet: 'furniture', name: 'chest' },
-      x: 14, bottom: 148, layer: 'sorted',
-      solid: { x: 14, y: 130, w: 24, h: 18 },
-    },
-    {
-      id: 'nightstand',
-      sprite: { sheet: 'furniture', name: 'nightstand' },
-      x: 44, bottom: 100, layer: 'sorted',
-      solid: { x: 44, y: 76, w: 26, h: 24 },
-    },
-    {
-      id: 'lamp',
-      sprite: { sheet: 'furniture', name: 'lamp' },
-      x: 48, bottom: 86, layer: 'sorted', sortBottom: 100.2,
-    },
-
-    // Back wall: bookshelf, plant
-    {
-      id: 'bookshelf',
-      sprite: { sheet: 'furniture', name: 'bookshelfTall' },
-      x: 60, bottom: 72, layer: 'sorted',
-      solid: { x: 60, y: 64, w: 48, h: 8 },
-    },
-    {
-      id: 'plant-pink',
-      sprite: { sheet: 'furniture', name: 'plantPink' },
-      x: 162, bottom: 86, layer: 'sorted',
-      solid: { x: 162, y: 64, w: 19, h: 22 },
-    },
-
-    // Right corner: the computer desk with the large computer
-    {
-      id: 'computer-desk',
-      sprite: { sheet: 'prepared', name: 'computerDesk' },
-      x: 204, bottom: 118, layer: 'sorted',
-      solid: { x: 204, y: 64, w: 48, h: 54 },
-      role: 'computer',
-    },
-
-    // Middle: table with notebook and books, and a chair
-    {
-      id: 'table',
-      sprite: { sheet: 'furniture', name: 'plankTable' },
-      x: 176, bottom: 190, layer: 'sorted',
-      solid: { x: 176, y: 140, w: 64, h: 50 },
-    },
-    {
-      id: 'notebook',
-      sprite: { sheet: 'prepared', name: 'notebook' },
-      x: 198, bottom: 170, layer: 'sorted', sortBottom: 190.2,
-      role: 'notebook',
-    },
-    {
-      id: 'books',
-      sprite: { sheet: 'prepared', name: 'bookStack' },
-      x: 182, bottom: 168, layer: 'sorted', sortBottom: 190.2,
-    },
-    {
-      id: 'chair',
-      sprite: { sheet: 'furniture', name: 'chair' },
-      x: 157, bottom: 178, layer: 'sorted',
-      solid: { x: 158, y: 166, w: 13, h: 12 },
-    },
-
-    // Corner plants
-    {
-      id: 'plant-green',
-      sprite: { sheet: 'furniture', name: 'plantGreen' },
-      x: 10, bottom: 218, layer: 'sorted',
-      solid: { x: 12, y: 206, w: 34, h: 12 },
-    },
-    {
-      id: 'plant-red',
-      sprite: { sheet: 'furniture', name: 'plantRed' },
-      x: 234, bottom: 218, layer: 'sorted',
-      solid: { x: 234, y: 208, w: 14, h: 10 },
-    },
-  ],
-}
-
-const INTERIORS: Record<string, InteriorDefinition> = {
-  [COZY_ROOM.id]: COZY_ROOM,
-}
-
-/** Looks up an interior by id; undefined for an unknown id. */
-export function getInterior(id: string): InteriorDefinition | undefined {
-  return INTERIORS[id]
 }
 
 /** The spawn point as feet coordinates. */

@@ -5,71 +5,50 @@ import { DEPTH_PLAYER, DEPTH_TREETOP, depthForFeetY } from '../config/GameConfig
 import { HOUSES } from '../config/houses'
 import { pointInRect, rectContains, rectsOverlap, type Point, type Rect } from '../../lib/geometry'
 import {
-  COZY_ROOM,
-  getInterior,
   getInteriorCollisionRects,
   pieceBounds,
   pieceDepth,
   spriteSize,
 } from './interior-layout'
+import { DEFAULT_INTERIOR, getTemplate } from './house/default-interior'
+import { reachableFeet } from './house/layout-rules'
 import { COMPUTER_WIDTH_PX } from './interior-slices'
 
-const ROOM: Rect = { x: 0, y: 0, w: COZY_ROOM.widthPx, h: COZY_ROOM.heightPx }
-const OBSTACLES: Rect[] = getInteriorCollisionRects(COZY_ROOM)
+const ROOM: Rect = { x: 0, y: 0, w: DEFAULT_INTERIOR.widthPx, h: DEFAULT_INTERIOR.heightPx }
+const OBSTACLES: Rect[] = getInteriorCollisionRects(DEFAULT_INTERIOR)
 
-/** Grid flood fill over player-feet positions, 2px apart, from the spawn point. */
-function reachableFrom(start: Point, step = 2): { reached: Set<string>; free: number } {
-  const key = (x: number, y: number): string => `${x},${y}`
-  const safe = (x: number, y: number): boolean => isFeetSafe({ x, y }, OBSTACLES, ROOM)
-
-  let free = 0
-  for (let y = 0; y <= ROOM.h; y += step) {
-    for (let x = 0; x <= ROOM.w; x += step) if (safe(x, y)) free++
-  }
-
-  const reached = new Set<string>()
-  const queue: Point[] = [start]
-  reached.add(key(start.x, start.y))
-  while (queue.length > 0) {
-    const { x, y } = queue.shift()!
-    for (const [dx, dy] of [[step, 0], [-step, 0], [0, step], [0, -step]] as const) {
-      const nx = x + dx
-      const ny = y + dy
-      if (reached.has(key(nx, ny)) || !safe(nx, ny)) continue
-      reached.add(key(nx, ny))
-      queue.push({ x: nx, y: ny })
-    }
-  }
-  return { reached, free }
+/** Where the player can walk from the spawn point; shared with the runtime rules. */
+function reachableFrom(start: Point): { reached: ReadonlySet<string>; free: number } {
+  return reachableFeet(DEFAULT_INTERIOR, start, OBSTACLES)
 }
 
-describe('cozy room data', () => {
-  it('is registered and findable by id', () => {
-    expect(getInterior('cozy-room')).toBe(COZY_ROOM)
-    expect(getInterior('nope')).toBeUndefined()
+describe('default room data', () => {
+  it('is the template every house references, findable by id', () => {
+    expect(getTemplate(DEFAULT_INTERIOR.id)?.id).toBe(DEFAULT_INTERIOR.id)
+    expect(getTemplate('nope')).toBeUndefined()
   })
 
   it('serves every house in the town', () => {
-    for (const house of HOUSES) expect(getInterior(house.interiorId), house.id).toBeDefined()
+    for (const house of HOUSES) expect(getTemplate(house.interiorId), house.id).toBeDefined()
   })
 
   it('has unique piece ids and only known sprites', () => {
-    const ids = COZY_ROOM.pieces.map(p => p.id)
+    const ids = DEFAULT_INTERIOR.pieces.map(p => p.id)
     expect(new Set(ids).size).toBe(ids.length)
-    for (const piece of COZY_ROOM.pieces) {
+    for (const piece of DEFAULT_INTERIOR.pieces) {
       expect(spriteSize(piece.sprite), piece.id).not.toBeNull()
     }
   })
 
   it('keeps every sprite and every solid inside the room', () => {
-    for (const piece of COZY_ROOM.pieces) {
+    for (const piece of DEFAULT_INTERIOR.pieces) {
       expect(rectContains(ROOM, pieceBounds(piece)), `${piece.id} sprite`).toBe(true)
       if (piece.solid) expect(rectContains(ROOM, piece.solid), `${piece.id} solid`).toBe(true)
     }
   })
 
   it('contains every required feature', () => {
-    const ids = COZY_ROOM.pieces.map(p => p.id)
+    const ids = DEFAULT_INTERIOR.pieces.map(p => p.id)
     for (const required of [
       'door', 'window-blue', 'window-pink', 'bookshelf', 'bed', 'table', 'chair', 'rug',
       'computer-desk', 'notebook', 'books', 'plant-green', 'plant-red', 'plant-pink',
@@ -79,8 +58,8 @@ describe('cozy room data', () => {
   })
 
   it('has exactly one computer and one notebook, and the computer is 48px wide', () => {
-    const computers = COZY_ROOM.pieces.filter(p => p.role === 'computer')
-    const notebooks = COZY_ROOM.pieces.filter(p => p.role === 'notebook')
+    const computers = DEFAULT_INTERIOR.pieces.filter(p => p.role === 'computer')
+    const notebooks = DEFAULT_INTERIOR.pieces.filter(p => p.role === 'notebook')
     expect(computers).toHaveLength(1)
     expect(notebooks).toHaveLength(1)
     expect(spriteSize(computers[0]!.sprite)!.w).toBe(COMPUTER_WIDTH_PX)
@@ -88,15 +67,15 @@ describe('cozy room data', () => {
   })
 
   it('stands the door in the back wall, above the exit zone', () => {
-    const door = COZY_ROOM.pieces.find(p => p.id === 'door')!
+    const door = DEFAULT_INTERIOR.pieces.find(p => p.id === 'door')!
     const bounds = pieceBounds(door)
     expect(bounds.y).toBe(0)
-    expect(bounds.y + bounds.h).toBe(COZY_ROOM.wallHeightPx)
+    expect(bounds.y + bounds.h).toBe(DEFAULT_INTERIOR.wallHeightPx)
 
     const doorCentre = bounds.x + bounds.w / 2
-    expect(COZY_ROOM.exit.promptX).toBe(doorCentre)
-    expect(COZY_ROOM.spawn.feetX).toBe(doorCentre)
-    const exitZone = COZY_ROOM.exit.zone
+    expect(DEFAULT_INTERIOR.exit.promptX).toBe(doorCentre)
+    expect(DEFAULT_INTERIOR.spawn.feetX).toBe(doorCentre)
+    const exitZone = DEFAULT_INTERIOR.exit.zone
     expect(pointInRect({ x: doorCentre, y: exitZone.y + 1 }, exitZone)).toBe(true)
   })
 })
@@ -108,7 +87,7 @@ describe('cozy room collision', () => {
   })
 
   it('makes furniture solid and decoration walkable', () => {
-    const solidIds = COZY_ROOM.pieces.filter(p => p.solid).map(p => p.id)
+    const solidIds = DEFAULT_INTERIOR.pieces.filter(p => p.solid).map(p => p.id)
     const solid = ['bed', 'bookshelf', 'table', 'chair', 'computer-desk', 'nightstand', 'chest']
     const walkable = [
       'rug', 'door', 'window-blue', 'window-pink', 'painting', 'clock', 'notebook', 'books', 'lamp',
@@ -119,13 +98,13 @@ describe('cozy room collision', () => {
 
   it('stops the player behind or inside nothing: pieces against the wall reach it', () => {
     for (const id of ['bed', 'bookshelf', 'computer-desk', 'plant-pink']) {
-      const piece = COZY_ROOM.pieces.find(p => p.id === id)!
-      expect(piece.solid!.y, id).toBe(COZY_ROOM.wallHeightPx)
+      const piece = DEFAULT_INTERIOR.pieces.find(p => p.id === id)!
+      expect(piece.solid!.y, id).toBe(DEFAULT_INTERIOR.wallHeightPx)
     }
   })
 
   it('never overlaps two solids', () => {
-    const solids = COZY_ROOM.pieces.filter(p => p.solid)
+    const solids = DEFAULT_INTERIOR.pieces.filter(p => p.solid)
     for (let i = 0; i < solids.length; i++) {
       for (let j = i + 1; j < solids.length; j++) {
         expect(
@@ -138,7 +117,7 @@ describe('cozy room collision', () => {
 })
 
 describe('cozy room walkability', () => {
-  const spawn: Point = { x: COZY_ROOM.spawn.feetX, y: COZY_ROOM.spawn.feetY }
+  const spawn: Point = { x: DEFAULT_INTERIOR.spawn.feetX, y: DEFAULT_INTERIOR.spawn.feetY }
   const { reached, free } = reachableFrom(spawn)
   const canReach = (p: Point): boolean => reached.has(`${p.x},${p.y}`)
 
@@ -147,18 +126,18 @@ describe('cozy room walkability', () => {
   })
 
   it('spawns one tile outside the exit zone, so no prompt greets the player on arrival', () => {
-    expect(findNearbyTarget(spawn, [COZY_ROOM.exit])).toBeNull()
-    expect(COZY_ROOM.spawn.feetY).toBe(84 + 16)
+    expect(findNearbyTarget(spawn, [DEFAULT_INTERIOR.exit])).toBeNull()
+    expect(DEFAULT_INTERIOR.spawn.feetY).toBe(84 + 16)
   })
 
   it('keeps the exit zone aligned with the doorway and reachable from the spawn', () => {
-    const door = pieceBounds(COZY_ROOM.pieces.find(p => p.id === 'door')!)
-    const zone = COZY_ROOM.exit.zone
+    const door = pieceBounds(DEFAULT_INTERIOR.pieces.find(p => p.id === 'door')!)
+    const zone = DEFAULT_INTERIOR.exit.zone
     expect(zone.x).toBeLessThanOrEqual(door.x)
     expect(zone.x + zone.w).toBeGreaterThanOrEqual(door.x + door.w)
     expect(zone.x + zone.w).toBeLessThanOrEqual(door.x + door.w + 8)
     // Walking straight up from the spawn enters the zone.
-    expect(findNearbyTarget({ x: spawn.x, y: zone.y + zone.h - 1 }, [COZY_ROOM.exit])?.id).toBe(
+    expect(findNearbyTarget({ x: spawn.x, y: zone.y + zone.h - 1 }, [DEFAULT_INTERIOR.exit])?.id).toBe(
       'exit',
     )
   })
@@ -188,21 +167,21 @@ describe('cozy room walkability', () => {
 })
 
 describe('cozy room gameplay: walls, furniture and the way out', () => {
-  const exitZone = COZY_ROOM.exit.zone
+  const exitZone = DEFAULT_INTERIOR.exit.zone
   const bodyH = playerBodyRect(0, 0).h
-  const spawnPoint: Point = { x: COZY_ROOM.spawn.feetX, y: COZY_ROOM.spawn.feetY }
+  const spawnPoint: Point = { x: DEFAULT_INTERIOR.spawn.feetX, y: DEFAULT_INTERIOR.spawn.feetY }
 
   it('stops the player at the back wall and at the side and bottom edges', () => {
     // Body top sits 8.8px above the feet, so feet must stay below wall + 8.8.
-    expect(isFeetSafe({ x: 132, y: COZY_ROOM.wallHeightPx + bodyH - 2 }, OBSTACLES, ROOM)).toBe(false)
-    expect(isFeetSafe({ x: 132, y: COZY_ROOM.wallHeightPx + bodyH + 1 }, OBSTACLES, ROOM)).toBe(true)
+    expect(isFeetSafe({ x: 132, y: DEFAULT_INTERIOR.wallHeightPx + bodyH - 2 }, OBSTACLES, ROOM)).toBe(false)
+    expect(isFeetSafe({ x: 132, y: DEFAULT_INTERIOR.wallHeightPx + bodyH + 1 }, OBSTACLES, ROOM)).toBe(true)
     expect(isFeetSafe({ x: 2, y: 160 }, OBSTACLES, ROOM)).toBe(false)
     expect(isFeetSafe({ x: ROOM.w - 2, y: 160 }, OBSTACLES, ROOM)).toBe(false)
     expect(isFeetSafe({ x: 100, y: ROOM.h + 2 }, OBSTACLES, ROOM)).toBe(false)
   })
 
   it('blocks the player on every piece of solid furniture', () => {
-    for (const piece of COZY_ROOM.pieces) {
+    for (const piece of DEFAULT_INTERIOR.pieces) {
       if (!piece.solid) continue
       const s = piece.solid
       const centre: Point = { x: s.x + s.w / 2, y: s.y + s.h / 2 + bodyH / 2 }
@@ -224,8 +203,8 @@ describe('cozy room gameplay: walls, furniture and the way out', () => {
   })
 
   it('leaves a clear corridor from the spawn straight up to the door', () => {
-    const door = pieceBounds(COZY_ROOM.pieces.find(p => p.id === 'door')!)
-    const lowestFeet = COZY_ROOM.wallHeightPx + bodyH + 1
+    const door = pieceBounds(DEFAULT_INTERIOR.pieces.find(p => p.id === 'door')!)
+    const lowestFeet = DEFAULT_INTERIOR.wallHeightPx + bodyH + 1
     for (const x of [door.x, door.x + door.w / 2, door.x + door.w]) {
       for (let y = spawnPoint.y; y >= lowestFeet; y -= 1) {
         expect(isFeetSafe({ x, y }, OBSTACLES, ROOM), `blocked at (${x},${y})`).toBe(true)
@@ -235,17 +214,17 @@ describe('cozy room gameplay: walls, furniture and the way out', () => {
 
   it('lets the player reach the whole exit zone from the spawn', () => {
     const { reached } = reachableFrom(spawnPoint)
-    const topY = COZY_ROOM.wallHeightPx + bodyH + 2
-    for (const x of [exitZone.x + 4, COZY_ROOM.exit.promptX, exitZone.x + exitZone.w - 4]) {
+    const topY = DEFAULT_INTERIOR.wallHeightPx + bodyH + 2
+    for (const x of [exitZone.x + 4, DEFAULT_INTERIOR.exit.promptX, exitZone.x + exitZone.w - 4]) {
       const point = { x: Math.round(x / 2) * 2, y: Math.ceil(topY / 2) * 2 }
       expect(reached.has(`${point.x},${point.y}`), `(${point.x},${point.y})`).toBe(true)
-      expect(findNearbyTarget(point, [COZY_ROOM.exit])?.id).toBe('exit')
+      expect(findNearbyTarget(point, [DEFAULT_INTERIOR.exit])?.id).toBe('exit')
     }
   })
 })
 
 describe('cozy room depth sorting (by the player\u2019s feet)', () => {
-  const sorted = COZY_ROOM.pieces.filter(p => p.layer === 'sorted')
+  const sorted = DEFAULT_INTERIOR.pieces.filter(p => p.layer === 'sorted')
   const bodyH = playerBodyRect(0, 0).h
 
   it('draws every y-sorted piece inside the player depth band', () => {
@@ -257,7 +236,7 @@ describe('cozy room depth sorting (by the player\u2019s feet)', () => {
 
   it('keeps the rug and wall decoration beneath the player at any position', () => {
     const lowestPlayer = depthForFeetY(0)
-    for (const piece of COZY_ROOM.pieces) {
+    for (const piece of DEFAULT_INTERIOR.pieces) {
       if (piece.layer === 'sorted') continue
       expect(pieceDepth(piece), piece.id).toBeLessThan(lowestPlayer)
     }
@@ -274,12 +253,12 @@ describe('cozy room depth sorting (by the player\u2019s feet)', () => {
   })
 
   it('draws table and nightstand items above their supports but below a player in front', () => {
-    const depth = (id: string): number => pieceDepth(COZY_ROOM.pieces.find(p => p.id === id)!)
+    const depth = (id: string): number => pieceDepth(DEFAULT_INTERIOR.pieces.find(p => p.id === id)!)
     expect(depth('notebook')).toBeGreaterThan(depth('table'))
     expect(depth('books')).toBeGreaterThan(depth('table'))
     expect(depth('lamp')).toBeGreaterThan(depth('nightstand'))
 
-    const table = COZY_ROOM.pieces.find(p => p.id === 'table')!.solid!
+    const table = DEFAULT_INTERIOR.pieces.find(p => p.id === 'table')!.solid!
     const playerInFront = depthForFeetY(table.y + table.h + bodyH)
     expect(playerInFront).toBeGreaterThan(depth('notebook'))
     expect(playerInFront).toBeGreaterThan(depth('books'))

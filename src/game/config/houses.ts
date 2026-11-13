@@ -1,8 +1,10 @@
 /**
- * Which buildings can be entered, and which interior each one opens onto.
+ * Which buildings can be entered, and which interior template each opens onto.
  *
- * A house is data, not code: add a row here (and, for a new layout, an
- * `InteriorDefinition`) and it becomes enterable. The church and the bridge are
+ * A house is data, not code: add a row here and it becomes enterable. Every
+ * house uses the same default template; what makes a house its own is its
+ * furniture layout, which lives in the `HouseLayoutStore` (maps/house/) and
+ * starts as an independent copy of the default. The church and the bridge are
  * deliberately absent — the church stays an outdoor landmark.
  */
 
@@ -11,7 +13,7 @@ export interface HouseConfig {
   id: string
   /** Label of the `StructurePlacement` this house is. */
   structureLabel: string
-  /** Which `InteriorDefinition` the door leads to. */
+  /** Which interior template the door leads to. Every house shares the default today. */
   interiorId: string
   /** Human-readable name, for future UI. */
   title: string

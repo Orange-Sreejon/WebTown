@@ -26,6 +26,8 @@ import { buildEntrances, findNearbyTarget, type Entrance } from '../systems/inte
 import { captureReturnState, planReturn, type TownReturnState } from '../systems/return-position'
 import { TransitionLock } from '../systems/transition'
 import { InteractionPrompt } from '../entities/InteractionPrompt'
+import { houseLayouts } from '../maps/house/house-layout-store'
+import type { InteriorSceneData } from './InteriorScene'
 import { Player } from '../entities/Player'
 import { emit } from '../../lib/event-bus'
 import type { Rect } from '../../lib/geometry'
@@ -203,13 +205,24 @@ export class TownScene extends Phaser.Scene {
     this.prompt.hide()
     this.player.halt()
 
+    // The layout loads while the door fades, so the interior is handed it ready-made.
+    // A failed load still launches the interior, which then returns to the town.
+    const layoutLoad = houseLayouts.load(entrance.id).catch((error: unknown) => {
+      console.error(`[TownScene] could not load the layout for "${entrance.id}"`, error)
+      return undefined
+    })
+
     const cam = this.cameras.main
     cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.launch(SceneKeys.INTERIOR, {
-        houseId: entrance.id,
-        interiorId: entrance.interiorId,
+      void layoutLoad.then(layout => {
+        const data: InteriorSceneData = {
+          houseId: entrance.id,
+          interiorId: entrance.interiorId,
+          layout,
+        }
+        this.scene.launch(SceneKeys.INTERIOR, data)
+        this.scene.sleep()
       })
-      this.scene.sleep()
     })
     cam.fadeOut(TRANSITION_FADE_MS, 0, 0, 0)
   }
