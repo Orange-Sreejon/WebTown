@@ -15,10 +15,10 @@ export class InteractionPrompt {
     this.label = scene.add
       .text(0, 0, '', {
         fontFamily: 'monospace',
-        fontSize: '8px',
+        fontSize: '7px',
         color: '#fff4d6',
         backgroundColor: '#2b1d14',
-        padding: { x: 3, y: 2 },
+        padding: { x: 2, y: 1 },
       })
       .setOrigin(0.5, 1)
       .setDepth(DEPTH_PROMPT)

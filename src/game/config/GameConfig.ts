@@ -67,13 +67,24 @@ export const ENTRANCE_HALF_WIDTH = 24
 export const ENTRANCE_DEPTH = 32
 export const ENTRANCE_RISE = 8
 /** How far above the building's bottom edge the prompt hovers. */
-export const ENTRANCE_PROMPT_RISE = 26
+export const ENTRANCE_PROMPT_RISE = 36
 /** Fallback return point: this far south of the door, always on the driveway. */
 export const ENTRANCE_FALLBACK_OFFSET = 14
 
 /** Prompt labels. */
-export const PROMPT_ENTER_TEXT = 'E \u2014 Enter House'
-export const PROMPT_EXIT_TEXT = 'E \u2014 Exit'
+export const PROMPT_ENTER_TEXT = 'E: Enter'
+export const PROMPT_EXIT_TEXT = 'E: Exit'
+
+/**
+ * Decorative wall drawn outside an interior's physics bounds on the left,
+ * right and bottom edges. Art only: it never collides.
+ */
+export const INTERIOR_BORDER_PX = 12
+/**
+ * Total slack, in WORLD pixels (1× room pixels, not screen pixels), kept around
+ * the framed room when choosing a zoom. At zoom 3 it is 12 screen pixels.
+ */
+export const INTERIOR_VIEW_MARGIN_PX = 4
 
 /** Fade-out / fade-in time when moving between town and interior. */
 export const TRANSITION_FADE_MS = 180

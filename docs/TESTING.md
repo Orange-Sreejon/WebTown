@@ -121,15 +121,28 @@ see `docs/ASSETS.md`, Asset Pack 7).
 
 ## Entrances
 
-- [ ] Walk up to any of the seven houses: `E — Enter House` appears at the door
-- [ ] Walk away: the prompt disappears
+- [ ] Walk up to any of the seven houses: a small `E: Enter` label appears just
+      above the doorway, not over the door itself
+- [ ] Walk away: the prompt disappears; only one prompt is ever visible
 - [ ] The church shows no prompt and pressing E there does nothing
 - [ ] At night (`?time=22:00`) the prompt is still readable above the dark overlay
 
 ## Entering
 
 - [ ] E fades out and into the room; holding E does not bounce straight back out
-- [ ] The player appears in front of the door, facing down, with `E — Exit` shown
+- [ ] The player appears one tile in front of the door, facing down, with **no**
+      prompt showing yet; walking up to the door shows `E: Exit` above it
+
+## Room framing (check at each size; use DevTools device toolbar or resize the window)
+
+- [ ] About 1280×720 canvas: zoom 3, room (with brick border) about 66% of the
+      width, nothing clipped. A shorter browser window (tabs/toolbars) drops to
+      zoom 2 rather than clipping
+- [ ] About 1920×1080 canvas: zoom 4, room about 58% of the width, nothing clipped
+- [ ] Pixels stay sharp (no blur or uneven pixel sizes) at both sizes
+- [ ] Resizing the window while inside re-fits the room without a reload
+- [ ] Brick border on the left, right and bottom; soft shadow under the skirting
+      board and along the inner edges of the floor
 
 ## The room
 
@@ -138,16 +151,20 @@ see `docs/ASSETS.md`, Asset Pack 7).
       notebook, chair, three plants, and the large computer desk are visible
 - [ ] The computer and notebook do nothing when approached (Phase 3)
 - [ ] Back wall, bed, nightstand, chest, bookshelf, plants, table, chair and the
-      computer desk all block the player; the room's edges block the player
+      computer desk all block the player; the room's edges block the player and
+      the player never walks onto the brick border
 - [ ] The rug can be walked over
-- [ ] Walking behind/in front of the table and chair layers correctly
-- [ ] The whole floor can be reached; nothing traps the player
+- [ ] Walking behind/in front of the table, chair, bed and plants layers correctly
+      (feet decide who is in front); items on the table stay above the table
+- [ ] The whole floor can be reached; the corridor from the start point to the
+      door is always clear
 
 ## Leaving
 
 - [ ] At the door, E fades back to the town
 - [ ] The player is at exactly the spot they entered from, facing the same way,
-      with the camera where it was
+      with the camera where it was, and does not drift after returning
+- [ ] Holding a movement key through the transition does not make the player slide
 - [ ] Pressing E again immediately does nothing; after a moment it re-enters
 - [ ] The town clock did not advance while inside, and runs again outside
 - [ ] With `?time=22:00&timeFrozen=1` the clock is still frozen after a visit
@@ -158,6 +175,7 @@ see `docs/ASSETS.md`, Asset Pack 7).
 - [ ] Enter and leave ten times: no slowdown, no duplicate prompts
 - [ ] Rename `public/assets/interior/` and press E at a door: the screen flashes
       and the player stays in the town, still playable
+- [ ] Enter, leave and enter again while holding a movement key: no stuck input
 
 ## Art playground
 

@@ -125,3 +125,34 @@ describe('findNearbyTarget', () => {
     expect(findNearbyTarget(entrance.fallbackFeet, ENTRANCES)?.id).toBe(entrance.id)
   })
 })
+
+describe('prompt visibility rules', () => {
+  const bottomOf = (e: (typeof ENTRANCES)[number]): number => e.zone.y + e.zone.h - 32
+
+  it('hovers the prompt above a two-tile door, not over it', () => {
+    for (const e of ENTRANCES) {
+      expect(e.promptY, e.id).toBeLessThanOrEqual(bottomOf(e) - 2 * TILE_SIZE)
+      expect(e.promptX, e.id).toBe(e.zone.x + e.zone.w / 2)
+    }
+  })
+
+  it('shows nothing when the player is out of range', () => {
+    for (const e of ENTRANCES) {
+      const cx = e.zone.x + e.zone.w / 2
+      expect(findNearbyTarget({ x: cx, y: bottomOf(e) + 33 }, ENTRANCES), e.id).toBeNull()
+      expect(findNearbyTarget({ x: e.zone.x - 1, y: bottomOf(e) + 8 }, ENTRANCES), e.id).toBeNull()
+      expect(findNearbyTarget({ x: e.zone.x + e.zone.w, y: bottomOf(e) + 8 }, ENTRANCES), e.id)
+        .toBeNull()
+    }
+  })
+
+  it('offers at most one target at any point, so only one prompt can show', () => {
+    for (let x = 0; x < MAP_WIDTH_PX; x += 8) {
+      for (let y = 0; y < MAP_HEIGHT_PX; y += 8) {
+        const inside = ENTRANCES.filter(e => x >= e.zone.x && x < e.zone.x + e.zone.w &&
+          y >= e.zone.y && y < e.zone.y + e.zone.h)
+        expect(inside.length).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+})

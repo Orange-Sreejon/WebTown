@@ -3,12 +3,11 @@ import { AssetKeys, AssetPaths } from '../config/AssetKeys'
 import {
   DEPTH_GROUND,
   DEPTH_ROAD,
-  DEPTH_DECORATION,
-  DEPTH_STRUCTURE,
   INTERACT_COOLDOWN_MS,
+  INTERIOR_BORDER_PX,
+  INTERIOR_VIEW_MARGIN_PX,
   PROMPT_EXIT_TEXT,
   TRANSITION_FADE_MS,
-  depthForFeetY,
 } from '../config/GameConfig'
 import { SceneKeys } from '../config/SceneKeys'
 import { Player } from '../entities/Player'
@@ -17,7 +16,9 @@ import { addStaticRects } from '../maps/collision-objects'
 import {
   getInterior,
   getInteriorCollisionRects,
+  interiorViewRect,
   pieceBounds,
+  pieceDepth,
   spawnFeet,
   type InteriorDefinition,
   type InteriorPiece,
@@ -30,15 +31,13 @@ import {
 } from '../maps/interior-textures'
 import { findNearbyTarget } from '../systems/interaction'
 import { TransitionLock } from '../systems/transition'
+import { chooseIntegerZoom } from '../systems/view-fit'
 
 /** Passed by `TownScene` when it launches this scene. */
 export interface InteriorSceneData {
   houseId: string
   interiorId: string
 }
-
-/** Room margin, in pixels, kept clear around the room when choosing a zoom. */
-const VIEW_MARGIN_PX = 32
 
 /**
  * A walkable room, built entirely from an `InteriorDefinition`.
@@ -52,7 +51,6 @@ const VIEW_MARGIN_PX = 32
  * only ever cost the player a visit — never the town.
  */
 export class InteriorScene extends Phaser.Scene {
-  private houseId = ''
   private interiorId = ''
   private definition: InteriorDefinition | undefined
   private loadFailed = false
@@ -71,13 +69,13 @@ export class InteriorScene extends Phaser.Scene {
 
   private onInteractKey: ((event: KeyboardEvent) => void) | undefined
   private onResize: (() => void) | undefined
+  private onLoadError: ((file: Phaser.Loader.File) => void) | undefined
 
   constructor() {
     super({ key: SceneKeys.INTERIOR })
   }
 
   init(data: InteriorSceneData): void {
-    this.houseId = data.houseId
     this.interiorId = data.interiorId
     this.definition = getInterior(data.interiorId)
     this.loadFailed = false
@@ -86,10 +84,11 @@ export class InteriorScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+    this.onLoadError = (file: Phaser.Loader.File): void => {
       console.error('[InteriorScene] failed to load', file.key, file.url)
       this.loadFailed = true
-    })
+    }
+    this.load.on('loaderror', this.onLoadError)
 
     const sheets = [
       AssetKeys.INTERIOR_OFFICE_KIT,
@@ -102,6 +101,9 @@ export class InteriorScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Loading is over; nothing needs the listener any more.
+    this.removeLoadErrorListener()
+
     const def = this.definition
     if (!def || this.loadFailed || !interiorSheetsLoaded(this)) {
       console.error(`[InteriorScene] cannot open "${this.interiorId}" — returning to town`)
@@ -125,6 +127,8 @@ export class InteriorScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard!.createCursorKeys()
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as typeof this.wasd
+    // A key still held from the town must not count as pressed here.
+    this.input.keyboard!.resetKeys()
 
     this.prompt = new InteractionPrompt(this)
 
@@ -189,6 +193,37 @@ export class InteriorScene extends Phaser.Scene {
     }
 
     for (const piece of def.pieces) this.addPiece(piece)
+
+    this.buildBorders(def)
+  }
+
+  /**
+   * Art-only frame outside the physics bounds: brick on the left, right and
+   * bottom, plus soft shading where wall meets floor (under the skirting
+   * board, and along the inner side and bottom edges). The brick tile is
+   * cropped, not scaled, so pixels stay 1:1.
+   */
+  private buildBorders(def: InteriorDefinition): void {
+    const kit = AssetKeys.INTERIOR_OFFICE_KIT
+    const b = INTERIOR_BORDER_PX
+    const brick = (x: number, y: number, w: number, h: number): void => {
+      this.add.tileSprite(x, y, w, h, kit, 'brickWall').setOrigin(0, 0).setDepth(DEPTH_ROAD)
+    }
+
+    brick(-b, 0, b, def.heightPx + b)
+    brick(def.widthPx, 0, b, def.heightPx + b)
+    brick(0, def.heightPx, def.widthPx, b)
+
+    // Shade strips sit above the floor and rug but below furniture and the player.
+    const shade = this.add.graphics().setDepth(DEPTH_ROAD + 0.5)
+    shade.fillStyle(0x000000, 0.22)
+    shade.fillRect(0, def.wallHeightPx, def.widthPx, 4)
+    shade.fillStyle(0x000000, 0.14)
+    shade.fillRect(0, def.wallHeightPx + 4, def.widthPx, 3)
+    shade.fillStyle(0x000000, 0.16)
+    shade.fillRect(0, def.wallHeightPx, 3, def.heightPx - def.wallHeightPx)
+    shade.fillRect(def.widthPx - 3, def.wallHeightPx, 3, def.heightPx - def.wallHeightPx)
+    shade.fillRect(0, def.heightPx - 3, def.widthPx, 3)
   }
 
   private addPiece(piece: InteriorPiece): void {
@@ -198,23 +233,7 @@ export class InteriorScene extends Phaser.Scene {
     this.add
       .image(bounds.x, bounds.y + bounds.h, key, frame)
       .setOrigin(0, 1)
-      .setDepth(this.depthFor(piece))
-  }
-
-  /**
-   * Flat things (rugs) sit just above the floor, wall decoration above the
-   * wall, and everything else is y-sorted by its base with the same function
-   * the player uses — so the player passes in front of or behind furniture.
-   */
-  private depthFor(piece: InteriorPiece): number {
-    switch (piece.layer) {
-      case 'flat':
-        return DEPTH_DECORATION
-      case 'decor':
-        return DEPTH_STRUCTURE
-      case 'sorted':
-        return depthForFeetY(piece.sortBottom ?? piece.bottom)
-    }
+      .setDepth(pieceDepth(piece))
   }
 
   // ── Camera ───────────────────────────────────────────────────────────────
@@ -230,27 +249,21 @@ export class InteriorScene extends Phaser.Scene {
     if (!def) return
 
     const cam = this.cameras.main
-    const zoom = Math.max(
-      1,
-      Math.floor(
-        Math.min(
-          cam.width / (def.widthPx + VIEW_MARGIN_PX),
-          cam.height / (def.heightPx + VIEW_MARGIN_PX),
-        ),
-      ),
-    )
+    const view = interiorViewRect(def)
+    // cam.width/height are the real Phaser canvas size, which Scale.EXPAND keeps
+    // equal to the browser's drawable area.
+    const { zoom, fits } = chooseIntegerZoom(cam.width, cam.height, view, INTERIOR_VIEW_MARGIN_PX)
 
     cam.setZoom(zoom)
     cam.setBackgroundColor('#1d1a22')
     cam.roundPixels = true
 
-    const fits = cam.width / zoom >= def.widthPx && cam.height / zoom >= def.heightPx
     if (fits) {
       cam.stopFollow()
       cam.removeBounds()
-      cam.centerOn(def.widthPx / 2, def.heightPx / 2)
+      cam.centerOn(view.x + view.w / 2, view.y + view.h / 2)
     } else {
-      cam.setBounds(0, 0, def.widthPx, def.heightPx)
+      cam.setBounds(view.x, view.y, view.w, view.h)
       cam.startFollow(this.player, true, 1, 1)
     }
   }
@@ -269,11 +282,18 @@ export class InteriorScene extends Phaser.Scene {
 
   /** Wakes the town and stops this scene. Also the safe path out of a failed load. */
   private returnToTown(): void {
-    this.scene.wake(SceneKeys.TOWN, { houseId: this.houseId })
+    this.scene.wake(SceneKeys.TOWN)
     this.scene.stop()
   }
 
+  private removeLoadErrorListener(): void {
+    if (this.onLoadError) this.load.off('loaderror', this.onLoadError)
+    this.onLoadError = undefined
+  }
+
   private teardown(): void {
+    this.removeLoadErrorListener()
+
     if (this.onInteractKey) this.input.keyboard?.off('keydown-E', this.onInteractKey)
     this.onInteractKey = undefined
 

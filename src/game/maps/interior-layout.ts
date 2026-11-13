@@ -1,4 +1,5 @@
 import type { Point, Rect } from '../../lib/geometry'
+import { DEPTH_DECORATION, DEPTH_STRUCTURE, INTERIOR_BORDER_PX, depthForFeetY } from '../config/GameConfig'
 import type { Direction } from '../systems/movement'
 import type { InteractionTarget } from '../systems/interaction'
 import type { CollisionRect } from './collision-objects'
@@ -96,7 +97,39 @@ export function pieceBounds(piece: InteriorPiece): Rect {
   return { x: piece.x, y: piece.bottom - size.h, w: size.w, h: size.h }
 }
 
+// ─── Depth ─────────────────────────────────────────────────────────────────
+
+/**
+ * Draw depth for a piece. Flat things (rugs) sit just above the floor, wall
+ * decoration above the wall, and everything else is y-sorted by its base with
+ * the same function the player uses, so the player passes in front of or
+ * behind furniture according to where their feet are.
+ */
+export function pieceDepth(piece: InteriorPiece): number {
+  switch (piece.layer) {
+    case 'flat':
+      return DEPTH_DECORATION
+    case 'decor':
+      return DEPTH_STRUCTURE
+    case 'sorted':
+      return depthForFeetY(piece.sortBottom ?? piece.bottom)
+  }
+}
+
 // ─── Collision ─────────────────────────────────────────────────────────────
+
+/**
+ * The rectangle the camera should frame: the room plus its decorative side and
+ * bottom borders. The top edge is the back wall, which has no border.
+ */
+export function interiorViewRect(def: InteriorDefinition): Rect {
+  return {
+    x: -INTERIOR_BORDER_PX,
+    y: 0,
+    w: def.widthPx + INTERIOR_BORDER_PX * 2,
+    h: def.heightPx + INTERIOR_BORDER_PX,
+  }
+}
 
 /** The back wall plus every solid piece. The room's other edges are the world bounds. */
 export function getInteriorCollisionRects(def: InteriorDefinition): CollisionRect[] {
@@ -121,12 +154,15 @@ export const COZY_ROOM: InteriorDefinition = {
   widthPx: 256,
   heightPx: 224,
   wallHeightPx: 64,
-  spawn: { feetX: 132, feetY: 84, facing: 'down' },
+  spawn: { feetX: 132, feetY: 100, facing: 'down' },
   exit: {
     id: 'exit',
-    zone: { x: 108, y: 68, w: 48, h: 36 },
+    // Doorway width plus 4px each side; reaches from the wall base to just
+    // short of the spawn so the prompt does not greet the player on arrival.
+    zone: { x: 112, y: 66, w: 40, h: 26 },
     promptX: 132,
-    promptY: 30,
+    // Bottom of the label sits on the door's lintel, so the door stays visible.
+    promptY: 10,
   },
   pieces: [
     // Wall: door, windows with curtains, pictures

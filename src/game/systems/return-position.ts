@@ -14,8 +14,11 @@ export interface TownReturnState {
   feetX: number
   feetY: number
   facing: Direction
-  cameraScrollX: number
-  cameraScrollY: number
+  /**
+   * Camera zoom at the moment of leaving. Scroll is deliberately not saved: the
+   * town camera follows the player with lerp 1, so its scroll is a pure
+   * function of the player's position and re-derives itself on the next frame.
+   */
   cameraZoom: number
 }
 
@@ -24,6 +27,22 @@ export interface ReturnResolution {
   feetY: number
   /** True when the saved spot was unsafe and the fallback was used instead. */
   usedFallback: boolean
+}
+
+/** Where, and facing which way, the player reappears. */
+export interface ReturnPlan extends ReturnResolution {
+  facing: Direction
+  cameraZoom: number
+}
+
+/** Snapshot taken the moment the player uses a door. */
+export function captureReturnState(
+  houseId: string,
+  feet: Point,
+  facing: Direction,
+  cameraZoom: number,
+): TownReturnState {
+  return { houseId, feetX: feet.x, feetY: feet.y, facing, cameraZoom }
 }
 
 /**
@@ -70,4 +89,23 @@ export function resolveReturnFeet(
     return { feetX: savedFeet.x, feetY: savedFeet.y, usedFallback: false }
   }
   return { feetX: fallback.x, feetY: fallback.y, usedFallback: true }
+}
+
+/**
+ * The full return decision: position, facing and zoom. The saved facing is
+ * restored with the saved spot; the door-front fallback faces the player down,
+ * away from the door, since they did not arrive by walking there.
+ */
+export function planReturn(
+  saved: TownReturnState,
+  obstacles: readonly Rect[],
+  bounds: Rect,
+  fallback: Point,
+): ReturnPlan {
+  const resolved = resolveReturnFeet(saved, obstacles, bounds, fallback)
+  return {
+    ...resolved,
+    facing: resolved.usedFallback ? 'down' : saved.facing,
+    cameraZoom: saved.cameraZoom,
+  }
 }

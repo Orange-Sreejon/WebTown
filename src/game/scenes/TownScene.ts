@@ -23,7 +23,7 @@ import {
   parseTimeOverride,
 } from '../systems/game-clock'
 import { buildEntrances, findNearbyTarget, type Entrance } from '../systems/interaction'
-import { resolveReturnFeet, type TownReturnState } from '../systems/return-position'
+import { captureReturnState, planReturn, type TownReturnState } from '../systems/return-position'
 import { TransitionLock } from '../systems/transition'
 import { InteractionPrompt } from '../entities/InteractionPrompt'
 import { Player } from '../entities/Player'
@@ -193,22 +193,17 @@ export class TownScene extends Phaser.Scene {
    * the physics world and the Halloween layer exactly as they were.
    */
   private enterHouse(entrance: Entrance): void {
-    const cam = this.cameras.main
-    const feet = this.player.feet
-
-    this.returnState = {
-      houseId: entrance.id,
-      feetX: feet.x,
-      feetY: feet.y,
-      facing: this.player.facing,
-      cameraScrollX: cam.scrollX,
-      cameraScrollY: cam.scrollY,
-      cameraZoom: cam.zoom,
-    }
+    this.returnState = captureReturnState(
+      entrance.id,
+      this.player.feet,
+      this.player.facing,
+      this.cameras.main.zoom,
+    )
 
     this.prompt.hide()
     this.player.halt()
 
+    const cam = this.cameras.main
     cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       this.scene.launch(SceneKeys.INTERIOR, {
         houseId: entrance.id,
@@ -255,17 +250,16 @@ export class TownScene extends Phaser.Scene {
     const fallback = entrance?.fallbackFeet ?? { x: saved.feetX, y: saved.feetY }
     const bounds: Rect = { x: 0, y: 0, w: MAP_WIDTH_PX, h: MAP_HEIGHT_PX }
 
-    const result = resolveReturnFeet(saved, this.collectObstacleRects(), bounds, fallback)
+    const plan = planReturn(saved, this.collectObstacleRects(), bounds, fallback)
 
-    this.player.placeFeet(result.feetX, result.feetY)
-    this.player.setFacing(result.usedFallback ? 'down' : saved.facing)
+    this.player.placeFeet(plan.feetX, plan.feetY)
+    this.player.setFacing(plan.facing)
 
-    const cam = this.cameras.main
-    cam.setZoom(saved.cameraZoom)
-    if (result.usedFallback) {
+    // Scroll is not restored by hand: the follow camera (lerp 1) recomputes it
+    // from the player's position on the next frame.
+    this.cameras.main.setZoom(plan.cameraZoom)
+    if (plan.usedFallback) {
       console.warn('[TownScene] saved return position was blocked; using the door-front fallback')
-    } else {
-      cam.setScroll(saved.cameraScrollX, saved.cameraScrollY)
     }
   }
 
