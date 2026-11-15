@@ -6,7 +6,7 @@ WebTown is a browser-based, top-down 2D pixel-art world where every house can be
 
 ## Demo
 
-<video src="./webtown-demo-revised.mp4" controls="controls" width="100%"></video>
+<video src="https://youtu.be/bO0x_F1-ShI" controls="controls" width="100%"></video>
 
 [If the video player does not appear, watch or download the demo video here.](./webtown-demo-revised.mp4)
 
