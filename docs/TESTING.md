@@ -250,3 +250,38 @@ At a 1920×1080 window the interior is drawn at 4.5 screen pixels per art
 pixel. `Scale.EXPAND` stretches the 1280×720 canvas by 1.5 with CSS, on top of
 the interior's ×3 camera zoom, so pixels are slightly uneven at that size. This
 predates the editor (see the Phase 2 camera work) and is tracked separately.
+
+# WebTown Phase 3a — Personal Spaces Manual Checklist
+
+Phase 3a is a **local demonstration**: website and drawings are saved in this
+browser's IndexedDB only. Other devices and browsers cannot see them.
+Client-side owner / visitor restrictions can be bypassed with developer tools.
+
+Sections are added task by task (see `.kiro/specs/personal-spaces-mvp/tasks.md`).
+The full checklist is completed in task P3-17.
+
+## Interaction and freeze (P3-02)
+
+Automated in Vitest: object targets, open/close session, key gate, and Phaser's real keyboard
+manager (W A S D E arrows Space reach a text field while an app is open).
+
+Manual, in the browser (1280x720), owner house `house-a` and a visitor house `house-b`:
+
+- [ ] Stand at the computer: prompt `E: Use Computer`. At the notebook: `E: Open Sketchbook`.
+- [ ] E opens a placeholder window over the game; the room stays visible behind it.
+- [ ] The title shows Computer or Sketchbook; house and mode are right (owner in `house-a`,
+      visitor in `house-b`; `?owner=house-b` swaps them in dev).
+- [ ] Hold a movement key while pressing E: the player does not move while open.
+- [ ] In the "Typing test" field type `wasd e` and use the arrow keys: all arrive.
+- [ ] E, or E held down, while open does not leave the house or open anything else.
+- [ ] Esc, the Close button and clicking Close twice quickly all close it once.
+- [ ] After closing: same position and facing, prompt back, WASD and arrows move the player,
+      the player does not walk by itself, E at the door still exits.
+- [ ] The Edit House button is hidden while an app is open and back after.
+- [ ] In furniture edit mode E opens nothing; Save and Cancel still work.
+- [ ] Open and close 20 times: nothing changes; walk out, back in, and repeat once.
+- [ ] Move the table in the furniture editor: the Sketchbook prompt follows it.
+## Website (P3-06, P3-07)
+## WebTown Paint (P3-12 to P3-15)
+## Persistence and limits (P3-11, P3-14)
+## Regression

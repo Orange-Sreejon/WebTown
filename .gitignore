@@ -52,3 +52,8 @@ public/assets/interior/
 
 # Screenshots of the interior art (unverified licence) - never commit.
 /previews/
+
+# Local-only design references. The Paint reference screenshot is a Microsoft UI
+# screenshot: development reference only, never publish or ship it. Kept outside
+# public/ so Vite does not copy it into dist/.
+/inspiration-art/

@@ -74,6 +74,9 @@ export const ENTRANCE_FALLBACK_OFFSET = 14
 /** Prompt labels. */
 export const PROMPT_ENTER_TEXT = 'E: Enter'
 export const PROMPT_EXIT_TEXT = 'E: Exit'
+/** Phase 3: the computer opens the website, the notebook (a "Sketchbook") opens WebTown Paint. */
+export const PROMPT_COMPUTER_TEXT = 'E: Use Computer'
+export const PROMPT_SKETCHBOOK_TEXT = 'E: Open Sketchbook'
 
 /**
  * Decorative wall drawn outside an interior's physics bounds on the left,
@@ -92,9 +95,10 @@ export const INTERIOR_VIEW_MARGIN_PX = 4
  */
 export const INTERIOR_WALL_FILL_GAP_PX = 12
 /**
- * How close the player must be able to stand to the computer or the notebook
- * for the layout to count as "reachable". Provisional: Phase 3 will define the
- * real interaction distance.
+ * How close the player must stand to the computer or the notebook. Used both by
+ * the layout rule that every layout must let the player get this close
+ * (`unreachable`) and, since Phase 3, as the interaction distance of the two
+ * objects, so a valid layout can never leave an object unusable.
  */
 export const INTERIOR_PROP_REACH_PX = 40
 
