@@ -78,7 +78,7 @@ describe('InMemoryHouseLayoutStore', () => {
     const bad = await store.load('house-a')
     bad.items = bad.items.filter(i => i.id !== 'notebook')
 
-    await expect(store.save(bad)).rejects.toThrow(/Layout rejected.*notebook/)
+    await expect(store.save(bad)).rejects.toThrow(/Layout rejected.*sketchbook/)
     expect(await store.load('house-a')).toEqual(createDefaultLayout('house-a'))
   })
 

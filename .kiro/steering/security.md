@@ -78,10 +78,12 @@ user-generated content".
 
 - Render all user strings as React text. **Never** `dangerouslySetInnerHTML`,
   `innerHTML`, `eval`, `new Function`, or user-supplied CSS or markup.
+  Text that looks like HTML is allowed and shown literally as characters; there is no
+  rich-text or HTML support, and a test scans the source for HTML-injecting APIs.
 - Colours: accept only validated `#RRGGBB`. Fonts: fixed allow-list. Lengths and
   counts: capped on write and on read. Strip control characters.
-- External links: `https:` only, no credentials, no `localhost` / `.local` /
-  `.internal` / IP-literal hosts, length ≤ 2048. Open with `target="_blank"` and
+- External links: `https:` only; an explicit port from 1 to 65535 is allowed; no credentials; no `localhost`,
+  `.local` / `.internal` hosts or IP addresses; at most 2048 characters. Open with `target="_blank"` and
   `rel="noopener noreferrer"`. Invalid stored links render as inert text.
 - Internal navigation never touches `window.location`, the hash or history.
 - Images: PNG only (magic-byte check), ≤ 2 MB, dimensions ≤ 1024, at most 50 per

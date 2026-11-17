@@ -147,7 +147,7 @@ export const FURNITURE_CATALOG: Readonly<Record<string, FurnitureType>> = {
     layer: 'sorted', mount: 'surface', removable: true, rotations: FIXED,
   },
   notebook: {
-    label: 'Notebook', sprite: { sheet: 'prepared', name: 'notebook' },
+    label: 'Sketchbook', sprite: { sheet: 'prepared', name: 'notebook' },
     layer: 'sorted', mount: 'surface', removable: false, rotations: FIXED, role: 'notebook',
   },
   'book-stack': {

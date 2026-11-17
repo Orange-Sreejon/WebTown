@@ -48,6 +48,13 @@ describe('furniture catalogue', () => {
     }
   })
 
+  it('shows the notebook to players as the Sketchbook, keeping its key and role', () => {
+    const entry = FURNITURE_CATALOG['notebook']!
+    expect(entry.label).toBe('Sketchbook')
+    expect(entry.role).toBe('notebook')
+    expect(Object.keys(FURNITURE_CATALOG)).not.toContain('sketchbook')
+  })
+
   it('keeps the notebook resting on a support, and the computer on the floor', () => {
     expect(FURNITURE_CATALOG['notebook']!.mount).toBe('surface')
     expect(FURNITURE_CATALOG['computer-desk']!.mount).toBe('floor')

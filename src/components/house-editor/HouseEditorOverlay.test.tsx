@@ -187,7 +187,7 @@ describe('statusText', () => {
     expect(statusText({ ...EDIT, error: 'Could not save: x', message: 'y' }).text).toBe('Could not save: x')
     expect(statusText({ ...EDIT, preview: { valid: false, message: 'Blocks the way to the door' }, message: 'y' }))
       .toEqual({ text: 'Blocks the way to the door', tone: 'invalid' })
-    expect(statusText({ ...EDIT, message: 'Every house needs a notebook' }).tone).toBe('invalid')
+    expect(statusText({ ...EDIT, message: 'Every house needs a sketchbook' }).tone).toBe('invalid')
     expect(statusText({ ...EDIT, placingType: 'stool' }).text).toMatch(/click a free spot/)
     expect(statusText(EDIT).text).toBe('')
   })

@@ -386,7 +386,7 @@ export class EditorSession {
     const type = item ? getFurnitureType(item.type) : undefined
     if (!item || !type) return 'That is not in the room'
     if (!type.removable) {
-      return type.role === 'computer' ? 'Every house needs a computer' : 'Every house needs a notebook'
+      return type.role === 'computer' ? 'Every house needs a computer' : 'Every house needs a sketchbook'
     }
     const resting = itemsResting(this.draftLayout, itemId)
     if (resting.length > 0) {
