@@ -56,7 +56,7 @@ describe('describeViolation', () => {
       'Would block the way to the door',
     )
     expect(describeViolation({ code: 'unreachable', message: '', itemId: 'notebook' }, layout)).toBe(
-      'Would block the way to the notebook',
+      'Would block the way to the sketchbook',
     )
   })
 })

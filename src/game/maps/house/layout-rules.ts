@@ -49,6 +49,9 @@ const v = (code: ViolationCode, message: string, itemId?: string, otherId?: stri
   return out
 }
 
+/** What a mandatory role is called in messages the player may read. The role key itself stays `notebook`. */
+const ROLE_NAME = { computer: 'computer', notebook: 'sketchbook' } as const
+
 /** Cell spacing used when testing where the player can stand. */
 export const REACH_STEP_PX = 2
 
@@ -237,7 +240,7 @@ function geometryViolations(
   for (const role of ['computer', 'notebook'] as const) {
     const count = def.pieces.filter(p => p.role === role).length
     if (count !== 1) {
-      out.push(v('missing-mandatory', `A house needs exactly one ${role}, found ${count}`))
+      out.push(v('missing-mandatory', `A house needs exactly one ${ROLE_NAME[role]}, found ${count}`))
     }
   }
 
@@ -264,7 +267,7 @@ function geometryViolations(
     const near = cells.some(
       p => p.x >= b.x - reach && p.x <= b.x + b.w + reach && p.y >= b.y - reach && p.y <= b.y + b.h + reach,
     )
-    if (!near) out.push(v('unreachable', `The player cannot get near the ${role}`, piece.id))
+    if (!near) out.push(v('unreachable', `The player cannot get near the ${ROLE_NAME[role]}`, piece.id))
   }
   return out
 }

@@ -30,19 +30,42 @@ the specs are approved. D1-D9 are approved (see `design.md` section 1).**
   - Done when: both objects open a placeholder, player frozen, typed WASD/E reach an
     input, close restores position/facing/camera, repeat open/close x20 stays clean,
     furniture editor and exit door unaffected.
-- [ ] **P3-03** `furniture-catalog` label `Notebook` -> `Sketchbook` (D4) and the
+- [x] **P3-03** (done) `furniture-catalog` label `Notebook` -> `Sketchbook` (D4) and the
       violation text; update the tests that quote it. Keys and roles unchanged.
 
 ### Website (independent of Paint)
 
-- [ ] **P3-04** Website domain: `site-types`, `site-validation`, `url-policy`,
-      `contrast`, `default-site`, with the URL policy table tests.
-- [ ] **P3-05** Site persistence: `storage/idb.ts`, memory and IndexedDB site
-      repositories, guarded wrapper, shared contract tests, `composition.ts`
-      (including fallback and the `persistent` flag).
-- [ ] **P3-06** `SiteRenderer`, `SiteWindow`, in-overlay navigation and history,
-      late-90s styling, external link handling, visitor mode (reader only).
-      Component tests, including `<script>` text rendered literally.
+- [x] **P3-04** Website domain (done): `site-types`, `site-text`, `url-policy`, `contrast`,
+      `theme-presets`, `site-validation`, `default-site`, `site-readonly`, `site-repository`
+      (contracts only), all under `src/personal-spaces/website/`, pure and independent of Phaser, React,
+      IndexedDB and any backend. 297 new tests. Acceptance, all met:
+      valid and invalid data; missing required fields; every length boundary (max, max + 1);
+      http/javascript/data/other schemes, malformed URLs, credentials, ports, private and IP hosts;
+      https with paths, queries and fragments; invalid colours; contrast at both AA thresholds and just
+      either side of them; default site complete and valid; presets valid; deep-copy isolation; a
+      reader interface with no save; a test that the folder imports nothing outside itself and has no
+      ownership logic.
+- [x] **P3-05** Site persistence (done): `errors.ts`, `storage/idb.ts` (promise wrapper with open, blocked,
+      quota, abort and closed-connection handling), `storage/webtown-db.ts` (database `webtown` v1: `sites` and
+      `artworks`), `site-storage/` (shared record rules, in-memory and IndexedDB repositories implementing the
+      P3-04 `SiteReader` / `SiteWriter` contracts, `guardSiteWriter`), and `composition.ts` (`createSiteStorage`
+      with in-memory fallback, `siteAccessFor`). Validation on save and on load; damaged records are never shown
+      and never deleted. `fake-indexeddb` is used by tests only and is absent from `dist/`. Also at P3-05:
+      D1 (HTML-looking text is accepted and shown literally) and D2 (explicit https ports 1-65535 allowed).
+      197 new tests: one contract suite run against both repositories, wrapper fault injection, guard and access
+      tests, a literal-rendering test, and a source scan for HTML-injecting APIs and test-only imports.
+- [x] **P3-06** Website window (done): `components/website/` (`SiteRenderer`, `ExternalLink`, `SiteWindow`,
+      `site-theme`, `website.css`), `components/apps/WebsiteApp.tsx` wired into `AppHost`, `WindowFrame`
+      gained `size="wide"` and `onKeyDown`, `personal-spaces/labels.ts`, `website/site-navigation.ts`,
+      `website/site-format.ts`, and `onSiteLoad` in `composition.ts`. Home, About, Projects and Links; in-memory
+      back, forward and home; a display-only address `webtown://house-a/about`; Close. Every string is a React text
+      node; external links go through the URL policy and open with `rel="noopener noreferrer"`. The window
+      receives a `SiteReader` only, in both modes. The owner is told about a recovered record; a visitor is not.
+      The window says "Saved on this device only" and never implies anyone else can see it. No editor (P3-07).
+      Acceptance, all met: every page, navigation and history, literal-text and injection tests against the real
+      renderer, valid and invalid links, visitor read-only (with an import-graph test), default site, recovery
+      notice, storage failure and retry, close and restore, keyboard and accessibility basics, 1280x720,
+      1920x1080 and 390x844 (49 checks in a real browser), and a clean `dist/`.
 - [ ] **P3-07** `SiteEditor` (owner only): draft, validation messages, contrast check,
       live preview, save / cancel. Tests; visitor tree has no editor.
 

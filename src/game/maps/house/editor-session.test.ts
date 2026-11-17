@@ -103,7 +103,7 @@ describe('selection', () => {
     session.beginEdit()
     session.pointerDown(centreOf(session, 'notebook'))
     expect(session.selectedId).toBe('notebook')
-    expect(session.view().selected).toMatchObject({ id: 'notebook', label: 'Notebook' })
+    expect(session.view().selected).toMatchObject({ id: 'notebook', label: 'Sketchbook' })
     session.pointerUp(centreOf(session, 'notebook'))
     session.pointerDown(bareTable(session))
     expect(session.selectedId).toBe('table')
@@ -279,11 +279,11 @@ describe('supporting furniture', () => {
     session.pointerUp(bareTable(session))
     expect(session.view().selected).toMatchObject({
       canRemove: false,
-      removeBlockedReason: 'Move the notebook and the books off it first',
+      removeBlockedReason: 'Move the sketchbook and the books off it first',
     })
     session.removeSelected()
     expect(itemAt(session, 'table')).toBeDefined()
-    expect(session.view().message).toBe('Move the notebook and the books off it first')
+    expect(session.view().message).toBe('Move the sketchbook and the books off it first')
 
     for (const id of ['notebook', 'books']) {
       session.pointerDown(centreOf(session, id))
@@ -304,7 +304,7 @@ describe('supporting furniture', () => {
 describe('mandatory objects', () => {
   for (const [id, reason] of [
     ['computer-desk', 'Every house needs a computer'],
-    ['notebook', 'Every house needs a notebook'],
+    ['notebook', 'Every house needs a sketchbook'],
   ] as const) {
     it(`never removes the ${id}`, () => {
       const { session } = setup()

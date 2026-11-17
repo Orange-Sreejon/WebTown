@@ -142,16 +142,18 @@ footer with "last updated". No SaaS dashboard styling. Built from CSS only. No
 copied logos, no external images, no external fonts. No fake visitor counter.
 
 ### FR-13 Content (owner customisable)
-Per house: site title, tagline, home welcome text, about text, a list of projects
-(title, description, optional link), a list of links (label, URL). Plain text only.
-Paragraphs are separated by blank lines. No HTML, markdown, scripts or styles
-from the user.
+Per house: site title, display name, tagline, home welcome text, about text, a list of
+projects (title, description, optional link), a list of links (label, URL). Plain text only.
+Paragraphs are separated by blank lines. No HTML, markdown, scripts or styles from the user;
+text that looks like HTML (`<script>alert(1)</script>`) is accepted and shown literally, as characters, never
+interpreted. Required: title, display name and welcome text. Limits are in design 6.1.
 
 ### FR-14 Appearance (owner customisable, bounded)
-Theme preset (several), background colour, text colour, link colour, font family
-from a fixed allow-list of three stacks, and an optional decorative
-"under construction" banner. Text and background must meet a 4.5:1 contrast
-ratio; the editor shows the ratio and refuses to save below it.
+Theme preset (four, plus custom), background, text, link, banner and banner-text colours,
+font family from a fixed allow-list of three stacks, a background pattern from a fixed list,
+and an optional decorative "under construction" banner. Text and links must meet 4.5:1
+against the background and the large banner title 3:1 (WCAG AA); the editor shows the ratio
+and refuses to save below it.
 
 ### FR-15 Owner editing
 In the owner's house an **Edit page** button switches the content area to a form
@@ -160,8 +162,8 @@ Visitors see no such control and receive no writable repository.
 
 ### FR-16 External links
 A link is rendered as a real anchor only if it passes the URL policy (design
-section 6.3): `https:` only, no credentials, bounded length, no
-localhost / IP-literal hosts. Valid links open with `target="_blank"` and
+section 6.3): `https:` only (an explicit port from 1 to 65535 is allowed), no credentials, bounded length, no
+localhost / private / IP-literal hosts. Valid links open with `target="_blank"` and
 `rel="noopener noreferrer"`, and show the host name beside the label. Invalid
 links are rendered as inert text and are rejected when the owner tries to save.
 Internal navigation is never an anchor to another page.

@@ -9,7 +9,8 @@ import { AppErrorBoundary } from './AppErrorBoundary'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const OWNER_WEBSITE: AppView = { open: 'website', houseId: 'house-a', mode: 'owner' }
+// The Sketchbook is still a placeholder window; the website has its own tests (WebsiteApp.test.tsx).
+const OWNER_PAINT: AppView = { open: 'paint', houseId: 'house-a', mode: 'owner' }
 const VISITOR_PAINT: AppView = { open: 'paint', houseId: 'house-b', mode: 'visitor' }
 
 let container: HTMLDivElement
@@ -34,7 +35,7 @@ describe('AppHost', () => {
   it('shows nothing until an app is opened, and nothing after it closes', () => {
     act(() => root.render(<AppHost sendCommand={vi.fn()} />))
     expect(container.innerHTML).toBe('')
-    publish(OWNER_WEBSITE)
+    publish(OWNER_PAINT)
     expect(container.querySelector('[role="dialog"]')).not.toBeNull()
     publish(HIDDEN_APP_VIEW)
     expect(container.innerHTML).toBe('')
@@ -42,8 +43,8 @@ describe('AppHost', () => {
 
   it('shows the app, house and mode Phaser reported', () => {
     act(() => root.render(<AppHost sendCommand={vi.fn()} />))
-    publish(OWNER_WEBSITE)
-    expect(container.textContent).toContain('Computer')
+    publish(OWNER_PAINT)
+    expect(container.textContent).toContain('Sketchbook')
     expect(container.querySelector('[data-testid="app-house"]')?.textContent).toBe('house-a')
     expect(container.querySelector('[data-testid="app-mode"]')?.textContent).toBe('owner')
 
@@ -56,7 +57,7 @@ describe('AppHost', () => {
   it('sends only close, from the button and from Escape', () => {
     const send = vi.fn<(c: AppCommand) => void>()
     act(() => root.render(<AppHost sendCommand={send} />))
-    publish(OWNER_WEBSITE)
+    publish(OWNER_PAINT)
 
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
     act(() => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
@@ -68,7 +69,7 @@ describe('AppHost', () => {
     document.body.appendChild(before)
     before.focus()
     act(() => root.render(<AppHost sendCommand={vi.fn()} />))
-    publish(OWNER_WEBSITE)
+    publish(OWNER_PAINT)
     expect(container.querySelector('[role="dialog"]')).toBe(document.activeElement)
     publish(HIDDEN_APP_VIEW)
     expect(document.activeElement).toBe(before)
@@ -77,7 +78,7 @@ describe('AppHost', () => {
 
   it('does not stop W, A, S, D, E or the arrow keys from reaching a text field', () => {
     act(() => root.render(<AppHost sendCommand={vi.fn()} />))
-    publish(OWNER_WEBSITE)
+    publish(OWNER_PAINT)
     for (const key of ['w', 'a', 's', 'd', 'e', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']) {
       const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
       field().dispatchEvent(event)
@@ -91,7 +92,7 @@ describe('AppHost', () => {
 
   it('keeps Tab inside the window', () => {
     act(() => root.render(<AppHost sendCommand={vi.fn()} />))
-    publish(OWNER_WEBSITE)
+    publish(OWNER_PAINT)
     const close = container.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!
     field().focus()
     const forward = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
@@ -129,7 +130,7 @@ describe('HouseEditorOverlay while an app is open', () => {
     act(() => emitEditorState({ ...HIDDEN_EDITOR_VIEW, houseId: 'house-a', canEdit: true }))
     expect(container.textContent).toContain('Edit House')
 
-    publish(OWNER_WEBSITE)
+    publish(OWNER_PAINT)
     expect(container.textContent).not.toContain('Edit House')
 
     publish(HIDDEN_APP_VIEW)

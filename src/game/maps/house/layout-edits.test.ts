@@ -102,7 +102,7 @@ describe('removeItem', () => {
   it('blocks removing a table until its contents are relocated', () => {
     const blocked = removeItem(T, fresh(), 'table')
     expect(violationsOf(blocked)).toEqual(['bad-support'])
-    if (!blocked.ok) expect(blocked.violations[0]!.message).toMatch(/Notebook.*Books|Books.*Notebook/)
+    if (!blocked.ok) expect(blocked.violations[0]!.message).toMatch(/Sketchbook.*Books|Books.*Sketchbook/)
 
     // Move the notebook and then the books to the nightstand; the table is then free to go.
     let layout = layoutOf(moveItem(T, fresh(), 'notebook', {

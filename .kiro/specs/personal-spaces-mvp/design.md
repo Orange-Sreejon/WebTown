@@ -12,7 +12,7 @@ Status: **APPROVED (D1-D9 resolved). Implementation in progress on `feature/phas
 | D4 | **User-facing name "Sketchbook".** Change only the catalogue `label` of the `notebook` type (and the violation text that quotes it). Type key `notebook`, role `notebook`, ids and layouts unchanged. | Approved. Type key, role and furniture identity are preserved. | Keep "Notebook" as the label. |
 | D5 | **One dev dependency: `fake-indexeddb`** (exact pin, `npm audit` first) to test the IndexedDB repository in jsdom. **Dev dependency only; it must not appear in the runtime bundle** (imported only from `*.test.ts`; verified by grepping `dist/` after build). No runtime deps. | Approved. | Test only an in-memory implementation and verify IndexedDB by hand (weaker). |
 | D6 | **Paint semantics.** Aliased (no anti-aliasing) pixel drawing in a pure-TS raster engine over an RGBA buffer; eraser makes pixels transparent; filled and outline shape tools are distinct tools (a filled shape has no separate outline); fixed 640x480 logical canvas; undo history memory-bounded. | Approved. | Canvas 2D drawing calls (anti-aliased, fill leaves halos, not unit-testable without a canvas package). Classic filled shape = outline in FG + fill in BG (extra colour logic). |
-| D7 | **URL policy:** `https:` only; other schemes rejected; safe external-link handling. | Approved. | Also allow `http:` (mixed content, weaker). |
+| D7 | **URL policy:** `https:` only; other schemes rejected; safe external-link handling. | Approved. **Amended at P3-05:** an explicit port from 1 to 65535 is allowed (`https://example.com:8443`). | Also allow `http:` (mixed content, weaker). |
 | D8 | **Layouts stay in-memory** in Phase 3 although drawings and websites persist, so a reload resets furniture only. | Approved. Furniture layouts stay in memory and reset on reload. Phase 2 furniture persistence is not modified. | Add IndexedDB layout store now (scope creep). |
 | D9 | **Reference screenshot** is the primary visual reference. | Approved. Located at `inspiration-art/paint-reference.png` (464x475), a **local-only development asset**: git-ignored, outside `public/`, never committed, never in `dist/`. See section 12. | Proceed from a general description. |
 
@@ -42,43 +42,35 @@ with browser developer tools; this is documented in the steering files and in th
 ```
 src/
   lib/
-    app-bridge.ts            APP_STATE / APP_COMMAND types, guards, emit/on helpers
+    app-bridge.ts            APP_STATE / APP_COMMAND types, guards, emit/on helpers   (P3-01)
     event-bus.ts             + 'APP_STATE' | 'APP_COMMAND'
   game/
-    config/GameConfig.ts     + reach distance, interact cooldown reuse, paint limits NOT here
-    maps/house/object-targets.ts   pure: InteriorDefinition -> InteractionTarget[] (computer, notebook)
-    scenes/InteriorScene.ts  + app guard, E handling, freeze/restore, bridge wiring
+    maps/house/object-targets.ts   pure: InteriorDefinition -> InteractionTarget[]    (P3-02)
+    systems/app-session.ts, interior-gate.ts, keyboard-capture.ts                     (P3-02)
+    scenes/InteriorScene.ts  + app guard, E routing, freeze/restore
   personal-spaces/
-    access/access-policy.ts          AccessMode = 'owner' | 'visitor'; modeFor(houseId)
-    artwork/
-      artwork-types.ts               Artwork, ArtworkSummary, input types, limits
-      artwork-repository.ts          ArtworkReader, ArtworkWriter, ArtworkRepository (interfaces)
-      artwork-validation.ts          title, size, dimension, PNG signature checks
-      indexeddb-artwork-repository.ts
-      memory-artwork-repository.ts   test double and fallback
-      guarded-artwork-repository.ts  wraps a repo; rejects writes for non-owned houses
-    website/
-      site-types.ts                  SiteContent, SiteTheme, limits
-      site-validation.ts             normalise / validate content
-      url-policy.ts                  validateExternalUrl (pure)
-      contrast.ts                    WCAG ratio (pure)
-      default-site.ts
-      site-repository.ts             SiteReader, SiteWriter, SiteRepository
-      indexeddb-site-repository.ts, memory-site-repository.ts
-    storage/idb.ts                   tiny promise wrapper over indexedDB (open, get, put, delete, getAll)
-    paint/                           pure engine, no React, no DOM
-      pixel-buffer.ts  stamp.ts  line.ts  rect.ts  ellipse.ts  flood-fill.ts
-      history.ts  coords.ts  palette.ts  tools.ts  png.ts (canvas <-> blob helpers, DOM-bound)
-    composition.ts                   the ONE place that builds repositories (swap point for 3b)
+    errors.ts                        ValidationError, PermissionError, QuotaError,
+                                     StorageUnavailableError, StorageBlockedError, StorageError
+    access/access-policy.ts          accessModeFor(canEdit)                            (P3-01)
+    website/                         pure domain, no storage, no UI                     (P3-04)
+      site-types, site-validation, url-policy, contrast, theme-presets, default-site,
+      site-text, site-readonly, site-repository (SiteReader / SiteWriter contracts)
+    storage/                         IndexedDB, generic                                 (P3-05)
+      idb.ts                         promise wrapper: open, get, put, delete, getAll, errors, recovery
+      webtown-db.ts                  database `webtown` v1: stores `sites`, `artworks` (+ byHouse index)
+    site-storage/                    website repositories                               (P3-05)
+      site-record.ts                 shared rules: what may be saved, what a load makes of stored data
+      memory-site-repository.ts      fallback and reference implementation
+      indexeddb-site-repository.ts
+      guarded-site-writer.ts         PermissionError unless the bridge said `owner` for this house
+    composition.ts                   the ONE place that builds storage and hands out access
+    artwork/ ...                     P3-11 (reuses storage/ and the artworks store)
+    paint/                           pure engine, no React, no DOM                      (P3-08..10)
   components/
-    apps/AppHost.tsx                 listens to APP_STATE, renders the right app, sends close
-    apps/WindowFrame.tsx             shared bevelled window + title bar + focus trap (presentation only)
-    website/  SiteWindow.tsx SiteRenderer.tsx SiteEditor.tsx site-styles.ts
-    paint/    PaintApp.tsx MenuBar.tsx Toolbox.tsx Palette.tsx StatusBar.tsx
-              DrawingSurface.tsx SaveDialog.tsx OpenDialog.tsx ConfirmDialog.tsx
-    gallery/  GalleryViewer.tsx (reader only)  GalleryGrid.tsx (reader only)
+    apps/    AppHost, WindowFrame, AppErrorBoundary, PlaceholderApp                     (P3-02)
+    website/ SiteWindow SiteRenderer SiteEditor ...                                      (P3-06/07)
+    paint/ ...  gallery/ ...                                                             (P3-12..15)
 ```
-
 Dependency rules (enforced by a test that parses imports):
 
 - `components/website/**` and `personal-spaces/website/**` must not import
@@ -230,37 +222,60 @@ Security in 3b. No spec text or UI string may suggest otherwise.
 
 ## 6. Website
 
-### 6.1 Data model
+### 6.1 Data model (implemented in P3-04, `src/personal-spaces/website/`)
 
 ```ts
 interface SiteContent {
   schemaVersion: 1
-  houseId: string
-  updatedAt: string                 // ISO 8601
-  title: string                     // <= 60
-  tagline: string                   // <= 120
-  home: { welcome: string }         // <= 2000, plain text, \n\n = paragraph
-  about: { body: string }           // <= 4000
-  projects: Project[]               // <= 12
-  links: LinkItem[]                 // <= 20
+  houseId: string                   // /^[a-z0-9-]{1,40}$/, same slug rule as ownership.ts
+  updatedAt: string                 // ISO 8601 UTC, e.g. 2026-11-16T12:00:00.000Z
+  title: string                     // required, 1..60
+  profile: { displayName: string;   // required, 1..40
+             tagline: string }      // 0..120
+  home: { welcome: string }         // required, 1..2000, plain text, blank line = paragraph
+  about: { body: string }           // 0..4000
+  projects: SiteProject[]           // <= 12
+  links: SiteLink[]                 // <= 20
   theme: SiteTheme
 }
-interface Project { id: string; title: string; description: string; url: string | null } // title<=60, desc<=500
-interface LinkItem { id: string; label: string; url: string }                            // label<=60
+interface SiteProject { id: string; title: string; description: string; url: string | null }
+                                    // title 1..60, description 0..500, url https or null
+interface SiteLink { id: string; label: string; url: string }   // label 1..60, url https required
 interface SiteTheme {
   preset: 'classic-grey' | 'starfield' | 'pastel' | 'forest' | 'custom'
-  background: string                // #RRGGBB
-  text: string                      // #RRGGBB
-  link: string                      // #RRGGBB
-  font: 'serif' | 'sans' | 'mono'   // maps to fixed font stacks in code
+  background: string; text: string; link: string            // #RRGGBB, stored upper case
+  headerBackground: string; headerText: string              // the banner behind the title
+  font: 'serif' | 'sans' | 'mono'                            // maps to fixed stacks in code
+  pattern: 'plain' | 'dots' | 'grid' | 'stars'               // CSS background, no images
   underConstruction: boolean
 }
 ```
 
-Stored in `sites` keyed by `houseId`. IDs inside lists are generated (UUID).
-All free text is control-character-stripped and length-capped on write **and** on
-read.
+Pages are the closed set `home | about | projects | links` (`SITE_PAGES`). Entry ids match
+`/^[a-z0-9][a-z0-9-]{0,39}$/` and are unique within their list (`nextEntryId` makes them).
+Limits count characters (code points) after cleaning.
 
+**Plain text, shown literally (decision at P3-05).** No field holds markup, CSS or script, and text that looks
+like HTML (`<script>alert(1)</script>`) is **accepted and kept exactly as typed**. It is never interpreted:
+every string is rendered as a React text node, `dangerouslySetInnerHTML` and the other HTML-injecting APIs are
+never used (a test scans the source), and there is no rich-text or HTML support. Only control and invisible
+direction characters are stripped, and line breaks in single-line fields become spaces.
+**Contrast (WCAG 2.x AA).** Body text and link colour against the background need **4.5:1**. The banner
+title, which is large text, needs **3:1** against the banner colour. The check applies to every
+theme, `custom` or preset. Ratios are shown rounded down. All four presets are tested to pass.
+
+**Validation API.** `validateSite(unknown)` returns `{ ok: true, value }` (a fresh, cleaned copy built only
+from known fields) or `{ ok: false, errors: { path, message }[] }` listing **every** problem with a
+readable sentence. It never mutates its input.
+
+**Read-only data.** `SiteReader.load()` returns `ReadonlySiteContent` (deep-readonly type) and the
+repository contracts are split into `SiteReader` and `SiteWriter` in `site-repository.ts`. A visitor is
+given a reader only. `toReadonlySite` makes a frozen deep copy. This is client-side and bypassable with
+developer tools; ownership stays in `access-policy.ts` (the domain has no ownership logic, and a test
+checks it).
+
+Stored in `sites` keyed by `houseId` (P3-05). Defaults are generated by `createDefaultSite(houseId,
+updatedAt)`, are complete and valid, and are not stored.
 ### 6.2 Rendering
 `SiteRenderer({ content, section, onNavigate })` is pure presentation. Text goes in
 as React text nodes; paragraphs split on blank lines. Colours are applied through
@@ -268,15 +283,18 @@ CSS custom properties from validated `#RRGGBB` values only; fonts through a fixe
 Backgrounds are CSS patterns, no image files. Layout uses a header, left `<nav>`,
 `<main>`, `<footer>`.
 
-### 6.3 URL policy (`validateExternalUrl`)
-Accept only if: `new URL(input)` parses; `protocol === 'https:'`; no
-`username` / `password`; length <= 2048; hostname not `localhost`, not ending in
-`.local` / `.internal`, not an IPv4/IPv6 literal. Return the normalised
-`href` and the `hostname` (punycode form as given by the URL API, so look-alike
-domains are visible). Reject everything else with a reason string. Applied on edit
-(save is blocked), on load (invalid stored links render inert), and in the renderer
+### 6.3 URL policy (`validateExternalUrl`, implemented in P3-04)
+The address is parsed with the platform `URL` class, never matched by prefix. Accepted only if:
+the text has no whitespace, control characters or backslashes (the parser would silently delete tabs
+and line breaks); it is at most 2048 characters; it parses; `protocol === 'https:'`; there is no user
+name or password; any explicit **port is from 1 to 65535** (443 normalises away; port 0 is refused); and the host is a
+public name: not `localhost` or a private suffix (`.localhost .local .internal .lan .localdomain`),
+not an IPv4 address in any spelling (the parser normalises decimal, hex and octal forms, so they are
+caught), not an IPv6 literal, at least two labels, and a real top-level domain. Paths, queries and
+fragments are allowed. The result carries the normalised `href` (what is stored) and the `hostname`
+(punycode for non-ASCII names, so look-alikes are visible) or a sentence saying what is wrong.
+Applied on edit (save is blocked), on load (invalid stored links render inert), and in the renderer
 (defence in depth). Anchors use `target="_blank" rel="noopener noreferrer"`.
-
 ### 6.4 Navigation
 `useSiteNavigation()` holds `{ stack, index }` in React state; sections are a closed
 union. The address bar text is derived (`webtown://<houseId>/<section>`). No router, no
@@ -509,3 +527,64 @@ and commits only with permission.
   untrack them is a separate decision.
 - Phase 3a limits and the 3b security model are recorded in `product.md` and `security.md`
   (task P3-00) so they cannot drift from this document.
+
+## 13. Website storage (implemented in P3-05)
+
+- **One database:** IndexedDB `webtown` v1 with stores `sites` (key `houseId`) and `artworks` (key `id`, index
+  `byHouse`). Both exist from v1 so P3-11 needs no schema change. A website is stored as the validated
+  `SiteContent` object itself.
+- **Untrusted on the way in and out.** `save` runs `validateSite`, stamps `updatedAt` from the clock and
+  validates again; `load` validates whatever is stored. A record that is damaged, from another schema version,
+  or filed under the wrong house is **never shown and never deleted**: the default site is returned, an
+  `onLoad` report says `recovered` with the reasons, and the record stays until the owner saves over it.
+- **Failure mapping (`idb.ts`):** no IndexedDB, or a refusal to open (private browsing) ->
+  `StorageUnavailableError`; an upgrade blocked by another tab -> wait, then `StorageBlockedError` after a
+  timeout (a connection that arrives late is closed, not leaked); full disk -> `QuotaError`; other aborted
+  transactions -> `StorageError`; data from a newer version -> `StorageUnavailableError`. A connection the
+  browser closed, or that another tab asked us to drop, is reopened on the next call (one retry only).
+- **Fallback:** `createSiteStorage` falls back to the in-memory repository when the database cannot be opened and
+  returns `persistent: false` with the notice "Not saved: changes will be lost when you close this tab."
+- **Access:** `siteAccessFor(view, repository)` takes the bridge's `{ houseId, mode }`. A visitor gets
+  `{ mode: 'visitor', reader }`, where `reader` is a plain object with only `load`, so no writer exists in its
+  tree. An owner also gets a writer wrapped by `guardSiteWriter`, which refuses (`PermissionError`) anything but
+  exactly `owner`, and any site whose `houseId` differs from the one the window was opened for. There is no
+  second ownership system. **All of this is client-side and can be bypassed with browser developer tools or by
+  editing IndexedDB directly. It is not authorisation.**
+- **Phase 3b swap point:** a Supabase adapter implements `SiteReader` and `SiteWriter` and is chosen in
+  `createSiteStorage`. No component changes.
+- **Known limitations:** two tabs saving the same house: last write wins (no compare-and-swap in 3a); data is
+  per browser profile and origin; clearing site data deletes it; there is no export or backup of a website.
+## 14. The website window (implemented in P3-06)
+
+- **Pieces.** `AppHost` -> `WebsiteApp` (connects storage and the bridge's mode) -> `SiteWindow` (browser
+  chrome, history, loading, errors, notices) -> `SiteRenderer` (the page). `SiteRenderer` is given data and says
+  which page was asked for; it loads and saves nothing. `ExternalLink` is the only place an anchor is made.
+- **Window.** A `WindowFrame` with `size="wide"`: `min(1040px, 96vw)` by `min(720px, 92vh)`. Inside: a toolbar
+  (Back, Forward, Home, and a read-only address field `webtown://house-a/about`), the page in a scrolling viewport,
+  and a status line. Close is the frame's Close button or Escape. Alt+Left and Alt+Right go back and forward.
+  Below 720 px the navigation moves above the page.
+- **Navigation.** `site-navigation.ts` keeps `{ entries, index }` in memory, limited to the four page ids and 50
+  entries, with the forward trail dropped on a new page. It never touches `window.location`, the hash or the
+  browser history, and the page navigation uses buttons, not anchors. After moving to a page, focus goes to the
+  page and a polite live region says "About page".
+- **Safe text.** Every user string is a React text node. Blank lines make paragraphs; single line breaks are kept
+  with CSS `white-space: pre-line`. Colours and the font reach the page only as CSS custom properties built from a
+  re-validated `#RRGGBB` and a three-way font choice; anything else falls back to a default.
+- **Links.** `ExternalLink` re-checks the address with `validateExternalUrl`. A valid link is an anchor with
+  `target="_blank"` and `rel="noopener noreferrer"`, showing its host (with port) and "opens in a new tab". An
+  invalid one is plain text followed by "(link unavailable)".
+- **Visitor boundary.** `SiteWindow` takes a `SiteReader` and no more. `components/website/` may import only React, its
+  own files, `WindowFrame`, the read-only website modules, `errors` and `labels`; from `site-repository` only the name
+  `SiteReader`. It never names a writer, a repository, storage, composition or ownership. `WebsiteApp` passes
+  `access.reader` and nothing else in both modes. `visitor-boundary.test.ts` enforces this. When the editor is built
+  (P3-07), it is a separate component that is given a writer, only for an owner, and this test is extended then.
+- **What is said about storage.** Owner: "Saved on this device only." Visitor: "This website is stored on this device only.
+  Visitors on other devices can't see it." With no browser storage: "Not saved: changes will be lost when you close this
+  tab." (owner) and "Browser storage is unavailable, so this website is shown from memory only." (visitor). A test
+  fails if any of these claims sharing, publishing or visibility elsewhere.
+- **Recovery.** `onSiteLoad` (in `composition.ts`) forwards each load's report. `WebsiteApp` keeps the latest report for
+  the house and gives the owner (only) a notice with up to three reasons. There is nothing to press: the record is
+  replaced only by a later save.
+- **Failure.** A failed load shows the reason in words (full disk, blocked, unavailable) with "Try again"; unknown errors
+  show a generic sentence and the detail goes to the console. Back, Forward and Home are disabled until there is a page.
+  Closing always works, including while loading or after an error.

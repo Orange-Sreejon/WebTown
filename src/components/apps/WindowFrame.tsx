@@ -3,6 +3,10 @@ import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent, typ
 interface WindowFrameProps {
   title: string
   onClose: () => void
+  /** 'compact' is a small dialog; 'wide' fills most of the screen, for apps with their own layout. */
+  size?: 'compact' | 'wide'
+  /** Key presses anywhere in the window, including on the window itself. For the app's own shortcuts. */
+  onKeyDown?: (event: ReactKeyboardEvent<HTMLDivElement>) => void
   children: ReactNode
 }
 
@@ -17,7 +21,13 @@ const FOCUSABLE =
  * and back out on close; keeps Tab inside; and closes on Escape. Nothing here
  * touches Phaser: closing is just `onClose`.
  */
-export function WindowFrame({ title, onClose, children }: WindowFrameProps): React.ReactElement {
+export function WindowFrame({
+  title,
+  onClose,
+  size = 'compact',
+  onKeyDown,
+  children,
+}: WindowFrameProps): React.ReactElement {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -28,16 +38,16 @@ export function WindowFrame({ title, onClose, children }: WindowFrameProps): Rea
     dialogRef.current?.focus()
 
     // On the document, not the dialog, so Escape works wherever focus is.
-    const onKeyDown = (event: KeyboardEvent): void => {
+    const onDocumentKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && !event.defaultPrevented) {
         event.preventDefault()
         onCloseRef.current()
       }
     }
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onDocumentKeyDown)
 
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onDocumentKeyDown)
       if (previous && document.contains(previous)) previous.focus()
     }
   }, [])
@@ -69,8 +79,11 @@ export function WindowFrame({ title, onClose, children }: WindowFrameProps): Rea
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        style={styles.window}
-        onKeyDown={trapTab}
+        style={size === 'wide' ? { ...styles.window, ...styles.windowWide } : styles.window}
+        onKeyDown={event => {
+          onKeyDown?.(event)
+          trapTab(event)
+        }}
       >
         <div style={styles.titleBar}>
           <span id={titleId} style={styles.title}>{title}</span>
@@ -78,7 +91,7 @@ export function WindowFrame({ title, onClose, children }: WindowFrameProps): Rea
             <span aria-hidden="true">x</span>
           </button>
         </div>
-        <div style={styles.body}>{children}</div>
+        <div style={size === 'wide' ? { ...styles.body, ...styles.bodyWide } : styles.body}>{children}</div>
       </div>
     </div>
   )
@@ -106,6 +119,12 @@ const styles = {
     fontFamily: 'monospace',
     fontSize: 14,
   },
+  // Most of the screen at any size, never larger than the viewport.
+  windowWide: {
+    width: 'min(1040px, 96vw)',
+    height: 'min(720px, 92vh)',
+    maxHeight: '92vh',
+  },
   titleBar: {
     display: 'flex',
     alignItems: 'center',
@@ -127,4 +146,5 @@ const styles = {
     cursor: 'pointer',
   },
   body: { padding: 12, overflow: 'auto' as const },
+  bodyWide: { flex: '1 1 auto', minHeight: 0, padding: 0, overflow: 'hidden' as const },
 } as const

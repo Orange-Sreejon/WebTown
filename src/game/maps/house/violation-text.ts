@@ -40,7 +40,7 @@ export function describeViolation(v: Violation, layout: HouseLayout, focusId?: s
     case 'bad-placement':
       return mount === 'surface' ? 'Must rest on a table or nightstand' : "Can't stand on other furniture"
     case 'missing-mandatory':
-      return 'Every house needs one computer and one notebook'
+      return 'Every house needs one computer and one sketchbook'
     case 'bad-rotation':
       return "Can't face that way"
     case 'not-on-grid':

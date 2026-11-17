@@ -148,8 +148,8 @@ see `docs/ASSETS.md`, Asset Pack 7).
 
 - [ ] Floor, back wall, door, two curtained windows, painting and clock are visible
 - [ ] Bed, nightstand with lamp, chest, bookshelf, rug, table with books and a
-      notebook, chair, three plants, and the large computer desk are visible
-- [ ] The computer and notebook do nothing when approached (Phase 3)
+      sketchbook, chair, three plants, and the large computer desk are visible
+- [ ] The computer and sketchbook do nothing when approached (Phase 2 only; since Phase 3 they open apps, see the Phase 3a checklist)
 - [ ] Back wall, bed, nightstand, chest, bookshelf, plants, table, chair and the
       computer desk all block the player; the room's edges block the player and
       the player never walks onto the brick border
@@ -211,25 +211,25 @@ ignore it.
 ## Select and drag
 
 - [ ] Clicking furniture outlines it in yellow and names it in the panel; bare floor clears it
-- [ ] Clicking the notebook on the table selects the notebook, not the table; the door cannot be selected
+- [ ] Clicking the sketchbook on the table selects the sketchbook, not the table; the door cannot be selected
 - [ ] A click without moving only selects; dragging moves a preview that snaps to the 16px grid
 - [ ] A free spot shows green with "This spot is free"; dropping moves the item there
 - [ ] Over the bed it shows red with "Overlaps the bed"; dropping puts it back where it was
 - [ ] In the doorway: "Blocks the way to the door"; on the spot inside the door: "Blocks the spot inside the door"
 - [ ] Dragged outside the room: "Doesn't fit on the floor here"; a picture dragged onto the floor: "Must hang on the back wall"
 - [ ] Esc during a drag cancels it
-- [ ] Dragging the table carries the notebook and the books with it
-- [ ] The notebook dragged over the floor is red ("Must rest on a table or nightstand"); over the nightstand it is green and lands there
+- [ ] Dragging the table carries the sketchbook and the books with it
+- [ ] The sketchbook dragged over the floor is red ("Must rest on a table or nightstand"); over the nightstand it is green and lands there
 
 ## Add and remove
 
 - [ ] Choosing Stool in the catalogue marks it pressed; a ghost follows the pointer, green or red; clicking a green spot places and selects it
 - [ ] Esc, or choosing Stool again, stops placing
 - [ ] Adding two stools names them `stool` and `stool-2`
-- [ ] The catalogue never offers the computer or the notebook
+- [ ] The catalogue never offers the computer or the sketchbook
 - [ ] Remove (or the Delete key) removes the selected chest
-- [ ] With the computer or notebook selected, Remove is disabled and says why
-- [ ] With the table selected, Remove is disabled ("Move the notebook and the books off it first"); after moving both to the nightstand it can be removed
+- [ ] With the computer or sketchbook selected, Remove is disabled and says why
+- [ ] With the table selected, Remove is disabled ("Move the sketchbook and the books off it first"); after moving both to the nightstand it can be removed
 
 ## Save and cancel
 
@@ -267,7 +267,7 @@ manager (W A S D E arrows Space reach a text field while an app is open).
 
 Manual, in the browser (1280x720), owner house `house-a` and a visitor house `house-b`:
 
-- [ ] Stand at the computer: prompt `E: Use Computer`. At the notebook: `E: Open Sketchbook`.
+- [ ] Stand at the computer: prompt `E: Use Computer`. At the sketchbook: `E: Open Sketchbook`.
 - [ ] E opens a placeholder window over the game; the room stays visible behind it.
 - [ ] The title shows Computer or Sketchbook; house and mode are right (owner in `house-a`,
       visitor in `house-b`; `?owner=house-b` swaps them in dev).
@@ -282,6 +282,41 @@ Manual, in the browser (1280x720), owner house `house-a` and a visitor house `ho
 - [ ] Open and close 20 times: nothing changes; walk out, back in, and repeat once.
 - [ ] Move the table in the furniture editor: the Sketchbook prompt follows it.
 ## Website (P3-06, P3-07)
+
+Automated: every page, navigation and history, literal text and injection, external links, visitor read-only,
+recovered and failed loads, closing, accessibility basics, and the import-graph boundary. A real-browser script also
+checked 1280x720, 1920x1080 and 390x844 (window fits, no sideways scroll, navigation moves above the page when narrow).
+
+Manual, in a headed browser (the website editor arrives in P3-07, so saved content is made through the console or
+the editor later):
+
+- [ ] At the computer in `house-a`, E opens "WebTown Browser" over the room; the player does not move.
+- [ ] The page looks like a late-1990s home page: banner, side menu, framed boxes, "Under construction" strip.
+- [ ] Home, About, Projects and Links each show their content; Back, Forward and Home work; the address changes
+      (`webtown://house-a/about`) and cannot be typed into. Alt+Left and Alt+Right go back and forward.
+- [ ] The browser's own address bar and Back button are untouched by moving around the site.
+- [ ] Tab reaches every button in a sensible order and stays inside the window; focus is clearly visible; after
+      choosing a page, focus is on the page. With a screen reader the window is announced as "WebTown Browser" and the
+      page change is announced.
+- [ ] A link to another site opens in a new tab and shows its host; the original tab is not changed.
+- [ ] `?owner=house-b` (dev) makes `house-a` a visitor's view: same website, the "stored on this device only, visitors
+      on other devices can't see it" line, and no way to edit.
+- [ ] Esc and the Close button return to the room at the same spot, facing the same way; WASD, E and the door work again.
+- [ ] Open and close it twenty times; then enter and leave the house.
+- [ ] The furniture editor, the Sketchbook placeholder and the day/night cycle behave as before.
 ## WebTown Paint (P3-12 to P3-15)
-## Persistence and limits (P3-11, P3-14)
+## Persistence and limits (P3-05, P3-11, P3-14)
+
+Automated (Vitest, fake-indexeddb): website save, load, update, reload persistence, independence between houses,
+invalid and damaged records, full disk, blocked upgrade, closed connection, owner guard, visitor reader.
+
+Manual, in a real browser (once the website window exists, P3-06/07):
+
+- [ ] Save a website, reload the page: it is still there, and the window says "Saved on this device only".
+- [ ] Open the same page in a different browser or device: the default site shows, not yours (3a is local).
+- [ ] In DevTools > Application > IndexedDB, edit a record to nonsense, reload: the default site shows and the owner is told.
+- [ ] In a private window (storage blocked), the window says "Not saved" and editing still works until the tab closes.
+- [ ] Open two WebTown tabs and save in both: the later save wins; no error.
+- [ ] A title of `<script>alert(1)</script>` shows as text, and a link to `http://`, `javascript:` or `https://localhost` is refused.
+- [ ] A link to `https://example.com:8443/` is accepted and opens in a new tab.
 ## Regression
