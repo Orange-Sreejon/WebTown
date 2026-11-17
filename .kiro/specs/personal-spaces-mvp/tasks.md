@@ -66,9 +66,65 @@ the specs are approved. D1-D9 are approved (see `design.md` section 1).**
       renderer, valid and invalid links, visitor read-only (with an import-graph test), default site, recovery
       notice, storage failure and retry, close and restore, keyboard and accessibility basics, 1280x720,
       1920x1080 and 390x844 (49 checks in a real browser), and a clean `dist/`.
-- [ ] **P3-07** `SiteEditor` (owner only): draft, validation messages, contrast check,
-      live preview, save / cancel. Tests; visitor tree has no editor.
+- [~] **P3-07** Owner website editor, form-based: **superseded, not kept** (revision 2). Built in the working tree
+      but never committed; it edits fixed fields of `SiteContent`, which is not the product direction. Its fate is
+      decision SD-1 (recommended: shelve as a patch or a WIP branch, restore the tree to commit `8799bc2`).
 
+### Website, revision 2: WebTown Site Studio (file-based; design section 16)
+
+Sizes are relative effort (S, M, L). Each task leaves `tsc -b`, `npm test`, `npm run build` and `npm audit` green and
+needs approval before the next one starts. S-01 is a gate: design 16.4 to 16.9 is corrected from its findings
+before S-04 begins.
+
+- [ ] **S-00** (S) Decisions and housekeeping. Answer SD-1 to SD-12. Shelve P3-07 per SD-1. Update
+      `.kiro/steering/security.md` (resident code runs only in the two-layer sandbox; sandbox and CSP rules; the
+      16.9 limits; never `allow-same-origin`), `product.md` (Site Studio replaces the form editor) and, if SD-3 or
+      SD-10 are approved, `coding-standards.md` (the dependency exception and where it may be imported).
+- [ ] **S-01** (M) **Sandbox spike** (throwaway, outside `src/`, not shipped). In Chromium, Firefox and WebKit:
+      host page plus nested `srcdoc` with inherited CSP; opaque-origin denials (DOM, storage, cookies);
+      `data:` assets; `blob:` URLs passed across the two frames; the `webtown-site:` base (no request, no protocol
+      handler); `base-uri` with a custom scheme; detection of self-navigation and whether the request is sent;
+      infinite-loop behaviour per browser; page-size limits for `srcdoc` and `postMessage`; CodeMirror 6 bundle
+      size. Output: `docs/site-sandbox-findings.md` and design corrections. No product code.
+- [ ] **S-02** (M) Project domain, pure: `site-project/` types (16.2), path rules, type allow-list and content
+      signatures, limits, change sets, revision rules, load validation with skip reports. Tests for every rule.
+- [ ] **S-03** (M) Templates and migration, pure: Blank, Classic home page (from `SiteContent`), one single-page
+      creative template, all original; `siteContentToProject` with escaping and URL policy; tests with hostile
+      strings for every field, and every template valid under S-02 rules.
+- [ ] **S-04** (L) Document builder, pure (16.4): inert parse, head injection order, removals, reference
+      rewriting for HTML attributes, inline styles, `<style>`, CSS files, `@import`; folder index pages; page not
+      found; size budget. Tests in jsdom; the resident source is never modified.
+- [ ] **S-05** (L) Storage v2 (16.3): database version 2 upgrade (v1 data preserved, tested against a database
+      written by the P3-05 code); memory and IndexedDB project repositories under one contract suite;
+      transactional save with fault injection; `ConflictError`; quota and limits; Blob round trip; guarded writer;
+      `siteProjectAccessFor`; migration resolver (project, else valid `sites` record converted in memory, else
+      default).
+- [ ] **S-06** (L) Sandbox runtime (16.5 to 16.7): `public/site-host.html` and its script; `SiteFrame` component;
+      message guards and rate limit; site-internal navigation; the external-link confirmation bar; unexpected
+      navigation handling; WebTown error pages. **Security suite** with fixtures and a request-recording test
+      server (needs SD-10), passing in every supported browser.
+- [ ] **S-07** (M) Visitor and owner viewing on `SiteFrame`: `WebsiteApp` uses the project reader; WebTown Browser
+      chrome with path history, display-only address, page title; migrated and default sites; recovery and
+      skipped-file notices; Stop. Retires `SiteRenderer` from the display path.
+- [ ] **S-08** (L) Site Studio shell (owner-only lazy chunk, 16.10): full-size window, explorer (read), tabs,
+      textarea `CodeEditor`, image viewer, preview on the draft (never written), Save all, unsaved markers, conflict
+      prompt, discard confirmations, `beforeunload`, storage meter, narrow-screen tabs, keyboard model.
+- [ ] **S-09** (M) File management and uploads: new file and folder (with per-type starters), rename/move, delete
+      (folder counts), set start page, picker and drag-and-drop uploads with per-file refusals and budget checks.
+- [ ] **S-10** (S) Start from template and first run: template chooser, replace-with-confirmation, the converted
+      structured site as the starting draft with a clear "nothing is saved until Save" note, site title.
+- [ ] **S-11** (M, gated on SD-3) CodeMirror 6 behind the `CodeEditor` interface, owner chunk only; highlighting
+      for HTML, CSS and JavaScript; keyboard and screen-reader check.
+- [ ] **S-12** (S, optional) Developer aids: a panel showing errors reported by the page (as text, rate-limited);
+      `webtown.asset(path)` if SD-12 is approved later.
+- [ ] **S-13** (S) Retire form-based display code (`SiteRenderer`, `ExternalLink`, `site-theme`, page CSS) and tests;
+      keep the migration-only modules; update boundary tests so visitor code cannot import Site Studio, writers,
+      storage or the builder's write paths.
+- [ ] **S-14** (M) Hardening and verification: accessibility pass, Help text with the 16.9 limits, manual checklist
+      at 1280x720, 1920x1080 and 390x844, `docs/TESTING.md`, final security suite run, steering check.
+
+Paint (P3-08 onwards) is independent of this work and can follow or interleave. Both use database `webtown`;
+the version-2 upgrade in S-05 already contains the `artworks` store, so P3-11 needs no further version.
 ### Paint engine (pure, no React)
 
 - [ ] **P3-08** `pixel-buffer`, `stamp`, `line`, with clipping and gap tests.
@@ -123,10 +179,12 @@ reviewed. Supabase is the preferred provider (architectural approval only). Plan
 ## Acceptance (copied from requirements.md)
 
 - [ ] Computer and notebook interaction, freeze and exact restore.
-- [ ] Owner can edit website; owner can draw, save, reopen, rename, delete, export.
+- [ ] Owner can build the website in Site Studio from their own files; owner can draw, save, reopen, rename, delete, export.
 - [ ] Visitor can browse the website and gallery, view, navigate, export; cannot mutate
       and has no writable repository in its component tree.
-- [ ] Website navigation stays inside the overlay; external links validated, new tab.
+- [ ] Website navigation stays inside the overlay; external links open only after confirmation, in a new tab.
+- [ ] Every sandbox security fixture fails in every supported browser (design 16.13).
+- [ ] A structured site saved before revision 2 still shows, and its record is unchanged.
 - [ ] Export preserves transparency and contains no checkerboard.
 - [ ] One stroke / shape / fill / clear = one undo.
 - [ ] Pointer mapping correct at three sizes.

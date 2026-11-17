@@ -304,6 +304,29 @@ the editor later):
 - [ ] Esc and the Close button return to the room at the same spot, facing the same way; WASD, E and the door work again.
 - [ ] Open and close it twenty times; then enter and leave the house.
 - [ ] The furniture editor, the Sketchbook placeholder and the day/night cycle behave as before.
+### Website editor (P3-07)
+
+Automated: every field, live preview identical to the visitor page, draft isolation, save and reload through
+IndexedDB, cancel and close confirmation, validation messages, contrast table, invalid addresses, save failures
+keeping the draft, and the owner/visitor import boundaries. A real-browser script also checked 1280x720, 1920x1080 and
+390x844, real typing, Enter to save, the discard question, and that a visitor never loads the editor code.
+
+Manual, in a headed browser, in `house-a`:
+
+- [ ] "Edit this website" opens the editor beside a live preview; typing changes the preview at once.
+- [ ] Each section (page, home, about, projects, links, look) saves and shows after Save, and after a page reload.
+- [ ] Add, move and remove projects and links; Add stops at 12 projects and 20 links and says why.
+- [ ] Pick each theme; change a colour (text box and the colour picker) and see "Custom colours" and the contrast table update.
+- [ ] Make text unreadable (light grey on white): the table says "Fails AA" and Save refuses with the numbers.
+- [ ] A `javascript:` or `http://` link is refused with a reason; `https://example.com:8443/` is accepted.
+- [ ] Paste far more than 60 characters into the title: nothing is cut off; the counter says "too long"; Save refuses.
+- [ ] Cancel, Close and Escape with changes ask "Discard your changes?"; Keep editing keeps them.
+- [ ] With DevTools set to offline storage / a full disk, Save shows the reason and the draft stays.
+- [ ] Tab through the whole editor; focus is always visible; a screen reader reads labels, counts and problems.
+- [ ] At a narrow width, Edit / Preview switches between the form and the page.
+- [ ] As a visitor (`?owner=house-b`), there is no Edit button; the Network panel shows no `OwnerWebsiteWindow` chunk.
+- [ ] After closing, the player is where they were and WASD, E and the door work.
+
 ## WebTown Paint (P3-12 to P3-15)
 ## Persistence and limits (P3-05, P3-11, P3-14)
 

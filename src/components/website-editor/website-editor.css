@@ -1,0 +1,362 @@
+/*
+ * The website editor: the same plain grey browser chrome as the website window,
+ * with etched boxes and sunken fields. Static CSS only; nothing a resident writes
+ * becomes a style here.
+ */
+
+.we-window {
+  height: 100%;
+  min-height: 0;
+  background: #c0c0c0;
+  color: #000;
+  font: 13px Tahoma, Verdana, Geneva, sans-serif;
+}
+
+.we-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Heading ────────────────────────────────────────────────────────────── */
+
+.we-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 6px 10px;
+  border-bottom: 2px solid #808080;
+}
+.we-title {
+  margin: 0;
+  font-size: 16px;
+}
+.we-title:focus {
+  outline: 2px dotted #000;
+  outline-offset: 2px;
+}
+.we-local {
+  flex: 1 1 260px;
+  margin: 0;
+}
+/* Edit / Preview switch: only needed when the two cannot sit side by side. */
+.we-panes {
+  display: none;
+  gap: 6px;
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+
+.we-body {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  min-height: 0;
+  padding: 6px;
+}
+
+.we-form {
+  min-width: 0;
+  min-height: 0;
+  padding: 0 6px 12px 0;
+  overflow: auto;
+}
+
+.we-group,
+.we-entry {
+  min-width: 0;
+  margin: 0 0 12px;
+  padding: 8px 10px 10px;
+  border: 2px groove #fff;
+}
+.we-entry {
+  margin-top: 10px;
+  background: #cfcfcf;
+}
+.we-group > legend,
+.we-entry > legend {
+  padding: 0 6px;
+  font-weight: bold;
+}
+
+/* ── Fields ─────────────────────────────────────────────────────────────── */
+
+.we-field {
+  margin: 0 0 10px;
+}
+.we-field--check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+}
+.we-field--check .we-hint {
+  flex-basis: 100%;
+  margin-left: 22px;
+}
+.we-label {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: bold;
+}
+.we-field--check .we-label {
+  display: inline;
+  margin: 0;
+}
+
+.we-input {
+  width: 100%;
+  padding: 3px 5px;
+  font: 13px Tahoma, Verdana, Geneva, sans-serif;
+  color: #000;
+  background: #fff;
+  border: 2px solid;
+  border-color: #404040 #fff #fff #404040;
+}
+textarea.we-input {
+  resize: vertical;
+}
+select.we-input {
+  width: auto;
+  max-width: 100%;
+}
+.we-input--colour {
+  width: 9em;
+  font-family: "Courier New", Courier, monospace;
+}
+.we-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.we-picker {
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  background: #c0c0c0;
+  cursor: pointer;
+}
+
+.we-hint,
+.we-count {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #202020;
+}
+
+/* A problem is always written out ("Problem: ..."), never shown by colour alone. */
+.we-error {
+  margin: 3px 0 0;
+  color: #7a0000;
+  font-weight: bold;
+}
+.we-field[data-invalid="true"] .we-input {
+  border-color: #7a0000;
+  outline: 2px solid #7a0000;
+}
+
+.we-input:focus-visible,
+.we-picker:focus-visible,
+.we-field input[type="checkbox"]:focus-visible {
+  outline: 3px solid #000080;
+  outline-offset: 1px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.we-button {
+  padding: 3px 12px;
+  font: inherit;
+  color: #000;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  cursor: pointer;
+}
+.we-button:active:not(:disabled) {
+  border-color: #404040 #fff #fff #404040;
+}
+.we-button:disabled {
+  color: #5a5a5a;
+  text-shadow: 1px 1px 0 #fff;
+  cursor: default;
+}
+.we-button[aria-pressed="true"] {
+  border-color: #404040 #fff #fff #404040;
+  font-weight: bold;
+  background: #b0b0b0;
+}
+.we-button--primary {
+  font-weight: bold;
+}
+.we-button:focus-visible,
+.we-link:focus-visible,
+.we-edit-button:focus-visible {
+  outline: 2px dotted #000;
+  outline-offset: 2px;
+}
+.we-entry-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.we-link {
+  padding: 0;
+  font: inherit;
+  color: #00008b;
+  background: none;
+  border: 0;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Messages ───────────────────────────────────────────────────────────── */
+
+.we-banner {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 2px solid #404040;
+  background: #ffffe1;
+}
+.we-banner--problem {
+  border-color: #7a0000;
+  background: #ffe8e8;
+}
+.we-banner ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+.we-summary:focus {
+  outline: 3px solid #000080;
+}
+
+/* ── Colour table ───────────────────────────────────────────────────────── */
+
+.we-contrast {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.we-contrast caption {
+  margin-bottom: 4px;
+  font-weight: bold;
+  text-align: left;
+}
+.we-contrast th,
+.we-contrast td {
+  padding: 3px 6px;
+  border: 1px solid #808080;
+  text-align: left;
+}
+.we-contrast tr[data-passes="false"] td:last-child {
+  color: #7a0000;
+  font-weight: bold;
+}
+
+/* ── Preview ────────────────────────────────────────────────────────────── */
+
+.we-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.we-preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 0 0 4px;
+}
+.we-preview-title {
+  font-weight: bold;
+}
+.we-preview-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.we-preview-pages .we-button {
+  padding: 1px 8px;
+}
+.we-preview-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 2px solid;
+  border-color: #404040 #fff #fff #404040;
+  background: #fff;
+}
+
+/* ── Save bar ───────────────────────────────────────────────────────────── */
+
+.we-savebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 2px solid #808080;
+}
+.we-state {
+  flex: 1 1 220px;
+  margin: 0;
+}
+
+/* ── Discard question ───────────────────────────────────────────────────── */
+
+.we-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.we-confirm {
+  width: min(420px, 90%);
+  padding: 12px 14px;
+  background: #c0c0c0;
+  color: #000;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  font: 13px Tahoma, Verdana, Geneva, sans-serif;
+}
+.we-confirm-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.we-confirm-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ── Narrow screens: one pane at a time ─────────────────────────────────── */
+
+@media (max-width: 1000px) {
+  .we-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .we-panes {
+    display: flex;
+  }
+  .we-editor[data-pane="form"] .we-preview,
+  .we-editor[data-pane="preview"] .we-form {
+    display: none;
+  }
+  .we-confirm-buttons .we-button {
+    flex: 1 1 auto;
+  }
+}

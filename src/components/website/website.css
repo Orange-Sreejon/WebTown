@@ -119,6 +119,9 @@
 }
 
 .wt-site {
+  /* The layout below reacts to the width of the page itself, so the same page lays out
+     correctly in the full window, on a phone, and in the editor's smaller preview. */
+  container-type: inline-size;
   min-height: 100%;
   background-color: var(--site-bg);
   color: var(--site-text);
@@ -322,7 +325,7 @@
 
 /* ── Smaller windows ────────────────────────────────────────────────────── */
 
-@media (max-width: 720px) {
+@container (max-width: 640px) {
   .wt-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
@@ -345,4 +348,9 @@
   .wt-banner {
     padding: 8px 12px;
   }
+}
+
+/* Shown above the page after the owner has saved. */
+.wt-notice--good {
+  background: #e6ffe6;
 }
