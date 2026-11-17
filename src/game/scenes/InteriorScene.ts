@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import type { Point, Rect } from '../../lib/geometry'
+import { emitAppState, onAppCommand } from '../../lib/app-bridge'
 import {
   HIDDEN_EDITOR_VIEW,
   emitEditorState,
@@ -28,6 +29,7 @@ import { EditorSession, type EditorMode } from '../maps/house/editor-session'
 import type { HouseLayout, InteriorTemplate } from '../maps/house/house-layout'
 import { houseLayouts } from '../maps/house/house-layout-store'
 import { validateLayout } from '../maps/house/layout-rules'
+import { buildObjectTargets, type ObjectTarget } from '../maps/house/object-targets'
 import { resolveInterior } from '../maps/house/resolve-interior'
 import {
   getInteriorCollisionRects,
@@ -44,7 +46,10 @@ import {
   registerInteriorTextures,
   textureForSprite,
 } from '../maps/interior-textures'
-import { findNearbyTarget } from '../systems/interaction'
+import { AppSession } from '../systems/app-session'
+import { findNearbyTarget, type InteractionTarget } from '../systems/interaction'
+import { isPlayerFrozen, mayInteract } from '../systems/interior-gate'
+import { setKeyboardCaptured } from '../systems/keyboard-capture'
 import { isFeetSafe } from '../systems/return-position'
 import { TransitionLock } from '../systems/transition'
 import { chooseIntegerZoom } from '../systems/view-fit'
@@ -97,6 +102,13 @@ export class InteriorScene extends Phaser.Scene {
   private prompt!: InteractionPrompt
   private readonly lock = new TransitionLock(INTERACT_COOLDOWN_MS)
   private nearExit = false
+  /** The computer or notebook the player stands at, if any. */
+  private nearObject: ObjectTarget | null = null
+  /** Cached `buildObjectTargets` result, rebuilt whenever `definition` changes. */
+  private objectTargets: ObjectTarget[] = []
+  private objectTargetsFor: InteriorDefinition | undefined
+  /** The website / Paint overlay state. Created with the scene, disposed on shutdown. */
+  private appSession: AppSession | undefined
 
   private walls: Phaser.Physics.Arcade.StaticGroup | undefined
   private readonly pieceImages = new Map<string, Phaser.GameObjects.Image>()
@@ -124,6 +136,8 @@ export class InteriorScene extends Phaser.Scene {
     this.definition = this.buildDefinition(data)
     this.loadFailed = false
     this.nearExit = false
+    this.nearObject = null
+    this.objectTargetsFor = undefined
     this.renderedVersion = -1
     this.renderedMode = 'play'
     this.lastViewJson = ''
@@ -201,16 +215,20 @@ export class InteriorScene extends Phaser.Scene {
     this.prompt = new InteractionPrompt(this)
 
     this.setUpEditor(def)
+    this.setUpApps()
 
     this.fitCamera()
     this.onResize = () => this.fitCamera()
     this.scale.on('resize', this.onResize)
 
     this.onInteractKey = (event: KeyboardEvent): void => {
-      // A held key repeats; only a fresh press may open or close a door.
-      if (event.repeat || this.isEditing()) return
-      if (!this.nearExit || !this.lock.tryBegin(performance.now())) return
-      this.leave()
+      // A held key repeats; only a fresh press may open or close anything. While
+      // the editor or an app is open, or a door is moving, E does nothing.
+      if (!mayInteract(this.busyState(), event.repeat)) return
+      if (!this.nearExit && !this.nearObject) return
+      if (!this.lock.tryBegin(performance.now())) return
+      if (this.nearObject) this.openApp(this.nearObject)
+      else this.leave()
     }
     this.input.keyboard!.on('keydown-E', this.onInteractKey)
 
@@ -224,9 +242,10 @@ export class InteriorScene extends Phaser.Scene {
   update(): void {
     if (!this.player) return
 
-    if (this.lock.isBusy || this.isEditing()) {
+    if (isPlayerFrozen(this.busyState())) {
       this.player.halt()
       this.nearExit = false
+      this.nearObject = null
       this.prompt.hide()
       return
     }
@@ -236,9 +255,14 @@ export class InteriorScene extends Phaser.Scene {
     const def = this.definition
     if (!def) return
 
-    const target = findNearbyTarget(this.player.feet, [def.exit])
-    this.nearExit = target !== null
-    if (target) {
+    const exit: InteractionTarget = def.exit
+    const objects = this.currentObjectTargets()
+    const target = findNearbyTarget(this.player.feet, [exit, ...objects])
+    this.nearExit = target === exit
+    this.nearObject = objects.find(object => object === target) ?? null
+    if (this.nearObject) {
+      this.prompt.show(this.nearObject.promptX, this.nearObject.promptY, this.nearObject.promptText)
+    } else if (target) {
       this.prompt.show(target.promptX, target.promptY, PROMPT_EXIT_TEXT)
     } else {
       this.prompt.hide()
@@ -373,8 +397,8 @@ export class InteriorScene extends Phaser.Scene {
 
   private handleCommand(command: EditorCommand): void {
     const session = this.session
-    // Nothing is edited while a door is opening or closing.
-    if (!session || this.lock.isBusy) return
+    // Nothing is edited while a door is opening or closing, or an app is open.
+    if (!session || this.lock.isBusy || this.appSession?.isOpen) return
 
     switch (command.type) {
       case 'enter-edit':
@@ -511,6 +535,64 @@ export class InteriorScene extends Phaser.Scene {
     this.session?.setDragThreshold(EDITOR_DRAG_THRESHOLD_PX / zoom)
   }
 
+  // -- Computer and notebook ------------------------------------------------
+
+  /** Everything that stops the player acting right now. */
+  private busyState(): { transitioning: boolean; editing: boolean; appOpen: boolean } {
+    return {
+      transitioning: this.lock.isBusy,
+      editing: this.isEditing(),
+      appOpen: this.appSession?.isOpen ?? false,
+    }
+  }
+
+  /** The computer and notebook targets of the room as it is now. */
+  private currentObjectTargets(): ObjectTarget[] {
+    const def = this.definition
+    if (!def) return []
+    if (this.objectTargetsFor !== def) {
+      this.objectTargets = buildObjectTargets(def)
+      this.objectTargetsFor = def
+    }
+    return this.objectTargets
+  }
+
+  /**
+   * Wires the website / Paint overlay. Phaser decides when an app opens and
+   * what the player may do meanwhile; React only renders it and answers with
+   * `close`. Closing is idempotent, so a double click or a late command is
+   * harmless.
+   */
+  private setUpApps(): void {
+    const keyboard = this.input.keyboard!
+    this.appSession = new AppSession(
+      {
+        haltPlayer: () => this.player.halt(),
+        hidePrompt: () => this.prompt.hide(),
+        setKeyboardCaptured: captured => setKeyboardCaptured(keyboard, captured),
+        publish: view => emitAppState(view),
+        appClosed: () => {
+          // Back to normal: the closing key press must not re-trigger anything,
+          // and no frame of the freeze may linger in the movement state.
+          this.lock.release(performance.now())
+          if (this.player?.active) this.player.halt()
+          this.nearExit = false
+          this.nearObject = null
+        },
+      },
+      canEditHouse,
+    )
+    this.cleanups.push(onAppCommand(() => this.appSession?.close()))
+  }
+
+  /** Opens the website or Paint for the object the player stands at. */
+  private openApp(target: ObjectTarget): void {
+    if (!this.appSession?.open(target.app, this.houseId)) {
+      // Nothing opened (already open): give the lock back instead of staying frozen.
+      this.lock.release(performance.now())
+    }
+  }
+
   // ── Leaving ──────────────────────────────────────────────────────────────
 
   private leave(): void {
@@ -546,6 +628,12 @@ export class InteriorScene extends Phaser.Scene {
 
     // An unsaved draft is dropped here; the store only ever changes on Save.
     for (const cleanup of this.cleanups.splice(0)) cleanup()
+    // Give the keyboard back and tell React to close, even if an app is open.
+    this.appSession?.dispose()
+    this.appSession = undefined
+    this.nearObject = null
+    this.objectTargets = []
+    this.objectTargetsFor = undefined
     this.session?.dispose()
     this.session = undefined
     this.overlay?.destroy()

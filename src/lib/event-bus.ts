@@ -3,7 +3,13 @@
  * Wraps the native EventTarget API — no external library needed.
  */
 
-export type GameEventType = 'READY' | 'ERROR' | 'EDITOR_STATE' | 'EDITOR_COMMAND'
+export type GameEventType =
+  | 'READY'
+  | 'ERROR'
+  | 'EDITOR_STATE'
+  | 'EDITOR_COMMAND'
+  | 'APP_STATE'
+  | 'APP_COMMAND'
 
 const bus = new EventTarget()
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { onAppState } from '../../lib/app-bridge'
 import {
   HIDDEN_EDITOR_VIEW,
   emitEditorCommand,
@@ -23,15 +24,18 @@ interface HouseEditorOverlayProps {
 export function HouseEditorOverlay({ sendCommand = emitEditorCommand }: HouseEditorOverlayProps): React.ReactElement | null {
   const [view, setView] = useState<EditorView>(HIDDEN_EDITOR_VIEW)
   const [collapsed, setCollapsed] = useState(false)
+  // The website and Paint cover the game; the editor controls stay out of the way.
+  const [appOpen, setAppOpen] = useState(false)
 
   useEffect(() => onEditorState(setView), [])
+  useEffect(() => onAppState(app => setAppOpen(app.open !== null)), [])
 
   // A fresh edit always opens with the panel showing.
   useEffect(() => {
     if (view.mode === 'play') setCollapsed(false)
   }, [view.mode])
 
-  if (!view.canEdit) return null
+  if (!view.canEdit || appOpen) return null
 
   return (
     <div style={styles.layer}>
