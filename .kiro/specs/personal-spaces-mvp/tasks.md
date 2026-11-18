@@ -66,26 +66,28 @@ the specs are approved. D1-D9 are approved (see `design.md` section 1).**
       renderer, valid and invalid links, visitor read-only (with an import-graph test), default site, recovery
       notice, storage failure and retry, close and restore, keyboard and accessibility basics, 1280x720,
       1920x1080 and 390x844 (49 checks in a real browser), and a clean `dist/`.
-- [~] **P3-07** Owner website editor, form-based: **superseded, not kept** (revision 2). Built in the working tree
-      but never committed; it edits fixed fields of `SiteContent`, which is not the product direction. Its fate is
-      decision SD-1 (recommended: shelve as a patch or a WIP branch, restore the tree to commit `8799bc2`).
+- [~] **P3-07** Owner website editor, form-based: **superseded, not built on** (revision 2). Committed by the owner
+      in `9837da3` ("before-studio"), so it is preserved in history. It is still live in the app until it is taken
+      out (S-13, or an earlier revert if the owner prefers).
 
 ### Website, revision 2: WebTown Site Studio (file-based; design section 16)
 
 Sizes are relative effort (S, M, L). Each task leaves `tsc -b`, `npm test`, `npm run build` and `npm audit` green and
-needs approval before the next one starts. S-01 is a gate: design 16.4 to 16.9 is corrected from its findings
-before S-04 begins.
+needs approval before the next one starts. **S-01 is a gate: S-02 does not start until the spike results and the
+revised design 16.4 to 16.9 have been reviewed.** S-06 must carry the S-01 security suite onto the real host page,
+navigation page and builder, and pass it in all three engines.
 
-- [ ] **S-00** (S) Decisions and housekeeping. Answer SD-1 to SD-12. Shelve P3-07 per SD-1. Update
-      `.kiro/steering/security.md` (resident code runs only in the two-layer sandbox; sandbox and CSP rules; the
-      16.9 limits; never `allow-same-origin`), `product.md` (Site Studio replaces the form editor) and, if SD-3 or
-      SD-10 are approved, `coding-standards.md` (the dependency exception and where it may be imported).
-- [ ] **S-01** (M) **Sandbox spike** (throwaway, outside `src/`, not shipped). In Chromium, Firefox and WebKit:
-      host page plus nested `srcdoc` with inherited CSP; opaque-origin denials (DOM, storage, cookies);
-      `data:` assets; `blob:` URLs passed across the two frames; the `webtown-site:` base (no request, no protocol
-      handler); `base-uri` with a custom scheme; detection of self-navigation and whether the request is sent;
-      infinite-loop behaviour per browser; page-size limits for `srcdoc` and `postMessage`; CodeMirror 6 bundle
-      size. Output: `docs/site-sandbox-findings.md` and design corrections. No product code.
+- [x] **S-00** (S) Decisions and housekeeping (done). SD-1 to SD-12 confirmed and recorded (design 16.0). SD-1: the
+      stash was not possible because the work was already committed as `9837da3`; nothing was stashed, reset or moved.
+      Steering updated: `security.md` (resident websites: two-layer sandbox, no resident JavaScript, no egress,
+      messages, SVG, uploads), `product.md` (Site Studio direction, 3a limits), `coding-standards.md` (`fake-indexeddb`
+      and `@playwright/test` as dev dependencies; no code-editor dependency). Requirements WS-09, WS-15, WS-16, WS-21
+      revised for SD-4, SD-5 and SD-11. `@playwright/test` 1.65.1 added (dev, exact), browsers installed outside the repo.
+- [x] **S-01** (M) **Sandbox spike** (done; **awaiting review**, which gates S-02). `spikes/site-sandbox/` (throwaway,
+      not shipped, not in `npm test`; `npm run spike:sandbox`): stand-in app, trusted host and navigation pages,
+      prototype builder with four modes, hostile fixtures, a beacon recording HTTP, bare TCP and UDP, and 58 Playwright
+      tests per engine. Two consecutive runs: 173 passed, 1 skipped (WebKit has no WebRTC), in Chromium, Firefox and
+      WebKit. Findings, revised policy and residual risks: `docs/site-sandbox-findings.md`; design 16.4 to 16.9 revised.
 - [ ] **S-02** (M) Project domain, pure: `site-project/` types (16.2), path rules, type allow-list and content
       signatures, limits, change sets, revision rules, load validation with skip reports. Tests for every rule.
 - [ ] **S-03** (M) Templates and migration, pure: Blank, Classic home page (from `SiteContent`), one single-page
@@ -113,8 +115,8 @@ before S-04 begins.
       (folder counts), set start page, picker and drag-and-drop uploads with per-file refusals and budget checks.
 - [ ] **S-10** (S) Start from template and first run: template chooser, replace-with-confirmation, the converted
       structured site as the starting draft with a clear "nothing is saved until Save" note, site title.
-- [ ] **S-11** (M, gated on SD-3) CodeMirror 6 behind the `CodeEditor` interface, owner chunk only; highlighting
-      for HTML, CSS and JavaScript; keyboard and screen-reader check.
+- [ ] **S-11** (M, optional, gated) **Evaluate** CodeMirror 6 behind the `CodeEditor` interface (bundle size,
+      accessibility). No runtime dependency exception is approved (SD-3); adopting it needs a separate decision.
 - [ ] **S-12** (S, optional) Developer aids: a panel showing errors reported by the page (as text, rate-limited);
       `webtown.asset(path)` if SD-12 is approved later.
 - [ ] **S-13** (S) Retire form-based display code (`SiteRenderer`, `ExternalLink`, `site-theme`, page CSS) and tests;

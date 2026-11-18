@@ -94,6 +94,74 @@ user-generated content".
 - `fake-indexeddb` is a dev dependency used by tests only; it must not appear in
   `dist/`.
 
+## Phase 3a - Resident websites (Site Studio, revision 2)
+
+Resident websites are files written by residents: HTML, CSS, JavaScript, images,
+fonts. They are untrusted code. The policy below **passed the S-01 sandbox spike** in Chromium, Firefox and
+WebKit (`docs/site-sandbox-findings.md`) and is **awaiting review**; until then it is provisional, and the
+spike's verified results take precedence over anything written here.
+
+### Where resident content may run
+
+- **Never in the WebTown document.** No resident HTML, CSS or script is ever
+  inserted into WebTown's own DOM, and WebTown's own UI shows resident strings
+  (file names, titles) only as React text.
+- Only inside the **two-layer sandbox**: WebTown's static host page
+  (`site-host.html`) in `<iframe sandbox="allow-scripts">`, and the resident page
+  in a nested `<iframe sandbox="allow-scripts" srcdoc>` created by the host page.
+- **Never add `allow-same-origin`** to either frame. With `allow-scripts` it would
+  let a frame remove its own sandbox. Also never grant `allow-top-navigation*`,
+  `allow-popups*`, `allow-forms`, `allow-modals`, `allow-downloads`,
+  `allow-pointer-lock` or `allow-presentation`. Both frames deny every
+  permissions-policy feature and use `referrerpolicy="no-referrer"`.
+
+### No resident JavaScript in Phase 3a
+
+- Resident `.js` files are stored and editable but **do not execute**: no inline
+  scripts, external scripts, event-handler attributes or `javascript:` URLs.
+- Enforced three ways: the resident page's own CSP has `script-src 'none'`; the
+  inherited host policy allows only the host's nonce; and the page builder
+  removes scripts, `on*` attributes, `nonce` attributes and script URLs.
+- Only WebTown's trusted bootstrap (host page, navigation page) runs, with a
+  **narrow nonce**. That nonce sits in a static file, so it is **not a secret**:
+  resident pages must never be able to rely on it, which is why the resident
+  page's own `script-src 'none'` and the builder's stripping are both required.
+
+### No network egress from resident pages
+
+- The resident policy allows images, styles, fonts and media only as `data:`;
+  `connect-src`, `frame-src`, `object-src`, `worker-src` and `form-action` are
+  `'none'`. The host page's `frame-src` is narrowed to WebTown's navigation page,
+  which also blocks the resident frame from navigating itself elsewhere.
+- **Do not claim "no requests" because a directive exists.** Every egress claim
+  must be backed by the spike's request-recording beacon (HTTP, raw TCP and UDP)
+  in all three engines. Self-navigation, meta refresh, forms, anchors, `ping`,
+  prefetch links and WebRTC are tested explicitly; see the findings for what is
+  covered by the platform and what depends on the page builder.
+
+### What S-01 measured (Chromium, Firefox, Playwright WebKit; see the findings)
+
+- Verified: both frames opaque; no access to WebTown's DOM, storage or cookies; no top navigation, popups,
+  dialogs or form submission; CSP inherited from the host into the resident `srcdoc` and **not** from the app;
+  no request reached the beacon from any static or click route, nor from the frame navigating itself (the host's
+  narrowed `frame-src` blocks it before a request is sent).
+- **Why no resident JavaScript is a security rule, not a missing feature:** a script in the sandboxed frame sent
+  WebRTC (STUN) datagrams despite `connect-src 'none'` in Chromium, and a script loop froze WebTown in all three
+  engines. Do not enable resident JavaScript without a new spike and, before public use, a separate site origin.
+- Not measurable with the spike's beacon: `preconnect`/`dns-prefetch` (no engine preconnected even unrestricted)
+  and Firefox WebRTC (its control showed no UDP). The builder removes the former; without script, neither applies.
+- Playwright's WebKit is not branded Safari; Safari and mobile browsers are untested.
+### Messages, links and SVG
+
+- Every `message` handler checks `event.source` against the one window it
+  expects, validates a closed schema, rate-limits, and never forwards anything to
+  the event bus or the bridge.
+- External links open only from WebTown's own chrome after the player confirms,
+  with `noopener noreferrer`, and only if the URL policy passes.
+- SVG files are rendered only as image resources (`<img>`, CSS), never as
+  documents.
+- Uploads: allow-listed types, checked by content signature, sanitised paths, and
+  the approved limits (1 MB text, 5 MB binary, 50 MB and 500 files per site).
 ## Phase 3b — planned security model (not implemented)
 
 Needs its own spec and review before any code. Supabase is the preferred provider

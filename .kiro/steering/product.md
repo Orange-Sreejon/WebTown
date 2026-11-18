@@ -42,6 +42,21 @@ players as the **Sketchbook**; type key and role stay `notebook`) opens
 decides when they open, freezes the player and restores the room. See
 `.kiro/specs/personal-spaces-mvp/`.
 
+**Website direction (revision 2): WebTown Site Studio.** A resident's website is a
+set of files they write themselves (HTML, CSS, JavaScript, images, GIFs, fonts),
+in the spirit of Neocities and the variety of old GeoCities home pages. There is
+no fixed page structure or theme; templates are only starting points. The
+form-based editor built as P3-07 is superseded (kept in commit `9837da3`).
+
+- Pages are rendered only inside a two-layer sandboxed iframe, never in the
+  WebTown document (see `security.md`).
+- **In Phase 3a resident JavaScript is stored and editable but never runs**, in
+  the preview or for visitors.
+- Resident pages make **no network requests** in 3a: they can use only their own
+  files. External links open only after the player confirms in WebTown's chrome.
+- Existing structured websites are shown converted in memory; the converted
+  project is written only on the owner's first Save, and the old record is kept.
+- Status: S-01 (sandbox spike) must pass and be reviewed before Site Studio is built.
 **Phase 3a is a local demonstration, not public sharing.**
 
 - Website content and drawings are saved in the browser's IndexedDB on **this

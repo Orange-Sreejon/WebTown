@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-wtAtk1'">
+<title>Attacker sibling frame</title>
+</head>
+<body>
+<!-- A hostile frame sitting next to the host frame in WebTown's page. It forges every message it
+     can think of, to WebTown and to the host frame. Both must reject all of it by checking
+     event.source, not by trusting the message's shape. -->
+<script nonce="wtAtk1">
+(function () {
+  var forged = [
+    { t: 'nav', kind: 'external', value: 'https://example.com/forged-by-sibling' },
+    { t: 'nav', kind: 'page', value: 'about.html' },
+    { t: 'ready' },
+    { t: 'rendered' },
+    { t: 'unexpected-nav' },
+    { type: 'close' },
+    { type: 'enter-edit' },
+  ]
+  for (var round = 0; round < 3; round++) {
+    forged.forEach(function (m) {
+      try { window.parent.postMessage(m, '*') } catch (e) {}
+      // frames[0] of WebTown's page is the host frame.
+      try { window.parent.frames[0].postMessage(m, '*') } catch (e) {}
+      try { window.parent.frames[0].postMessage({ t: 'render', html: '<h1 id="pwned">PWNED</h1>' }, '*') } catch (e) {}
+    })
+  }
+  var probe = {}
+  try { probe.parentDocument = String(window.parent.document.title) } catch (e) { probe.parentDocument = 'blocked: ' + e.name }
+  try { probe.hostDocument = String(window.parent.frames[0].document.title) } catch (e) { probe.hostDocument = 'blocked: ' + e.name }
+  try { window.parent.postMessage({ t: 'attacker-probe', probe: probe }, '*') } catch (e) {}
+})()
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@ Status: **APPROVED (D1-D9 resolved). Implementation in progress on `feature/phas
 
 ## 1. Decisions (all approved)
 
-> Revision 2 (file-based websites, WebTown Site Studio) adds decisions **SD-1 to SD-12, open**, in section 16.0.
+> Revision 2 (file-based websites, WebTown Site Studio): decisions **SD-1 to SD-12** are in section 16.0 (reviewed; SD-2 conditional on the S-01 spike).
 
 | # | Decision | Approved outcome | Alternatives considered |
 |---|---|---|---|
@@ -628,7 +628,7 @@ and commits only with permission.
   the visitor's `SiteWindow` gets `access.reader` and `isOwner={false}`. A real-browser check confirms the editor
   chunk is never requested for a visitor. All of this is client-side and bypassable with developer tools.
 
-## 16. WebTown Site Studio: file-based websites (revision 2, PROPOSED, awaiting review)
+## 16. WebTown Site Studio: file-based websites (revision 2; decisions reviewed; S-01 done, awaiting review)
 
 This section replaces the form-based website of sections 6, 14 and 15 as the product direction. Nothing here is
 implemented. Sections 6, 13, 14 and 15 describe what exists today (P3-04 to P3-07); 16.1 says what of that is kept.
@@ -637,23 +637,22 @@ Inspiration: Neocities (in-browser editing of your own files, upload by drag and
 fixing up) and the restored GeoCities gallery (handmade pages, very different layouts, tiled backgrounds, animated
 GIFs, odd navigation, personal art). WebTown supplies the browser chrome; the page belongs to the resident.
 
-### 16.0 Decisions that need approval
+### 16.0 Decisions (reviewed; SD-2 conditional on S-01)
 
-| # | Question | Recommendation | Alternatives |
-|---|---|---|---|
-| SD-1 | The uncommitted P3-07 form editor in the working tree | **Shelve it**: save it as a patch outside the repo (or a `wip/p3-07-form-editor` branch if you approve a commit there), then restore the tree to the committed P3-06 state. It is not built on. | Delete it outright; or keep `site-edit.ts` only |
-| SD-2 | Sandbox structure | **Two-layer frame.** WebTown embeds a static WebTown page `site-host.html` in `<iframe sandbox="allow-scripts" src>`; that host page puts each resident page in a nested `<iframe sandbox="allow-scripts" srcdoc>`. The host page's own CSP governs the resident page, independent of any future WebTown app CSP. | A single `srcdoc` frame in the app (simpler, but a `srcdoc` document inherits the embedding page's CSP, so a future strict WebTown CSP would also apply to, and break, resident scripts) |
-| SD-3 | Code editor | Ship a dependency-free `textarea` editor first (line numbers, Tab indent, undo); then add **CodeMirror 6** (MIT, modular) as an approved exception to the "no runtime dependencies" rule, loaded only in the owner's Site Studio chunk, after S-01 measures its bundle size | Textarea only; Monaco (about 100 MB unpacked, workers, rejected); Ace (about 58 MB of builds, older API, rejected) |
-| SD-4 | JavaScript in the visitor view | **Runs by default**, like the web; the WebTown window always keeps Stop (remove the frame) and Close | Click-to-run for visitors |
-| SD-5 | Network for sites in 3a | **None.** Sites use only their own files: no hot-linked images, web fonts, CDNs, embeds or requests | Allow `https:` images (very GeoCities, but every page view would leak visitors' addresses to the linked servers) |
-| SD-6 | Links to other sites | Confirmation bar outside the frame, open in new tab with `noopener noreferrer` after the player chooses | Grant `allow-popups` (lets pages open tabs; rejected) |
-| SD-7 | Allowed files and limits | Text: `.html .htm .css .js .mjs .txt .md .json .svg`. Images: `.png .jpg .jpeg .gif .webp .avif .bmp .ico`. Fonts: `.woff .woff2 .ttf .otf`. Audio: `.mp3 .ogg .wav`. No video in 3a. Text file 1 MB, other file 5 MB, site 50 MB, 500 files, path 200 characters, depth 8 | Larger budgets; video |
-| SD-8 | Save model | Explicit **Save all**, one IndexedDB transaction, revision check against other tabs | Save per file (Neocities style); autosave |
-| SD-9 | Migration | Show structured sites converted **in memory**; write the project only on the owner's first Save; never modify or delete the `sites` record in this phase | Convert and store automatically at upgrade time |
-| SD-10 | Browser security tests | Add **Playwright** as a dev dependency for a repeatable sandbox security suite in Chromium, Firefox and WebKit | Keep throwaway CDP scripts (Edge only, not repeatable in CI) |
-| SD-11 | Preview refresh | Automatic, 600 ms after typing stops, with an Auto toggle and Refresh; each refresh reloads the page and reruns its scripts | Manual only |
-| SD-12 | Site JavaScript conveniences | None in the first release (documented limits); later optional `webtown.asset(path)` for JS-built image paths | Rewrite JS string paths (unreliable) |
-
+| # | Decision as confirmed |
+|---|---|
+| SD-1 | Preserve the P3-07 form editor. **As found at S-00:** it was already committed by the owner as `9837da3` ("before-studio", which also holds the revision-2 specs), so there was nothing to stash and HEAD is `9837da3`, not `8799bc2`. The work is preserved in that commit; no stash, reset or branch change was made. How to take it out of the product later (a revert commit, or leaving it until S-13) is an open question for the owner. |
+| SD-2 | Two-layer sandbox: trusted static host page in a sandboxed iframe, resident page in a second sandboxed frame created by the host. Never `allow-same-origin`. **Conditional on S-01 passing in Chromium, Firefox and WebKit.** |
+| SD-3 | Dependency-free `textarea` editor. CodeMirror 6 may be *evaluated* later; **no runtime dependency exception is approved**. |
+| SD-4 | **Changed:** in Phase 3a resident JavaScript is editable and stored but **never executes**, in the preview or for visitors: no inline scripts, external scripts, event-handler attributes or `javascript:` URLs. Only WebTown's trusted bootstrap runs, under a narrow nonce. |
+| SD-5 | No external network requests from resident content. The claim must rest on observed traffic (S-01 beacon), accounting for self-navigation, meta refresh, forms, anchors and WebRTC, not on a CSP directive existing. |
+| SD-6 | External links only after explicit confirmation in trusted WebTown chrome; resident content cannot open popups or navigate the top-level page. |
+| SD-7 | Approved file types and limits: 1 MB text, 5 MB binary, 50 MB and 500 files per site. Content (not just extension) is checked, paths are sanitised, **SVG is rendered only as an image resource**. |
+| SD-8 | Save all files and metadata in one IndexedDB transaction; revisions are checked **inside** that transaction; the draft is kept on conflict. |
+| SD-9 | Migrate structured sites in memory; write the project only on the owner's first Save; keep the legacy record untouched. |
+| SD-10 | Playwright as a dev dependency, testing Chromium, Firefox and WebKit. Playwright's WebKit build is **not identical to branded Safari**; results for it are WebKit-engine results. |
+| SD-11 | Preview refreshes 600 ms after typing stops, with an Auto toggle and a manual Preview action. |
+| SD-12 | No resident-script conveniences: no filesystem, network, storage or WebTown-internal APIs. (With SD-4, no resident script runs at all in 3a.) |
 ### 16.1 What happens to the existing code
 
 | Module (phase) | Fate |
@@ -665,7 +664,7 @@ GIFs, odd navigation, personal art). WebTown supplies the browser chrome; the pa
 | `SiteBrowser` chrome, `site-navigation.ts`, `WindowFrame`, `AppHost`, `WebsiteApp` (P3-06) | **Adapted**: history of page paths instead of four section ids; page area becomes `SiteFrame` |
 | `SiteContent` types, validation, `site-text`, `default-site`, `theme-presets`, `contrast`, site repositories (P3-04/05) | **Migration-only**: read old records and feed the Classic template generator. Not used for new sites |
 | `SiteRenderer`, `ExternalLink`, `site-theme`, `website.css` page styles (P3-06) | **Retired** from display once `SiteFrame` replaces them (S-13); their literal-text tests move to the generator |
-| P3-07 form editor (uncommitted) | **Not kept** (SD-1) |
+| P3-07 form editor (committed in `9837da3`) | **Not built on** (SD-1); still live in the app until it is taken out (S-13 or an earlier revert, owner's choice) |
 
 ### 16.2 Data model
 
@@ -756,135 +755,134 @@ The generator escapes every text field for HTML (`&`, `<`, `>`, `"`, `'`), turns
 from validated `#RRGGBB` values and the fixed font stacks. `<script>alert(1)</script>` saved as a title in P3-05
 appears as text in the generated page (tested), so migration cannot turn old text into running code.
 
-### 16.4 Rendering a page (pure document builder)
+### 16.4 Rendering a page (pure document builder) - revised after S-01
 
-`buildPage(snapshot, path) -> { html: string, bytes: number } | PageError`, in the WebTown app, pure and tested in
-jsdom. It never runs anything:
-1. Find the page (`index.html` for a folder path); missing -> WebTown "page not found" document.
-2. Parse with `DOMParser` (an inert document: no scripts run, nothing loads). Serialise back after changes.
-3. Insert, as the **first children of `<head>`**, in this order: `<meta charset="utf-8">`, the CSP `<meta>` of 16.6,
-   `<base href="webtown-site:/house-a/art/">` (a non-network scheme, see 16.6), and WebTown's small navigation
-   script (16.7). Remove any `<base>`, `<meta http-equiv="refresh">`, and `<link rel>` values `dns-prefetch`,
-   `preconnect`, `prefetch`, `prerender`, `preload`, `modulepreload` from the resident's document.
-4. Replace references to the site's own files with `data:` URLs: `src`, `href` on `<link rel="stylesheet|icon">`,
-   `srcset`, `poster`, inline `style` attributes and `<style>`
-   blocks (`url()`, `@import`), and inside CSS files before they are encoded (paths resolved relative to the CSS file).
-   Stylesheets and scripts stay where they were, as `data:` URLs, so cascade order, `media`, `defer`, `async` and
-   `type="module"` keep their meaning. References that are not site files are left alone (and blocked by CSP).
-5. Size budget: a rendered page over 25 MB (after base64) is refused with a WebTown error page that names the largest
-   files. S-01 tests whether passing `Blob`s into the host page and using `blob:` URLs there works across the two
-   opaque origins; if it does, assets move to that and the budget grows.
+`buildPage(snapshot, path, appOrigin) -> { html, bytes } | PageError`, in the WebTown app, pure and tested in jsdom.
+It never runs anything. The S-01 prototype (`spikes/site-sandbox/www/builder.js`) shows the approach; S-04 writes the
+real one with full tests.
+1. Find the page (`index.html` for a folder); missing -> WebTown's "page not found" document.
+2. Parse with `DOMParser` (inert: no scripts run, nothing loads); serialise back after changes. This module is the
+   only place in WebTown allowed to serialise HTML, and only from an inert document (the source-scan test gets a
+   single, named exception).
+3. **Remove** (SD-4, SD-5): `script`, `iframe`, `frame`, `frameset`, `object`, `embed`, `applet`, `portal`,
+   `fencedframe`, `base`; `<meta http-equiv>` `refresh` and `set-cookie`; `<link rel>` `preload`, `prefetch`,
+   `prerender`, `preconnect`, `dns-prefetch`, `modulepreload`, `manifest`; every `on*`, `nonce`, `ping`, `target`,
+   `formtarget`, `formaction`, `action` and `srcdoc` attribute. `<noscript>` is unwrapped (its content is what a page
+   without script means to show).
+4. **Insert**, as the first children of `<head>`: `<meta charset="utf-8">`, the resident CSP `<meta>` (16.6), and
+   `<base href="webtown-site:/<path>">`. No WebTown script is inserted into resident pages.
+5. **Links** (`<a>`, `<area>`, SVG `<a>`): `#fragment` stays; a link that resolves to an `.html`/`.htm` path in the
+   site becomes `<app origin>/site-nav.html#k=page&p=<path#frag>`; an `https:` link that passes the URL policy becomes
+   `.../site-nav.html#k=external&u=<url>`; anything else loses its `href` (`aria-disabled="true"`).
+6. **Assets**: references to the site's own files in `src`, `srcset`, `poster`, `background`, `<link rel=stylesheet|icon>`,
+   inline `style`, `<style>`, and inside CSS files (`url()`, `@import`, resolved relative to the CSS file) become `data:`
+   URLs. Other references are removed (they would be blocked anyway). **SVG files are only ever used as image
+   resources** (`data:image/svg+xml` in `<img>`/CSS), where they cannot run script or load anything.
+7. **Budgets**: page HTML is bounded by the 1 MB text-file limit (SD-7), which S-01 showed keeps WebTown usable; the
+   rendered `srcdoc` including base64 assets is capped at 25 MB, refused with an error page naming the largest files.
 
 The resident's source is never changed by this; only the rendered copy is.
 
-### 16.5 Sandbox architecture (SD-2)
+### 16.5 Sandbox architecture (SD-2) - verified by S-01
 
 ```
 WebTown app document (React, Phaser, storage, event bus)            origin: WebTown
- └─ WebTown Browser window (React)  - chrome: title, Back/Forward/Home, address, status, link bar
-     └─ <iframe sandbox="allow-scripts" src="/site-host.html"       opaque origin #1
-                referrerpolicy="no-referrer" allow="(all features 'none')" title="...">
-         site-host.html: WebTown's own static page, no user content, own CSP
-         └─ <iframe sandbox="allow-scripts" srcdoc="(built page)">   opaque origin #2 (resident page)
-               inherits site-host.html's CSP + the CSP <meta> inside the page
+ └─ WebTown Browser window (React): title, Back/Forward/Home, address, status, link confirmation bar, Stop
+     └─ <iframe sandbox="allow-scripts" src="/site-host.html"       opaque origin #1 (trusted host page)
+                referrerpolicy="no-referrer" allow="(every feature 'none')" title="...">
+         └─ <iframe sandbox="allow-scripts" srcdoc="(built page)"    opaque origin #2 (resident page)
+               inherits the host page's CSP + the page's own CSP <meta>; no script runs here
+               a rewritten link loads /site-nav.html (trusted) into this same frame
 ```
 
-Why two layers:
-- `sandbox` **without `allow-same-origin`** gives each frame an opaque origin: no access to the WebTown DOM, Phaser,
-  React, the event bus, cookies, localStorage, IndexedDB, caches or service workers (all throw or are empty).
-  `allow-same-origin` together with `allow-scripts` would let a frame remove its own sandbox; it is **never** used
-  (enforced by a source test on every `sandbox` attribute).
-- A `srcdoc` document inherits the CSP of the document that created it. With the nested design that creator is
-  `site-host.html`, so the resident page's network rules come from WebTown's host page, not from the WebTown app.
-  The app can later adopt a strict CSP of its own without breaking resident scripts, and without the app having to
-  allow inline scripts.
-- The host page is WebTown code: it never evaluates anything it receives, never reads the resident document (it
-  cannot, being a different opaque origin), and only relays a closed list of messages.
-- In Phase 3b the same `site-host.html` moves to a separate registrable domain (as Neocities and similar hosts do),
-  which adds browser process isolation and lets the server send the CSP and a `sandbox` header.
+Verified in Chromium, Firefox and WebKit (`docs/site-sandbox-findings.md`):
+- both frames are opaque (`self.origin === 'null'`); the resident frame cannot read WebTown's DOM, storage or cookies,
+  navigate the tab, or open popups or dialogs;
+- a `srcdoc` frame inherits the host page's policy, and WebTown's own (stricter) policy is **not** inherited, so the
+  app can adopt any CSP it likes later;
+- the host page's `frame-src`, narrowed at start-up to WebTown's navigation page, blocks every navigation of the
+  resident frame (by link, form, refresh or script) to any other URL **before a request is sent**.
 
-If `site-host.html` is opened directly as a top-level page it does nothing (`window.top === window`). In production
-it should also be served with `Content-Security-Policy: sandbox allow-scripts` so that even then it has an opaque
-origin; that needs a hosting header and is recorded for deployment.
+`allow-scripts` on the resident frame exists **only** so WebTown's navigation page can run when a link loads it.
+Resident scripts are blocked by the resident CSP and removed by the builder. Never `allow-same-origin` (source test).
+If `site-host.html` is opened directly it does nothing. In production it should also be served with
+`Content-Security-Policy: sandbox allow-scripts` (a hosting header; recorded for deployment).
 
-### 16.6 Iframe attributes and Content Security Policy
+### 16.6 Policies (verified by S-01)
 
-Both frames: `sandbox="allow-scripts"` only. Not granted: `allow-same-origin`, `allow-top-navigation*`,
-`allow-popups*`, `allow-forms`, `allow-modals`, `allow-downloads`, `allow-pointer-lock`, `allow-presentation`,
-`allow-orientation-lock`, `allow-storage-access-by-user-activation`. Plus `referrerpolicy="no-referrer"`, an
-`allow` attribute denying every permissions-policy feature (camera, microphone, geolocation, display-capture,
-fullscreen, payment, usb, serial, hid, bluetooth, midi, clipboard-read, clipboard-write, publickey-credentials-get,
-screen-wake-lock, xr-spatial-tracking, and so on), and no `allowfullscreen`.
-
-CSP of `site-host.html`, inherited by every resident page (and repeated in the page's own `<meta>`):
+Host page, static `<meta>`:
 ```
-default-src 'none';
-script-src 'unsafe-inline' 'unsafe-eval' data:;
-style-src 'unsafe-inline' data:;
-img-src data: blob:;  media-src data: blob:;  font-src data:;
-connect-src 'none';  frame-src 'none';  child-src 'none';  worker-src 'none';
-object-src 'none';  manifest-src 'none';  base-uri webtown-site:;  form-action 'none'
+default-src 'none'; script-src 'nonce-<host nonce>'; style-src 'unsafe-inline' data:; img-src data:; font-src data:;
+media-src data:; connect-src 'none'; frame-src 'self'; child-src 'none'; worker-src 'none'; object-src 'none';
+manifest-src 'none'; form-action 'none'; base-uri webtown-site:
 ```
-- `'unsafe-inline'` and `'unsafe-eval'` are needed because the resident's scripts are the content; they apply only
-  inside the opaque frame. `'unsafe-eval'` is a convenience for residents (SD-4 discussion); it adds no reach.
-- No network scheme appears anywhere, so images, fonts, styles, scripts, `fetch`, XHR, WebSocket, EventSource and
-  `sendBeacon` cannot reach any server, including WebTown's own.
-- `<base href="webtown-site:/...">`: relative URLs that WebTown did not rewrite (for example built in JavaScript)
-  resolve to a scheme that is not fetched, so they make no request even to WebTown's server. S-01 verifies that a
-  navigation to such a URL in a sandboxed frame neither leaves the frame nor launches a protocol handler.
-- A resident `<meta>` CSP can only add restrictions (policies combine), so a page cannot loosen the sandbox.
-- Policies delivered by `<meta>` cannot set `frame-ancestors`, `sandbox` or reporting; those come from hosting in 3b.
+then the host bootstrap adds `frame-src <app origin>/site-nav.html` (a later policy can only narrow).
 
-### 16.7 Message protocol
+Resident page, inserted by the builder:
+```
+default-src 'none'; script-src 'none'; style-src 'unsafe-inline' data:; img-src data:; font-src data:;
+media-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; object-src 'none';
+manifest-src 'none'; form-action 'none'; base-uri webtown-site:
+```
 
-The navigation script WebTown inserts into each page (16.4 step 3) listens for clicks on links and posts requests. It
-runs in the resident's origin, so it is **not trusted**: anything it sends could be forged by resident code, and the
-design does not depend on it.
+Navigation page, static `<meta>`: `default-src 'none'; script-src 'nonce-<nav nonce>'; base-uri 'none'; form-action 'none'`.
 
-Page -> host -> app (each layer accepts only `event.source` equal to its child frame's `contentWindow`, checks the
-shape with guards, drops anything else, and rate-limits to 10 messages per second per page):
+- **Nonces** are build-time constants in static files, so they are **not secret**. S-01 showed that with only the
+  inherited host policy a resident script carrying the host nonce runs. That is why the resident page's own
+  `script-src 'none'` and the builder's removal of scripts and `nonce` attributes are both mandatory; S-01 showed
+  each one alone stops every script variant tested.
+- `'unsafe-inline'` remains only in `style-src`: residents' CSS is the content and cannot execute code.
+- No network scheme appears in any resident-reachable directive.
 
-| Type | Payload | WebTown does |
+### 16.7 Message protocol (verified by S-01)
+
+No resident script runs, so the resident page cannot post messages. Navigation works without it: a rewritten link
+loads WebTown's navigation page into the resident frame, and that page posts `{ t: 'nav', kind, value }` to the host.
+WebTown still treats it as an **untrusted request**, because it cannot tell it apart from the resident window.
+
+| Layer | Accepts | Checks |
 |---|---|---|
-| `ws:navigate` | `href` (a `webtown-site:` URL) | Maps to a path in the current snapshot; existing page -> render it and push history; else "page not found" |
-| `ws:open-external` | `href` | `validateExternalUrl`; valid -> show the confirmation bar; else status-line note |
-| `ws:title` | text, max 120 chars | Shows as the window title, as React text |
-| `ws:escape` | none | Same as pressing the window's Close |
+| Host from app | `{ t: 'render', html }` only | `event.source === window.parent`; size <= 40 MB |
+| Host from resident frame | `{ t: 'nav', kind: 'page' or 'external', value }` | `event.source === frame.contentWindow`; string, 1-2048 chars; 10 per second; anything else is reported, not acted on |
+| App from host | `ready`, `loaded`, `rendered`, `nav`, `rate-limited`, `unexpected-nav`, `rejected`, `loop-detected` | `event.source === hostFrame.contentWindow`; `event.origin === 'null'`; 30 per second; closed schema |
 
-Host -> app also: `host:ready`, `host:unexpected-navigation` (the nested frame loaded something WebTown did not put
-there; 16.9), `host:too-large`. App -> host: `app:render { html }` only. Nothing WebTown sends contains anything but
-the resident's own site. The bridge's event bus is a JavaScript object inside the app and is not reachable by
-`postMessage` at all; no handler forwards a message to it (source test).
+The app then validates content: a page request must name a page in the current snapshot (otherwise "page not
+found"); an external request must pass `validateExternalUrl` and only shows the confirmation bar, which opens the
+link with `noopener,noreferrer` only when the player chooses. After an external request the host restores the page,
+at most three times per render (stops a page that loops). No handler forwards anything to the event bus (source test).
+S-01 verified sibling-frame forgery, resident forgery, a 200-message flood (10 delivered), and the restore bound.
 
-### 16.8 Threat model
+### 16.8 Threat model (after S-01)
 
-| Threat | Control | Residual |
+| Threat | Control | Evidence |
 |---|---|---|
-| Page reads or changes WebTown's DOM, React, Phaser | Opaque origin (no `allow-same-origin`); two frames deep | None known |
-| Page reads WebTown storage, cookies, IndexedDB, other residents' data | Opaque origin: storage APIs throw; nothing passed in but its own files | None known |
-| Page sends bridge commands (close the app, edit furniture) | Bridge is not on `window`; message handlers accept a closed list and never forward to the bus | Forged `ws:escape` can close the window: harmless |
-| Page navigates or replaces the WebTown tab | No `allow-top-navigation*` | None known |
-| Popups, alerts, forms, downloads, full screen, devices | Not granted in `sandbox`; `allow` denies features | None known |
-| Page loads remote resources, tracks visitors, exfiltrates | CSP `default-src 'none'`, only `data:`/`blob:`; non-network `<base>`; prefetch links stripped | Self-navigation and WebRTC, see 16.9 |
-| Page escapes the sandbox via its own `<meta>` CSP or by removing WebTown's | Policies only combine; the inherited host policy applies regardless | None known |
-| Page fakes WebTown UI (phishing) | All WebTown chrome is outside the frame; WebTown never asks for anything inside a page | A page can draw anything inside its own area |
-| Page freezes the tab (infinite loop, memory) | Chrome puts sandboxed frames in their own process (IsolateSandboxedIframes), so Stop/Close keep working there | Elsewhere a runaway script can freeze the tab until reload; 3b separate site origin improves this |
-| Malicious upload | Type and content checks; files are only ever data inside the sandbox; nothing is served from WebTown's origin | An SVG or HTML can contain script, which runs only in the sandbox |
-| Migration turns old text into code | Generator escapes every field; tested with hostile strings | None known |
+| Page reads or changes WebTown's DOM, React, Phaser | Opaque origin, two frames deep | S-01: SecurityError in all engines |
+| Page reads WebTown storage, cookies, IndexedDB | Opaque origin | S-01: SecurityError; canaries unchanged |
+| Page runs JavaScript | Resident `script-src 'none'` + builder stripping (+ inherited host nonce policy) | S-01: 9 script fixtures, none ran, including nonce guesses |
+| Page sends bridge commands | Bus not on `window`; closed message lists; source checks | S-01: forged messages from sibling and resident had no effect |
+| Page navigates the WebTown tab, opens popups, dialogs, forms, downloads | Sandbox without those flags | S-01: no navigation, popup or dialog; no form request |
+| Page loads remote resources or tracks viewers | Inherited host CSP + resident CSP (`data:` only) + builder | S-01 beacon: no request for 15 static fixtures in any mode |
+| Page navigates its own frame elsewhere (exfiltration) | Host `frame-src` narrowed to the navigation page | S-01 beacon: no request, by link, form, refresh or script |
+| Page loads WebTown's own pages into its frame | Same narrowing | S-01: no request at WebTown's server |
+| WebRTC | Unreachable without script | S-01: **escapes CSP in Chromium if script runs** |
+| Page freezes WebTown | No script; 1 MB page limit; Stop | S-01: within limits usable (worst about 2 s delay in Chromium for a heavy animated page); Stop always recovers; a script loop would freeze every engine |
+| Page fakes WebTown UI | WebTown chrome is outside the frame | By construction |
+| Migration turns old text into code | Generator escapes every field | S-03 tests |
 
-### 16.9 Known limits (to be stated in Help and in the steering file)
+### 16.9 Known limits (to state in Help and steering)
 
-- **A page can navigate its own frame to any URL.** CSP cannot stop this (`navigate-to` was removed from the
-  specification and never shipped). WebTown notices the unexpected load and replaces the frame, but the request has
-  already reached that server, which then learns the viewer's network address and time. In 3a the author and viewer
-  share a device; in 3b this must be disclosed to visitors, and a site that does it could be flagged.
-- **WebRTC** can open connections that CSP `connect-src` does not cover in every browser; the same exposure.
-- **Denial of service**: see the threat table; browser-dependent.
-- **No storage, network, popups, forms, embeds, workers, module imports, or JS `fetch` of the site's own files** for
-  site code (WS-16). These are deliberate.
-- **Accessibility of pages** is the resident's; WebTown can only provide accessible templates.
-- **Browser coverage**: the design follows the HTML and CSP specifications; S-01 and the security suite record actual
-  behaviour in Chromium, Firefox and WebKit, and any browser that fails a fixture is listed as unsupported.
+- **Resident JavaScript cannot run in Phase 3a.** Two S-01 results make this a security requirement, not a missing
+  feature: WebRTC sends traffic despite CSP (Chromium), and a script loop freezes WebTown in every engine tested.
+  Any future JavaScript mode needs its own spike and, before public use, a separate site origin (Phase 3b).
+- **A heavy animated page within limits** can delay WebTown by up to about 2 seconds in Chromium while it loads;
+  Stop and Close always recover.
+- **`preconnect` and `dns-prefetch` were not measurable** (no engine preconnected to the beacon even unrestricted).
+  They are removed by the builder and cannot be added without script.
+- **Coverage**: Chromium, Firefox and Playwright's WebKit build, headless on Windows. Branded Safari and mobile
+  browsers are untested; Playwright's WebKit is not Safari.
+- **Not authorisation**: Phase 3a ownership checks remain client-side and can be bypassed with developer tools.
+- **What sites cannot do** (WS-16): run JavaScript, use storage or the network, embed other sites, open popups or
+  alerts, submit forms.
 
 ### 16.10 Site Studio interface
 
@@ -910,7 +908,7 @@ owner's WebTown Browser by "Open Site Studio" (replacing P3-07's "Edit this webs
 - Explorer: a `role="tree"` with folders, files, sizes, start page star, unsaved dot; drop target for uploads.
 - Editor: tabs; text files open in the `CodeEditor` (SD-3); images open in a viewer showing size, dimensions and the
   path to copy into HTML; fonts and audio show details and a player.
-- Preview: `SiteFrame` on the **draft** snapshot (memory only), page picker, Refresh, Auto (SD-11), Stop.
+- Preview: `SiteFrame` on the **draft** snapshot (memory only), page picker, Preview (manual), Auto (SD-11, 600 ms), Stop. Resident JavaScript does not run (SD-4); `.js` files open in the editor and are saved.
 - File menu also: Set as start page, Start from template..., Site title...; View: Open in WebTown Browser.
 - Narrow screens (< 1000 px): Files / Code / Preview tabs.
 - Unsaved guard (Close, Escape outside the editor, tab close), the in-window confirmation from P3-07's design, and
@@ -926,9 +924,9 @@ owner's WebTown Browser by "Open Site Studio" (replacing P3-07's "Edit this webs
 | Monaco | MIT | about 100 MB unpacked, needs web workers | Too large for an owner-only feature |
 | Ace | BSD-3 | about 58 MB of builds | Large, older design |
 
-Plan: a `CodeEditor` interface (`value`, `onChange`, `language`, `readOnly`, focus and undo per file); the textarea
-implementation first (S-08); CodeMirror behind the same interface in S-11 if SD-3 is approved. Either way it loads
-only inside the owner's Site Studio chunk.
+Plan (SD-3 as confirmed): a `CodeEditor` interface (`value`, `onChange`, `language`, `readOnly`, focus and undo per
+file) with a **textarea** implementation (S-08). CodeMirror 6 may be *evaluated* behind the same interface later
+(S-11), but **no runtime dependency exception is approved**; anything adopted would load only in the owner's chunk.
 
 ### 16.12 Permissions and boundaries
 
@@ -950,8 +948,9 @@ only inside the owner's Site Studio chunk.
   conflict; quota; damaged records skipped and kept; Blob round trip.
 - **Components:** Site Studio file operations, tabs, dirty markers, save, conflict, confirmations, uploads with
   refusals, narrow layout, keyboard tree; visitor tree has no writer; preview never writes.
-- **Real-browser security suite (SD-10)** with fixture sites that each try one attack and report through a channel
-  WebTown controls, run in Chromium, Firefox and WebKit:
+- **Real-browser security suite (SD-10)**, Playwright in Chromium, Firefox and WebKit. S-01 built the first version
+  (`spikes/site-sandbox/`, 58 tests per engine, a recording beacon for HTTP, TCP and UDP, positive controls); S-06 moves
+  it onto the real host page, navigation page and builder. Fixture sites each try one attack:
   read `parent`/`top` document, `frameElement`; post forged bridge-shaped messages; `localStorage`, `sessionStorage`,
   `indexedDB`, `document.cookie`, `caches`, service worker registration; `fetch`/XHR/WebSocket/EventSource/`sendBeacon`
   to WebTown and to an external test server; external `<img>`, CSS `url()`, `@import`, web font; `top.location`,

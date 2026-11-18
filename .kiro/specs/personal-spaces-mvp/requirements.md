@@ -180,7 +180,7 @@ budget, name) before it joins the draft; refusals say which file and why. Upload
 
 ### WS-09 Live preview
 The preview shows the current draft (unsaved changes included) without writing anything to storage. It refreshes
-automatically shortly after typing stops (decision SD-11) and on demand. JavaScript runs in the preview. The page
+automatically 600 ms after typing stops, with an Auto toggle and a manual Preview action (SD-11). **Resident JavaScript does not run in the preview in Phase 3a** (SD-4). The page
 shown follows the open HTML file, and links inside the preview move between draft pages.
 
 ### WS-10 Save
@@ -211,7 +211,7 @@ the page, "This page wants to open example.com. Open in a new tab / Cancel", and
 chooses, with `noopener noreferrer`. Other schemes do nothing and are reported in the status line.
 
 ### WS-15 Sandbox (mandatory)
-Resident HTML, CSS and JavaScript **never execute in the WebTown application document**. Every page is rendered inside
+Resident HTML, CSS and JavaScript **never execute in the WebTown application document**, and in Phase 3a resident JavaScript **does not execute anywhere** (SD-4). Every page is rendered inside
 a sandboxed iframe with an opaque origin and a restrictive Content Security Policy (design 16.5 and 16.6), so that a
 page:
 - cannot read or change the WebTown DOM, Phaser, React state, the event bus or bridge commands;
@@ -220,15 +220,19 @@ page:
   go full screen, or use camera, microphone, location or similar device features;
 - cannot load anything from the network: images, fonts, styles, scripts, frames and requests are limited to the
   site's own files, which WebTown supplies;
-- can talk to WebTown only by `postMessage`, and WebTown treats every such message as an untrusted request from a
-  closed list (navigate within the site, open an external link after confirmation, report the page title).
+- cannot run its own scripts: inline scripts, script files, event-handler attributes and `javascript:` URLs are
+  removed and blocked (resident CSP `script-src 'none'`); only WebTown's trusted bootstrap runs, under a nonce;
+- reaches WebTown only through WebTown's own trusted navigation page, whose `postMessage` requests WebTown checks
+  for source, schema and rate before acting (navigate within the site, or open an external link after confirmation).
+Every claim that a page makes **no network request** is backed by the S-01 request beacon in all three engines.
 The sandbox is never weakened to make a feature work. Its residual limits are documented (design 16.9).
 
 ### WS-16 What site code can and cannot do in Phase 3a
-Can: any HTML and CSS, animations, transitions, canvas, SVG, audio from the site's files, JavaScript that changes the
-page and responds to the player. Cannot (documented to the owner in Site Studio's Help): use browser storage, load
-external images/fonts/scripts or embed other sites, call the network, open popups or alerts, submit forms, use
-workers, import JavaScript modules from other files, or fetch the site's own files from JavaScript (decision SD-12).
+Can: any HTML and CSS (layout, typography, colours, backgrounds, CSS animations and transitions, `:hover` effects),
+images and animated GIFs, fonts and audio from the site's own files, multiple pages and links between them, and
+`.js` files that are **kept and editable but not run** in Phase 3a. SVG files are shown as images only.
+Cannot (stated in Site Studio's Help): run JavaScript, use browser storage, load anything from the network (external
+images, fonts, styles, scripts), embed other sites, open popups or alerts, or submit forms (SD-4, SD-5, SD-12).
 
 ### WS-17 Existing structured websites are migrated, not lost
 A house that has a valid structured website from P3-05/P3-07 keeps it. Until the owner saves a project, visitors and
@@ -259,9 +263,9 @@ cannot make a resident's page accessible; templates are written to be accessible
 |---|---|
 | A page or asset referenced by a page is missing | Missing assets render as missing (broken image); missing pages show "page not found" |
 | A page is too large to render (design 16.4 budget) | WebTown error page in the frame naming the size; Site Studio shows which files are largest |
-| A page tries to navigate the frame elsewhere | WebTown replaces the frame with a notice and reloads the last good page (design 16.9: the request may already have left) |
+| A page tries to navigate the frame elsewhere | Blocked before any request where S-01 shows the platform enforces it; any unexpected load is replaced with a notice and the last good page (design 16.9) |
 | A page floods WebTown with messages | Messages over the rate limit are dropped and the status line says so |
-| A page's script runs forever | Close and Stop remain available where the browser isolates the frame; otherwise a documented limit (16.9) |
+| A page is very heavy (huge DOM, large images) | Close and Stop remain available (no resident script runs in 3a; S-01 measures Close responsiveness) |
 | A stored file record is damaged | That file is skipped and listed for the owner; nothing is deleted |
 | The project changed in another tab | Save stops with Reload / Save anyway |
 | Save fails (quota, blocked, abort) | Draft kept, reason shown, Retry |
