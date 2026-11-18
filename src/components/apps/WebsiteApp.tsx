@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import type { AppView } from '../../lib/app-bridge'
 import {
   getSiteStorage,
@@ -7,8 +7,18 @@ import {
   type SiteAccess,
   type SiteStorage,
 } from '../../personal-spaces/composition'
-import { SiteWindow, type RecoveryNotice } from '../website/SiteWindow'
+import { SiteWindow } from '../website/SiteWindow'
+import type { RecoveryNotice } from '../website/SiteBrowser'
 import { WindowFrame } from './WindowFrame'
+
+/**
+ * The owner's window, with the editor, is loaded on demand and only for an
+ * owner. A visitor's page never imports it, so nothing that can write is even
+ * downloaded or evaluated for them (it is a separate chunk in the build).
+ */
+const OwnerWebsiteWindow = lazy(() =>
+  import('../website-editor/OwnerWebsiteWindow').then(module => ({ default: module.OwnerWebsiteWindow })),
+)
 
 interface WebsiteAppProps {
   /** What Phaser said: which house, and whether the player owns it. */
@@ -23,13 +33,24 @@ type Opening =
   | { status: 'ready'; storage: SiteStorage; access: SiteAccess }
   | { status: 'failed'; message: string }
 
+function Waiting({ onClose, children, alert = false }: { onClose: () => void; children: string; alert?: boolean }): React.ReactElement {
+  return (
+    <WindowFrame title="WebTown Browser" onClose={onClose} size="wide">
+      <p role={alert ? 'alert' : 'status'} style={{ padding: 24, margin: 0 }}>{children}</p>
+    </WindowFrame>
+  )
+}
+
 /**
  * Connects the website window to storage and to what the app bridge decided.
  *
  * The bridge's `mode` goes straight into `siteAccessFor`; this is not a second
- * ownership check. The window below is handed `access.reader` and nothing
- * else: no writer is passed down in either mode (the editor, a separate task,
- * will be the first thing that gets one, and only for an owner).
+ * ownership check. `siteAccessFor` builds a writer only for `owner`, and only in
+ * the owner branch below is it passed on, to the editor window. The visitor's
+ * window is given `access.reader` and nothing else.
+ *
+ * Phaser decides who is the owner, from a client-side stand-in. Browser
+ * developer tools can bypass all of this; real enforcement is Phase 3b.
  */
 export function WebsiteApp({
   view,
@@ -67,28 +88,35 @@ export function WebsiteApp({
     }
   }, [getStorage, houseId, mode])
 
-  const reader = opening.status === 'ready' ? opening.access.reader : null
-  const persistent = opening.status === 'ready' ? opening.storage.persistent : true
-  const isOwner = opening.status === 'ready' && opening.access.mode === 'owner'
+  if (opening.status === 'failed') {
+    return <Waiting onClose={onClose} alert>{`${opening.message} Close this window and try again.`}</Waiting>
+  }
+  if (opening.status === 'opening') return <Waiting onClose={onClose}>Opening website...</Waiting>
 
-  if (reader === null) {
+  const { access, storage } = opening
+
+  if (access.mode === 'owner') {
     return (
-      <WindowFrame title="WebTown Browser" onClose={onClose} size="wide">
-        <p role={opening.status === 'failed' ? 'alert' : 'status'} style={{ padding: 24, margin: 0 }}>
-          {opening.status === 'failed' ? `${opening.message} Close this window and try again.` : 'Opening website...'}
-        </p>
-      </WindowFrame>
+      <Suspense fallback={<Waiting onClose={onClose}>Opening website...</Waiting>}>
+        <OwnerWebsiteWindow
+          houseId={houseId}
+          reader={access.reader}
+          writer={access.writer}
+          persistent={storage.persistent}
+          recovery={recovery}
+          onClose={onClose}
+        />
+      </Suspense>
     )
   }
 
   return (
     <SiteWindow
       houseId={houseId}
-      reader={reader}
-      isOwner={isOwner}
-      persistent={persistent}
-      // Only the owner is told about a recovered record, and there is nothing to act on here.
-      recovery={isOwner ? recovery : null}
+      reader={access.reader}
+      isOwner={false}
+      persistent={storage.persistent}
+      recovery={null}
       onClose={onClose}
     />
   )

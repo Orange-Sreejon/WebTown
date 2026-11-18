@@ -75,7 +75,10 @@ All magic numbers belong in `src/game/config/GameConfig.ts`:
 - Do not add a dependency that can be replaced by 10 lines of code.
 - Audit new dependencies for active maintenance and known vulnerabilities.
 - No runtime dependencies beyond: React, ReactDOM, Phaser.
-- Dev dependencies: Vite, TypeScript, Vitest, @types/*.
+- Dev dependencies: Vite, TypeScript, Vitest, @types/*, `fake-indexeddb` (D5, tests only) and
+  `@playwright/test` (SD-10, real-browser security tests in Chromium, Firefox and WebKit). Neither may be
+  imported by anything under `src/` that ships, nor appear in `dist/`.
+- No code-editor dependency (CodeMirror or other) is approved; Site Studio uses a plain `textarea` (SD-3).
 
 ## Git
 

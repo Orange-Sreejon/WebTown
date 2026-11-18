@@ -4,6 +4,8 @@ Status: **APPROVED (D1-D9 resolved). Implementation in progress on `feature/phas
 
 ## 1. Decisions (all approved)
 
+> Revision 2 (file-based websites, WebTown Site Studio): decisions **SD-1 to SD-12** are in section 16.0 (reviewed; SD-2 conditional on the S-01 spike).
+
 | # | Decision | Approved outcome | Alternatives considered |
 |---|---|---|---|
 | D1 | **Persistence for 3a.** | IndexedDB behind repository interfaces, labelled "Saved on this device only". Local demo only. | In-memory only (matches layouts, loses everything on reload). localStorage (rejected: base64 images, 5 MB cap). |
@@ -220,7 +222,7 @@ record's `houseId` differs from the argument). This catches developer mistakes. 
 client code: **any user can bypass it**. Real enforcement is server-side Row Level
 Security in 3b. No spec text or UI string may suggest otherwise.
 
-## 6. Website
+## 6. Website (structured model; superseded as the product direction by section 16, kept for migration)
 
 ### 6.1 Data model (implemented in P3-04, `src/personal-spaces/website/`)
 
@@ -554,7 +556,7 @@ and commits only with permission.
   `createSiteStorage`. No component changes.
 - **Known limitations:** two tabs saving the same house: last write wins (no compare-and-swap in 3a); data is
   per browser profile and origin; clearing site data deletes it; there is no export or backup of a website.
-## 14. The website window (implemented in P3-06)
+## 14. The website window (implemented in P3-06; chrome kept, page area replaced by section 16)
 
 - **Pieces.** `AppHost` -> `WebsiteApp` (connects storage and the bridge's mode) -> `SiteWindow` (browser
   chrome, history, loading, errors, notices) -> `SiteRenderer` (the page). `SiteRenderer` is given data and says
@@ -588,3 +590,383 @@ and commits only with permission.
 - **Failure.** A failed load shows the reason in words (full disk, blocked, unavailable) with "Try again"; unknown errors
   show a generic sentence and the detail goes to the console. Back, Forward and Home are disabled until there is a page.
   Closing always works, including while loading or after an error.
+
+## 15. The owner's website editor (P3-07, form-based; NOT kept, see section 16.0 SD-1)
+
+- **Pieces.** `WebsiteApp` -> (owner only, `React.lazy`) `OwnerWebsiteWindow` -> `SiteBrowser` with an
+  "Edit this website" button, or `SiteEditor` while editing. `SiteBrowser` is the browser body that the visitor's
+  `SiteWindow` also uses, so viewing is the same code for everyone. `SiteEditor` holds no writer and no storage:
+  it is given a draft and reports changes. Only `OwnerWebsiteWindow` calls `writer.save`.
+- **No new fields.** The form covers exactly `SiteContent`: title, display name, tagline, welcome, about,
+  projects (title, description, optional link), links (name, address), and the theme (preset, five colours, font,
+  pattern, under-construction). Pure edit rules are in `site-edit.ts`: `startDraft`, `isDirty` (ignores
+  `updatedAt`), add/remove/move entries with the existing `nextEntryId` and limits, `applyPreset` (keeps the
+  under-construction switch), `setLook` (becomes `custom` unless it matches a preset exactly), `contrastRows`.
+- **Draft.** Editing starts from a deep copy of the loaded site. Nothing is written until Save; the preview reads the
+  draft in memory. Save runs `validateSite` on the whole draft; if it fails, nothing is written, every problem is
+  listed (each a button that moves to its field) and focus goes to the list. A successful save writes the validated
+  value through the guarded `SiteWriter`, leaves the editor, and the browser **loads the site again from storage**,
+  so the page shows what was stored. A failed write keeps the whole draft and shows the reason in words.
+- **Discarding.** Cancel, the Close button and Escape ask "Discard your changes?" when the draft is dirty; the safe
+  answer, "Keep editing", is focused and Escape picks it. The question is an in-window `alertdialog` (not the
+  browser's `confirm`), with the rest of the window `inert`. `beforeunload` warns while the draft is dirty.
+- **Preview.** `previewOf(draft)` is the cleaned value `validateSite` would store when the draft is valid, otherwise
+  the draft as it stands. It is drawn by `SiteRenderer`, so the preview and the visitor page are identical for the
+  same content (tested by comparing markup). The preview follows the section being edited, can be switched by hand,
+  and is `inert`, so links in it cannot be followed. The page layout uses a container query, so it lays out by the
+  preview's own width.
+- **Usability.** Problems appear next to a field after it is left, or after Save; each starts "Problem:" so colour
+  is never the only signal. Fields show "n of max characters"; there is no `maxLength`, so pasted text is never
+  cut, only counted and refused. The colour table shows each pair's ratio, what AA needs (4.5:1, 4.5:1, 3:1 for
+  the large banner title) and the result in words, and matches what blocks a save.
+- **Layout.** Above 1000 px the form and the preview sit side by side; below, one shows at a time with an
+  Edit / Preview switch. The form, the preview and the page scroll inside the window.
+- **Boundary.** `editor-boundary.test.ts`: nothing but `WebsiteApp` imports the editor folder, and only through
+  `lazy(() => import(...))`; the editor imports no storage, composition, ownership, bridge or game code; `.save(` occurs
+  once, in `OwnerWebsiteWindow`; the preview uses `SiteRenderer` and the folder draws no page markup of its own.
+  `visitor-boundary.test.ts`: exactly one `writer=` in `WebsiteApp`, inside the `access.mode === 'owner'` branch;
+  the visitor's `SiteWindow` gets `access.reader` and `isOwner={false}`. A real-browser check confirms the editor
+  chunk is never requested for a visitor. All of this is client-side and bypassable with developer tools.
+
+## 16. WebTown Site Studio: file-based websites (revision 2; decisions reviewed; S-01 done, awaiting review)
+
+This section replaces the form-based website of sections 6, 14 and 15 as the product direction. Nothing here is
+implemented. Sections 6, 13, 14 and 15 describe what exists today (P3-04 to P3-07); 16.1 says what of that is kept.
+
+Inspiration: Neocities (in-browser editing of your own files, upload by drag and drop, sites as homes people keep
+fixing up) and the restored GeoCities gallery (handmade pages, very different layouts, tiled backgrounds, animated
+GIFs, odd navigation, personal art). WebTown supplies the browser chrome; the page belongs to the resident.
+
+### 16.0 Decisions (reviewed; SD-2 conditional on S-01)
+
+| # | Decision as confirmed |
+|---|---|
+| SD-1 | Preserve the P3-07 form editor. **As found at S-00:** it was already committed by the owner as `9837da3` ("before-studio", which also holds the revision-2 specs), so there was nothing to stash and HEAD is `9837da3`, not `8799bc2`. The work is preserved in that commit; no stash, reset or branch change was made. How to take it out of the product later (a revert commit, or leaving it until S-13) is an open question for the owner. |
+| SD-2 | Two-layer sandbox: trusted static host page in a sandboxed iframe, resident page in a second sandboxed frame created by the host. Never `allow-same-origin`. **Conditional on S-01 passing in Chromium, Firefox and WebKit.** |
+| SD-3 | Dependency-free `textarea` editor. CodeMirror 6 may be *evaluated* later; **no runtime dependency exception is approved**. |
+| SD-4 | **Changed:** in Phase 3a resident JavaScript is editable and stored but **never executes**, in the preview or for visitors: no inline scripts, external scripts, event-handler attributes or `javascript:` URLs. Only WebTown's trusted bootstrap runs, under a narrow nonce. |
+| SD-5 | No external network requests from resident content. The claim must rest on observed traffic (S-01 beacon), accounting for self-navigation, meta refresh, forms, anchors and WebRTC, not on a CSP directive existing. |
+| SD-6 | External links only after explicit confirmation in trusted WebTown chrome; resident content cannot open popups or navigate the top-level page. |
+| SD-7 | Approved file types and limits: 1 MB text, 5 MB binary, 50 MB and 500 files per site. Content (not just extension) is checked, paths are sanitised, **SVG is rendered only as an image resource**. |
+| SD-8 | Save all files and metadata in one IndexedDB transaction; revisions are checked **inside** that transaction; the draft is kept on conflict. |
+| SD-9 | Migrate structured sites in memory; write the project only on the owner's first Save; keep the legacy record untouched. |
+| SD-10 | Playwright as a dev dependency, testing Chromium, Firefox and WebKit. Playwright's WebKit build is **not identical to branded Safari**; results for it are WebKit-engine results. |
+| SD-11 | Preview refreshes 600 ms after typing stops, with an Auto toggle and a manual Preview action. |
+| SD-12 | No resident-script conveniences: no filesystem, network, storage or WebTown-internal APIs. (With SD-4, no resident script runs at all in 3a.) |
+### 16.1 What happens to the existing code
+
+| Module (phase) | Fate |
+|---|---|
+| App bridge, access policy, object targets, freeze/restore (P3-01..03) | **Kept unchanged** |
+| `errors.ts`, `storage/idb.ts`, fault injection, composition pattern, guarded writer pattern, `labels.ts` (P3-05/06) | **Kept**, extended |
+| `webtown-db.ts` | **Extended**: database version 1 -> 2 adds stores; v1 stores untouched |
+| `url-policy.ts` (P3-04) | **Kept**: decides which external links the confirmation bar may open |
+| `SiteBrowser` chrome, `site-navigation.ts`, `WindowFrame`, `AppHost`, `WebsiteApp` (P3-06) | **Adapted**: history of page paths instead of four section ids; page area becomes `SiteFrame` |
+| `SiteContent` types, validation, `site-text`, `default-site`, `theme-presets`, `contrast`, site repositories (P3-04/05) | **Migration-only**: read old records and feed the Classic template generator. Not used for new sites |
+| `SiteRenderer`, `ExternalLink`, `site-theme`, `website.css` page styles (P3-06) | **Retired** from display once `SiteFrame` replaces them (S-13); their literal-text tests move to the generator |
+| P3-07 form editor (committed in `9837da3`) | **Not built on** (SD-1); still live in the app until it is taken out (S-13 or an earlier revert, owner's choice) |
+
+### 16.2 Data model
+
+```ts
+/** One resident's website. Stored per house. */
+interface SiteProjectMeta {
+  schemaVersion: 1
+  houseId: string                        // same slug rule as today
+  entryPath: string                      // the start page, an existing .html/.htm file; 'index.html' by default
+  title: string                          // 1..60, plain text, shown by WebTown (window title), never as HTML
+  folders: string[]                      // explicit folders, so empty folders survive
+  revision: number                       // +1 on every save; compared before writing (other tabs)
+  createdAt: string; updatedAt: string   // ISO 8601 UTC
+  origin:                                // where the site started, for support and migration
+    | { kind: 'blank' }
+    | { kind: 'template'; templateId: string }
+    | { kind: 'migrated'; fromStore: 'sites'; sourceUpdatedAt: string }
+  fileCount: number; totalBytes: number  // kept in step with the files on every save
+}
+
+/** One file. Identity is the id; the path can change. */
+interface SiteFileRecord {
+  id: string                             // UUID
+  houseId: string
+  path: string                           // normalised: 'art/gallery.html'
+  pathKey: string                        // lower-cased path, unique per house
+  mimeType: string                       // from the allow-list (SD-7)
+  kind: 'text' | 'binary'
+  text?: string                          // text kinds, UTF-8
+  data?: Blob                            // binary kinds
+  size: number                           // bytes
+  updatedAt: string
+}
+
+/** What a reader returns: everything needed to render. Read-only. */
+interface SiteSnapshot { meta: Readonly<SiteProjectMeta>; files: readonly Readonly<SiteFileRecord>[] }
+
+/** What a save writes, all at once. */
+interface SiteChangeSet {
+  houseId: string
+  baseRevision: number                   // the revision the draft started from
+  meta: Pick<SiteProjectMeta, 'entryPath' | 'title' | 'folders'>
+  upserts: SiteFileRecord[]              // new and changed files (a rename is an upsert with a new path)
+  deletes: string[]                      // file ids
+}
+```
+
+Rules, all pure and tested (`personal-spaces/site-project/`):
+- **Paths** (WS-04): segments `[A-Za-z0-9._-]{1,64}`, no `.`/`..` segments, no leading or trailing `/`, depth <= 8,
+  length <= 200, unique by `pathKey`, a file and a folder cannot share a path.
+- **Types** (SD-7): MIME from the extension, then checked: text must decode as UTF-8 (`TextDecoder` fatal); binary
+  must start with the format's signature (PNG, GIF87a/89a, JPEG, WebP RIFF, AVIF `ftyp`, BMP, ICO, WOFF/WOFF2,
+  TTF/OTF, MP3 frame/ID3, Ogg, WAV RIFF). Mismatch: refused with a reason. No re-encoding.
+- **Limits** checked per file and against the whole project after the change set is applied.
+- **Load** validates every record. A bad record is skipped and reported (`SiteLoadReport.skipped`), never deleted.
+
+### 16.3 Storage (IndexedDB, Phase 3a)
+
+- Database `webtown` **version 2**. `onupgradeneeded` with `oldVersion < 2` adds `siteProjects` (key `houseId`) and
+  `siteFiles` (key `id`, index `byHouse` on `houseId`, unique index `byHousePath` on `[houseId, pathKey]`). The v1
+  stores `sites` and `artworks` and their data are untouched (tested with a v1 database created by the P3-05 code).
+- **Save** is one `readwrite` transaction over `siteProjects` and `siteFiles`: read the stored meta, refuse with
+  `ConflictError` if `revision !== baseRevision`, apply deletes and upserts, write the new meta with `revision + 1`.
+  Any failure aborts the whole transaction (WS-10).
+- **Blobs** are stored directly (supported by IndexedDB in current browsers). S-05 confirms `fake-indexeddb` handles
+  them in tests; if not, tests use `ArrayBuffer` and the browser code is verified in the real-browser suite.
+- **Quota**: limits from SD-7 are enforced before writing; `navigator.storage.estimate()` is shown where available;
+  `QuotaExceededError` is already mapped to `QuotaError`. `navigator.storage.persist()` is not requested in 3a.
+- **Repositories**: `SiteProjectReader { load(houseId): Promise<SiteSnapshot | null> }` and
+  `SiteProjectWriter { save(changes: SiteChangeSet): Promise<SiteSnapshot> }`, in-memory and IndexedDB versions run
+  through one contract suite, a guarded writer that refuses any `houseId` other than the window's, and
+  `siteProjectAccessFor(view, repository)` in `composition.ts` (visitor: reader only; owner: reader and guarded writer).
+  A Phase 3b remote adapter implements the same two interfaces.
+
+**Migration (SD-9).** When a house is opened:
+1. A project exists -> use it.
+2. Otherwise a **valid** `sites` record exists -> build the Classic template project from it in memory
+   (`siteContentToProject`, pure). Visitors and the owner see that. Nothing is written.
+3. Otherwise a **damaged** `sites` record exists -> owner told (existing recovery notice), record kept; visitors see
+   the default site.
+4. Otherwise -> the Classic template built from the default structured site (the same houses keep the same
+   welcome page they show today). Not stored.
+The owner's first Save writes the project with `origin: migrated` (or `template`). The `sites` record is left as it
+is in this phase; removing it would be a separate, approved task.
+
+The generator escapes every text field for HTML (`&`, `<`, `>`, `"`, `'`), turns blank-line paragraphs into
+`<p>`, includes external links only when `validateExternalUrl` passes (otherwise as text), and maps the theme to CSS
+from validated `#RRGGBB` values and the fixed font stacks. `<script>alert(1)</script>` saved as a title in P3-05
+appears as text in the generated page (tested), so migration cannot turn old text into running code.
+
+### 16.4 Rendering a page (pure document builder) - revised after S-01
+
+`buildPage(snapshot, path, appOrigin) -> { html, bytes } | PageError`, in the WebTown app, pure and tested in jsdom.
+It never runs anything. The S-01 prototype (`spikes/site-sandbox/www/builder.js`) shows the approach; S-04 writes the
+real one with full tests.
+1. Find the page (`index.html` for a folder); missing -> WebTown's "page not found" document.
+2. Parse with `DOMParser` (inert: no scripts run, nothing loads); serialise back after changes. This module is the
+   only place in WebTown allowed to serialise HTML, and only from an inert document (the source-scan test gets a
+   single, named exception).
+3. **Remove** (SD-4, SD-5): `script`, `iframe`, `frame`, `frameset`, `object`, `embed`, `applet`, `portal`,
+   `fencedframe`, `base`; `<meta http-equiv>` `refresh` and `set-cookie`; `<link rel>` `preload`, `prefetch`,
+   `prerender`, `preconnect`, `dns-prefetch`, `modulepreload`, `manifest`; every `on*`, `nonce`, `ping`, `target`,
+   `formtarget`, `formaction`, `action` and `srcdoc` attribute. `<noscript>` is unwrapped (its content is what a page
+   without script means to show).
+4. **Insert**, as the first children of `<head>`: `<meta charset="utf-8">`, the resident CSP `<meta>` (16.6), and
+   `<base href="webtown-site:/<path>">`. No WebTown script is inserted into resident pages.
+5. **Links** (`<a>`, `<area>`, SVG `<a>`): `#fragment` stays; a link that resolves to an `.html`/`.htm` path in the
+   site becomes `<app origin>/site-nav.html#k=page&p=<path#frag>`; an `https:` link that passes the URL policy becomes
+   `.../site-nav.html#k=external&u=<url>`; anything else loses its `href` (`aria-disabled="true"`).
+6. **Assets**: references to the site's own files in `src`, `srcset`, `poster`, `background`, `<link rel=stylesheet|icon>`,
+   inline `style`, `<style>`, and inside CSS files (`url()`, `@import`, resolved relative to the CSS file) become `data:`
+   URLs. Other references are removed (they would be blocked anyway). **SVG files are only ever used as image
+   resources** (`data:image/svg+xml` in `<img>`/CSS), where they cannot run script or load anything.
+7. **Budgets**: page HTML is bounded by the 1 MB text-file limit (SD-7), which S-01 showed keeps WebTown usable; the
+   rendered `srcdoc` including base64 assets is capped at 25 MB, refused with an error page naming the largest files.
+
+The resident's source is never changed by this; only the rendered copy is.
+
+### 16.5 Sandbox architecture (SD-2) - verified by S-01
+
+```
+WebTown app document (React, Phaser, storage, event bus)            origin: WebTown
+ └─ WebTown Browser window (React): title, Back/Forward/Home, address, status, link confirmation bar, Stop
+     └─ <iframe sandbox="allow-scripts" src="/site-host.html"       opaque origin #1 (trusted host page)
+                referrerpolicy="no-referrer" allow="(every feature 'none')" title="...">
+         └─ <iframe sandbox="allow-scripts" srcdoc="(built page)"    opaque origin #2 (resident page)
+               inherits the host page's CSP + the page's own CSP <meta>; no script runs here
+               a rewritten link loads /site-nav.html (trusted) into this same frame
+```
+
+Verified in Chromium, Firefox and WebKit (`docs/site-sandbox-findings.md`):
+- both frames are opaque (`self.origin === 'null'`); the resident frame cannot read WebTown's DOM, storage or cookies,
+  navigate the tab, or open popups or dialogs;
+- a `srcdoc` frame inherits the host page's policy, and WebTown's own (stricter) policy is **not** inherited, so the
+  app can adopt any CSP it likes later;
+- the host page's `frame-src`, narrowed at start-up to WebTown's navigation page, blocks every navigation of the
+  resident frame (by link, form, refresh or script) to any other URL **before a request is sent**.
+
+`allow-scripts` on the resident frame exists **only** so WebTown's navigation page can run when a link loads it.
+Resident scripts are blocked by the resident CSP and removed by the builder. Never `allow-same-origin` (source test).
+If `site-host.html` is opened directly it does nothing. In production it should also be served with
+`Content-Security-Policy: sandbox allow-scripts` (a hosting header; recorded for deployment).
+
+### 16.6 Policies (verified by S-01)
+
+Host page, static `<meta>`:
+```
+default-src 'none'; script-src 'nonce-<host nonce>'; style-src 'unsafe-inline' data:; img-src data:; font-src data:;
+media-src data:; connect-src 'none'; frame-src 'self'; child-src 'none'; worker-src 'none'; object-src 'none';
+manifest-src 'none'; form-action 'none'; base-uri webtown-site:
+```
+then the host bootstrap adds `frame-src <app origin>/site-nav.html` (a later policy can only narrow).
+
+Resident page, inserted by the builder:
+```
+default-src 'none'; script-src 'none'; style-src 'unsafe-inline' data:; img-src data:; font-src data:;
+media-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; object-src 'none';
+manifest-src 'none'; form-action 'none'; base-uri webtown-site:
+```
+
+Navigation page, static `<meta>`: `default-src 'none'; script-src 'nonce-<nav nonce>'; base-uri 'none'; form-action 'none'`.
+
+- **Nonces** are build-time constants in static files, so they are **not secret**. S-01 showed that with only the
+  inherited host policy a resident script carrying the host nonce runs. That is why the resident page's own
+  `script-src 'none'` and the builder's removal of scripts and `nonce` attributes are both mandatory; S-01 showed
+  each one alone stops every script variant tested.
+- `'unsafe-inline'` remains only in `style-src`: residents' CSS is the content and cannot execute code.
+- No network scheme appears in any resident-reachable directive.
+
+### 16.7 Message protocol (verified by S-01)
+
+No resident script runs, so the resident page cannot post messages. Navigation works without it: a rewritten link
+loads WebTown's navigation page into the resident frame, and that page posts `{ t: 'nav', kind, value }` to the host.
+WebTown still treats it as an **untrusted request**, because it cannot tell it apart from the resident window.
+
+| Layer | Accepts | Checks |
+|---|---|---|
+| Host from app | `{ t: 'render', html }` only | `event.source === window.parent`; size <= 40 MB |
+| Host from resident frame | `{ t: 'nav', kind: 'page' or 'external', value }` | `event.source === frame.contentWindow`; string, 1-2048 chars; 10 per second; anything else is reported, not acted on |
+| App from host | `ready`, `loaded`, `rendered`, `nav`, `rate-limited`, `unexpected-nav`, `rejected`, `loop-detected` | `event.source === hostFrame.contentWindow`; `event.origin === 'null'`; 30 per second; closed schema |
+
+The app then validates content: a page request must name a page in the current snapshot (otherwise "page not
+found"); an external request must pass `validateExternalUrl` and only shows the confirmation bar, which opens the
+link with `noopener,noreferrer` only when the player chooses. After an external request the host restores the page,
+at most three times per render (stops a page that loops). No handler forwards anything to the event bus (source test).
+S-01 verified sibling-frame forgery, resident forgery, a 200-message flood (10 delivered), and the restore bound.
+
+### 16.8 Threat model (after S-01)
+
+| Threat | Control | Evidence |
+|---|---|---|
+| Page reads or changes WebTown's DOM, React, Phaser | Opaque origin, two frames deep | S-01: SecurityError in all engines |
+| Page reads WebTown storage, cookies, IndexedDB | Opaque origin | S-01: SecurityError; canaries unchanged |
+| Page runs JavaScript | Resident `script-src 'none'` + builder stripping (+ inherited host nonce policy) | S-01: 9 script fixtures, none ran, including nonce guesses |
+| Page sends bridge commands | Bus not on `window`; closed message lists; source checks | S-01: forged messages from sibling and resident had no effect |
+| Page navigates the WebTown tab, opens popups, dialogs, forms, downloads | Sandbox without those flags | S-01: no navigation, popup or dialog; no form request |
+| Page loads remote resources or tracks viewers | Inherited host CSP + resident CSP (`data:` only) + builder | S-01 beacon: no request for 15 static fixtures in any mode |
+| Page navigates its own frame elsewhere (exfiltration) | Host `frame-src` narrowed to the navigation page | S-01 beacon: no request, by link, form, refresh or script |
+| Page loads WebTown's own pages into its frame | Same narrowing | S-01: no request at WebTown's server |
+| WebRTC | Unreachable without script | S-01: **escapes CSP in Chromium if script runs** |
+| Page freezes WebTown | No script; 1 MB page limit; Stop | S-01: within limits usable (worst about 2 s delay in Chromium for a heavy animated page); Stop always recovers; a script loop would freeze every engine |
+| Page fakes WebTown UI | WebTown chrome is outside the frame | By construction |
+| Migration turns old text into code | Generator escapes every field | S-03 tests |
+
+### 16.9 Known limits (to state in Help and steering)
+
+- **Resident JavaScript cannot run in Phase 3a.** Two S-01 results make this a security requirement, not a missing
+  feature: WebRTC sends traffic despite CSP (Chromium), and a script loop freezes WebTown in every engine tested.
+  Any future JavaScript mode needs its own spike and, before public use, a separate site origin (Phase 3b).
+- **A heavy animated page within limits** can delay WebTown by up to about 2 seconds in Chromium while it loads;
+  Stop and Close always recover.
+- **`preconnect` and `dns-prefetch` were not measurable** (no engine preconnected to the beacon even unrestricted).
+  They are removed by the builder and cannot be added without script.
+- **Coverage**: Chromium, Firefox and Playwright's WebKit build, headless on Windows. Branded Safari and mobile
+  browsers are untested; Playwright's WebKit is not Safari.
+- **Not authorisation**: Phase 3a ownership checks remain client-side and can be bypassed with developer tools.
+- **What sites cannot do** (WS-16): run JavaScript, use storage or the network, embed other sites, open popups or
+  alerts, submit forms.
+
+### 16.10 Site Studio interface
+
+A `WindowFrame` size `full` (the viewport less a small margin) titled "WebTown Site Studio - house-a", opened from the
+owner's WebTown Browser by "Open Site Studio" (replacing P3-07's "Edit this website").
+
+```
+┌ WebTown Site Studio - House A ───────────────────────────────────────────── [x] ┐
+│ File  Edit  View  Help                                                          │
+│ [New file] [New folder] [Upload] [Rename] [Delete] │ [Save all]  ● 2 unsaved      │
+├───────────────┬──────────────────────────────────┬──────────────────────────────┤
+│ EXPLORER      │ index.html ● │ style.css │ cat.gif│ Preview: [index.html v] [⟳] [Auto]│
+│ ▾ /           │  1 <!doctype html>               │ ┌──────────────────────────┐ │
+│   index.html★ │  2 <html>                        │ │ (sandboxed page, same as │ │
+│   style.css   │  3 <head>                        │ │  visitors see it)        │ │
+│ ▾ art/        │  4   <link rel=stylesheet ...>   │ │                          │ │
+│   gallery.html│ ...                              │ └──────────────────────────┘ │
+│   cat.gif     │                                  │ [Stop]                       │
+├───────────────┴──────────────────────────────────┴──────────────────────────────┤
+│ Saved on this device only · 3.2 MB of 50 MB · revision 14                        │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+- Explorer: a `role="tree"` with folders, files, sizes, start page star, unsaved dot; drop target for uploads.
+- Editor: tabs; text files open in the `CodeEditor` (SD-3); images open in a viewer showing size, dimensions and the
+  path to copy into HTML; fonts and audio show details and a player.
+- Preview: `SiteFrame` on the **draft** snapshot (memory only), page picker, Preview (manual), Auto (SD-11, 600 ms), Stop. Resident JavaScript does not run (SD-4); `.js` files open in the editor and are saved.
+- File menu also: Set as start page, Start from template..., Site title...; View: Open in WebTown Browser.
+- Narrow screens (< 1000 px): Files / Code / Preview tabs.
+- Unsaved guard (Close, Escape outside the editor, tab close), the in-window confirmation from P3-07's design, and
+  the revision conflict prompt. Escape inside the code editor does not close the window.
+- The style is WebTown's grey desktop chrome. Nothing about it is imposed on the resident's pages.
+
+### 16.11 Code editor (SD-3)
+
+| Option | Licence | Size (npm unpacked, approximate) | Fit |
+|---|---|---|---|
+| `textarea` (no dependency) | - | 0 | Works everywhere, accessible, no highlighting |
+| CodeMirror 6 (`@codemirror/*`) | MIT | modular; view package about 1.3 MB unpacked, HTML/CSS/JS language packs tens of KB each; **bundle size to be measured in S-01** | Highlighting, brackets, search, good accessibility; tree-shakable |
+| Monaco | MIT | about 100 MB unpacked, needs web workers | Too large for an owner-only feature |
+| Ace | BSD-3 | about 58 MB of builds | Large, older design |
+
+Plan (SD-3 as confirmed): a `CodeEditor` interface (`value`, `onChange`, `language`, `readOnly`, focus and undo per
+file) with a **textarea** implementation (S-08). CodeMirror 6 may be *evaluated* behind the same interface later
+(S-11), but **no runtime dependency exception is approved**; anything adopted would load only in the owner's chunk.
+
+### 16.12 Permissions and boundaries
+
+- `WebsiteApp` gets `siteProjectAccessFor(view, repository)`; a visitor gets `{ mode: 'visitor', reader }`.
+- Site Studio is a `React.lazy` chunk imported only in the owner branch, the only place a `SiteProjectWriter` is
+  passed. Source tests (as today) fail if anything else imports Site Studio or a writer, or if `SiteFrame`, the
+  builder or the host page import storage, composition, ownership, bridge or game code.
+- `SiteFrame` is shared by the preview and the visitor view, so both render identically for the same snapshot.
+- All of this remains client-side and bypassable; the sandbox is what protects players from page code.
+
+### 16.13 Testing strategy
+
+- **Unit (Vitest, jsdom):** paths, types and signatures, limits; change sets and revisions; the builder (CSP meta,
+  base and script come first; every reference kind rewritten; `<base>`, refresh and prefetch removed; resident source
+  unchanged; size budget); navigation resolution (`../`, folders, `#`, query, missing); message guards and rate limit;
+  migration generator with hostile strings and every field; templates valid against the rules.
+- **Storage (fake-indexeddb):** v1 -> v2 upgrade with existing `sites` and `artworks` rows preserved; one contract
+  suite for memory and IndexedDB; transactional save (fault injection mid-transaction leaves the old state); revision
+  conflict; quota; damaged records skipped and kept; Blob round trip.
+- **Components:** Site Studio file operations, tabs, dirty markers, save, conflict, confirmations, uploads with
+  refusals, narrow layout, keyboard tree; visitor tree has no writer; preview never writes.
+- **Real-browser security suite (SD-10)**, Playwright in Chromium, Firefox and WebKit. S-01 built the first version
+  (`spikes/site-sandbox/`, 58 tests per engine, a recording beacon for HTTP, TCP and UDP, positive controls); S-06 moves
+  it onto the real host page, navigation page and builder. Fixture sites each try one attack:
+  read `parent`/`top` document, `frameElement`; post forged bridge-shaped messages; `localStorage`, `sessionStorage`,
+  `indexedDB`, `document.cookie`, `caches`, service worker registration; `fetch`/XHR/WebSocket/EventSource/`sendBeacon`
+  to WebTown and to an external test server; external `<img>`, CSS `url()`, `@import`, web font; `top.location`,
+  `window.open`, `target=_top/_blank` links, form submit, `alert`/`confirm`/`prompt`, `print`, full screen, pointer
+  lock, downloads, clipboard, geolocation; adding a looser `<meta>` CSP or removing WebTown's; navigating the host
+  frame; self-navigation to external and to `webtown-site:` URLs (detected and replaced; record whether the request
+  was sent); an infinite loop (record whether WebTown stays responsive, per browser); key presses inside the frame do
+  not move the player. A local test server records any request that arrives, so "no request" is proven.
+- **Boundaries:** source tests that every `sandbox` attribute is exactly `allow-scripts`, no `srcdoc` or `src` is set
+  from user input outside the builder and host page, the host page contains no `eval`/`Function`/`innerHTML`, and no
+  message handler reaches the event bus.
+- **Manual:** checklist in `docs/TESTING.md` (headed browser, real typing, uploads, keyboard, screen reader).
+
+### 16.14 Phase 3b implications (not designed here)
+
+Resident files move to object storage behind the same reader and writer interfaces; pages are served from a separate
+registrable domain with HTTP CSP and `sandbox` headers; the server re-validates paths, types, signatures and limits;
+quotas per account; moderation and abuse reporting before any public launch; disclosure of the navigation and WebRTC
+limits of 16.9 to visitors.

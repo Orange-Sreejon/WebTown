@@ -5,8 +5,6 @@ interface WindowFrameProps {
   onClose: () => void
   /** 'compact' is a small dialog; 'wide' fills most of the screen, for apps with their own layout. */
   size?: 'compact' | 'wide'
-  /** Key presses anywhere in the window, including on the window itself. For the app's own shortcuts. */
-  onKeyDown?: (event: ReactKeyboardEvent<HTMLDivElement>) => void
   children: ReactNode
 }
 
@@ -25,7 +23,6 @@ export function WindowFrame({
   title,
   onClose,
   size = 'compact',
-  onKeyDown,
   children,
 }: WindowFrameProps): React.ReactElement {
   const titleId = useId()
@@ -80,10 +77,7 @@ export function WindowFrame({
         aria-labelledby={titleId}
         tabIndex={-1}
         style={size === 'wide' ? { ...styles.window, ...styles.windowWide } : styles.window}
-        onKeyDown={event => {
-          onKeyDown?.(event)
-          trapTab(event)
-        }}
+        onKeyDown={trapTab}
       >
         <div style={styles.titleBar}>
           <span id={titleId} style={styles.title}>{title}</span>

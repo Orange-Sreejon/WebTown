@@ -57,3 +57,8 @@ public/assets/interior/
 # screenshot: development reference only, never publish or ship it. Kept outside
 # public/ so Vite does not copy it into dist/.
 /inspiration-art/
+
+# S-01 sandbox spike output (findings are summarised in docs/site-sandbox-findings.md)
+/spikes/site-sandbox/test-results/
+/playwright-report/
+/spikes/site-sandbox/findings/

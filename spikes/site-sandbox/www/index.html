@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>S-01 sandbox spike: stand-in for the WebTown app</title>
+<style>
+  body { font: 14px sans-serif; margin: 0; background: #c0c0c0; }
+  #chrome { padding: 6px; border-bottom: 2px solid #808080; }
+  #status { display: inline-block; min-width: 20em; }
+  #confirm { display: none; padding: 6px; background: #ffffe1; border-bottom: 2px solid #808080; }
+  #confirm.on { display: block; }
+  #stage { height: 400px; background: #fff; }
+  #stage iframe { border: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<div id="chrome">
+  <button id="back">Back</button> <button id="home">Home</button>
+  <span id="status">idle</span>
+</div>
+<div id="confirm" role="alertdialog" aria-label="Open external link">
+  <span id="confirm-text"></span>
+  <button id="confirm-open">Open in a new tab</button> <button id="confirm-cancel">Cancel</button>
+</div>
+<div id="stage"></div>
+<script src="builder.js"></script>
+<script src="fixtures.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

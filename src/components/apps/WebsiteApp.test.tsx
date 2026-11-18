@@ -49,17 +49,31 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
+/**
+ * Lets storage open, the owner's window load on demand, and the page load.
+ * Waits until the window has been quiet for a moment (or a short time limit),
+ * without guessing what the window says.
+ */
 const settle = async (): Promise<void> => {
-  for (let i = 0; i < 6; i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+  let quiet = 0
+  let last = ''
+  for (let i = 0; i < 60 && quiet < 4; i++) {
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)) })
+    const now = container.innerHTML
+    const busy = /Opening website|Loading website/.test(container.textContent ?? '')
+    quiet = now === last && !busy ? quiet + 1 : 0
+    last = now
+  }
 }
 
 async function openApp(
   view: AppView,
-  props: { sendCommand?: (c: AppCommand) => void; getSiteStorage?: () => Promise<SiteStorage> } = {},
+  props: { sendCommand?: (c: AppCommand) => void; getSiteStorage?: () => Promise<SiteStorage>; wait?: boolean } = {},
 ): Promise<void> {
   act(() => root.render(<AppHost sendCommand={props.sendCommand ?? vi.fn()} {...(props.getSiteStorage ? { getSiteStorage: props.getSiteStorage } : {})} />))
   act(() => emitAppState(view))
-  await settle()
+  if (props.wait === false) await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+  else await settle()
 }
 
 const q = <T extends Element>(selector: string): T => {
@@ -127,6 +141,98 @@ describe('the owner opens the computer', () => {
     await openApp(OWNER)
     click(button('Projects'))
     expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(before)
+  })
+})
+
+describe('the owner edits the website through the real storage', () => {
+  /** Types into a field the way React sees it. */
+  function typeInto(id: string, value: string): void {
+    const element = q<HTMLInputElement>(`#${id}`)
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value)
+      element.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+
+  it('offers Edit to the owner, and never to a visitor', async () => {
+    await openApp(OWNER)
+    expect(button('Edit this website').disabled).toBe(false)
+
+    act(() => emitAppState(HIDDEN_APP_VIEW))
+    await openApp(VISITOR)
+    expect([...container.querySelectorAll('button')].some(b => /edit/i.test(b.textContent ?? ''))).toBe(false)
+    expect(has('.we-editor')).toBe(false)
+  })
+
+  it('saves into IndexedDB, and the website still shows it after a reload, to the owner and to a visitor', async () => {
+    await openApp(OWNER)
+    click(button('Edit this website'))
+    await settle()
+    typeInto('we-title', 'Saved through the editor')
+    typeInto('we-links-0-url', 'https://example.com:8443/')
+    click(button('Save'))
+    await settle()
+
+    expect(has('.we-editor')).toBe(false)
+    expect(q('h1').textContent).toBe('Saved through the editor')
+    const stored = (await rawDb().get(STORE_SITES, 'house-a')) as { title: string; links: Array<{ url: string }> }
+    expect(stored.title).toBe('Saved through the editor')
+    expect(stored.links[0]!.url).toBe('https://example.com:8443/')
+
+    // A reload: nothing is left of the page but the browser's data.
+    act(() => emitAppState(HIDDEN_APP_VIEW))
+    await resetSiteStorage()
+    await openApp(OWNER)
+    expect(q('h1').textContent).toBe('Saved through the editor')
+
+    act(() => emitAppState(HIDDEN_APP_VIEW))
+    await resetSiteStorage()
+    await openApp(VISITOR)
+    expect(q('h1').textContent).toBe('Saved through the editor')
+  })
+
+  it('writes nothing to IndexedDB while editing, or when the draft is thrown away', async () => {
+    await saveSite('house-a', 'Before editing')
+    const before = await rawDb().get(STORE_SITES, 'house-a')
+    await openApp(OWNER)
+    click(button('Edit this website'))
+    await settle()
+    typeInto('we-title', 'Never saved')
+    expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(before)
+
+    click(button('Cancel'))
+    click(button('Discard changes'))
+    await settle()
+    expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(before)
+    expect(q('h1').textContent).toBe('Before editing')
+  })
+
+  it('repairs a damaged record when the owner saves, and the warning goes away', async () => {
+    await rawDb().put(STORE_SITES, { houseId: 'house-a', nonsense: true })
+    await openApp(OWNER)
+    expect(has('.wt-notice--problem')).toBe(true)
+
+    click(button('Edit this website'))
+    await settle()
+    typeInto('we-title', 'Repaired')
+    click(button('Save'))
+    await settle()
+    expect(q('h1').textContent).toBe('Repaired')
+    expect(has('.wt-notice--problem')).toBe(false)
+  })
+
+  it('cannot save another house’s website, even if a draft for it is forced in', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await openApp(OWNER)
+    click(button('Edit this website'))
+    await settle()
+    // The editor offers no way to change which house it saves, so this goes through the writer's guard directly.
+    const { siteAccessFor } = await import('../../personal-spaces/composition')
+    const { getSiteStorage } = await import('../../personal-spaces/composition')
+    const access = siteAccessFor({ houseId: 'house-a', mode: 'owner' }, (await getSiteStorage()).repository)
+    if (access.mode !== 'owner') throw new Error('expected an owner')
+    await expect(access.writer.save(createDefaultSite('house-b', '2026-11-16T00:00:00.000Z'))).rejects.toThrow(/different house/)
+    expect(await rawDb().get(STORE_SITES, 'house-b')).toBeUndefined()
   })
 })
 
@@ -264,7 +370,7 @@ describe('when reading fails', () => {
 
   it('shows a short opening message while storage starts', async () => {
     let finish!: (storage: SiteStorage) => void
-    await openApp(OWNER, { getSiteStorage: () => new Promise(resolve => { finish = resolve }) })
+    await openApp(OWNER, { wait: false, getSiteStorage: () => new Promise(resolve => { finish = resolve }) })
     expect(q('[role="status"]').textContent).toContain('Opening website')
     await act(async () => finish(storageWith(new MemorySiteRepository())))
     await settle()

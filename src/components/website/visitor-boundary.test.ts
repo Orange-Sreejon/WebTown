@@ -129,14 +129,32 @@ describe('the website window', () => {
 describe('the host that feeds the website window', () => {
   const host = Object.entries(hostFiles).map(([path, text]) => ({ path, text }))
 
-  it('hands the window the reader and nothing else, in either mode', () => {
+  it('passes a writer only to the owner’s editor window, and only after checking the mode is owner', () => {
     const website = host.find(f => f.path.endsWith('WebsiteApp.tsx'))!
     const body = code(website.text)
-    expect(body).toMatch(/reader=\{reader\}/)
-    expect(body).not.toMatch(/\.writer\b/) // the editor (a separate task) will be the first to use it
-    expect(body).not.toMatch(/writer=/)
-    const props = body.slice(body.indexOf('<SiteWindow'), body.indexOf('/>', body.indexOf('<SiteWindow')))
-    expect(props).not.toMatch(/save|writer|repository|storage=/i)
+
+    // Exactly one place hands on a writer, and it is the owner's window.
+    expect(body.match(/writer=/g)).toHaveLength(1)
+    const owner = body.slice(body.indexOf('<OwnerWebsiteWindow'), body.indexOf('/>', body.indexOf('<OwnerWebsiteWindow')))
+    expect(owner).toMatch(/writer=\{access\.writer\}/)
+
+    // That only happens in the branch where the bridge said `owner`.
+    const ownerBranch = body.slice(body.indexOf("if (access.mode === 'owner')"), body.indexOf('<SiteWindow'))
+    expect(ownerBranch).toContain('<OwnerWebsiteWindow')
+
+    // The visitor's window gets the reader and nothing that can write.
+    const visitor = body.slice(body.indexOf('<SiteWindow'), body.indexOf('/>', body.indexOf('<SiteWindow')))
+    expect(visitor).toMatch(/reader=\{access\.reader\}/)
+    expect(visitor).not.toMatch(/save|writer|repository|storage=/i)
+    expect(visitor).toMatch(/isOwner=\{false\}/)
+  })
+
+  it('loads the editor only on demand, so a visitor never downloads it', () => {
+    const website = host.find(f => f.path.endsWith('WebsiteApp.tsx'))!
+    const body = code(website.text)
+    expect(body).toMatch(/lazy\(\(\) =>\s*import\('\.\.\/website-editor\/OwnerWebsiteWindow'\)/)
+    // No ordinary import of anything in the editor folder.
+    expect(body).not.toMatch(/^\s*import[^;]*from\s+'\.\.\/website-editor\//m)
   })
 
   it('takes the player’s mode from the app bridge and nowhere else', () => {
@@ -159,8 +177,9 @@ describe('the window’s layout', () => {
     expect(css).toMatch(/\.wt-window\s*\{[^}]*height:\s*100%/)
   })
 
-  it('stacks the navigation above the page on a narrow window', () => {
-    expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*\.wt-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/)
+  it('stacks the navigation above the page when the page itself is narrow', () => {
+    expect(css).toMatch(/\.wt-site\s*\{[^}]*container-type:\s*inline-size/)
+    expect(css).toMatch(/@container \(max-width: 640px\)[\s\S]*\.wt-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/)
   })
 
   it('lets long words and addresses wrap instead of pushing the page wider', () => {
