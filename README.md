@@ -8,9 +8,9 @@ WebTown is a browser-based, top-down 2D pixel-art world where every house can be
 
 Watch the WebTown walkthrough on YouTube:
 
-[![WebTown demo](https://img.youtube.com/vi/bO0x_F1-ShI/maxresdefault.jpg)](https://youtu.be/bO0x_F1-ShI)
+[![WebTown demo](https://youtu.be/LNb1BEkVTcI/maxresdefault.jpg)](https://youtu.be/LNb1BEkVTcI)
 
-[Watch the demo on YouTube](https://youtu.be/bO0x_F1-ShI)
+[Watch the demo on YouTube](https://youtu.be/LNb1BEkVTcI)
 
 ## What is WebTown?
 
