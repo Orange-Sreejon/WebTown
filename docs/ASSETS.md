@@ -441,10 +441,13 @@ Slice rectangles for each sprite are in `src/game/maps/interior-slices.ts`.
 
 ### How the game uses them
 
-- Loaded **lazily** by `InteriorScene.preload`, never by `BootScene`. If the
-  files are missing, entering a house fails safe: the player stays in the
-  town and nothing else is affected (verified in a browser with the folder
-  blocked).
+- Loaded **lazily** by `InteriorScene.preload`, never by `BootScene`.
+- If the files are missing — as in a fresh clone, because this folder is
+  ignored — the house still opens: the room is drawn as a **placeholder**
+  (floor, wall and coloured furniture blocks sized by the real layout), so the
+  player can walk, use the computer and the notebook. Editing is disabled in
+  that mode because the furniture catalogue shows these sheets. The real art is
+  used automatically whenever the folder is present.
 - `work.png` sprites (computer desk, notebook, book stack) are cropped, keyed
   and area-averaged at runtime; no derived image is written to disk. The
   computer is always 48px wide.
