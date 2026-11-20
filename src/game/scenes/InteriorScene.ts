@@ -30,6 +30,11 @@ import type { HouseLayout, InteriorTemplate } from '../maps/house/house-layout'
 import { houseLayouts } from '../maps/house/house-layout-store'
 import { validateLayout } from '../maps/house/layout-rules'
 import { buildObjectTargets, type ObjectTarget } from '../maps/house/object-targets'
+import {
+  PLACEHOLDER_OUTLINE,
+  PLACEHOLDER_ROOM,
+  placeholderPieceColour,
+} from '../maps/house/placeholder-room'
 import { resolveInterior } from '../maps/house/resolve-interior'
 import {
   getInteriorCollisionRects,
@@ -67,6 +72,9 @@ export interface InteriorSceneData {
 
 type PointerEvent = 'pointerdown' | 'pointermove' | 'pointerup' | 'pointerupoutside'
 
+/** A furniture sprite: a real image, or a coloured rectangle when the interior art is absent. */
+type PlacedPiece = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
+
 /**
  * A walkable room, built entirely from an `InteriorDefinition`.
  *
@@ -90,6 +98,8 @@ export class InteriorScene extends Phaser.Scene {
   private layout: HouseLayout | undefined
   private definition: InteriorDefinition | undefined
   private loadFailed = false
+  /** False when the unverified interior sheets are not present (a fresh clone). */
+  private artAvailable = true
 
   private player!: Player
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -111,7 +121,7 @@ export class InteriorScene extends Phaser.Scene {
   private appSession: AppSession | undefined
 
   private walls: Phaser.Physics.Arcade.StaticGroup | undefined
-  private readonly pieceImages = new Map<string, Phaser.GameObjects.Image>()
+  private readonly pieceImages = new Map<string, PlacedPiece>()
 
   private session: EditorSession | undefined
   private overlay: EditorOverlay | undefined
@@ -135,6 +145,7 @@ export class InteriorScene extends Phaser.Scene {
     this.layout = data.layout
     this.definition = this.buildDefinition(data)
     this.loadFailed = false
+    this.artAvailable = true
     this.nearExit = false
     this.nearObject = null
     this.objectTargetsFor = undefined
@@ -186,16 +197,30 @@ export class InteriorScene extends Phaser.Scene {
     this.removeLoadErrorListener()
 
     const def = this.definition
-    if (!def || !this.template || !this.layout || this.loadFailed || !interiorSheetsLoaded(this)) {
+    if (!def || !this.template || !this.layout) {
       console.error(`[InteriorScene] cannot open "${this.interiorId}" — returning to town`)
       this.returnToTown()
       return
     }
 
+    // The interior art is not committed (unverified licence, see docs/ASSETS.md),
+    // so a fresh clone has none of it. Draw the same room from plain shapes
+    // instead: walking, collision, the computer and the notebook still work, and
+    // the player can always enter a house. Editing needs the real art, so it is
+    // disabled in this mode.
+    this.artAvailable = !this.loadFailed && interiorSheetsLoaded(this)
+    if (!this.artAvailable) {
+      console.info('[InteriorScene] interior art missing — drawing the placeholder room')
+    }
+
     this.physics.world.setBounds(0, 0, def.widthPx, def.heightPx)
 
-    registerInteriorTextures(this)
-    this.buildShell(def)
+    if (this.artAvailable) {
+      registerInteriorTextures(this)
+      this.buildShell(def)
+    } else {
+      this.buildPlaceholderShell(def)
+    }
     this.renderPieces(def)
 
     this.walls = this.physics.add.staticGroup()
@@ -330,14 +355,64 @@ export class InteriorScene extends Phaser.Scene {
     for (const piece of def.pieces) this.pieceImages.set(piece.id, this.addPiece(piece))
   }
 
-  private addPiece(piece: InteriorPiece): Phaser.GameObjects.Image {
-    const { key, frame } = textureForSprite(piece.sprite)
+  private addPiece(piece: InteriorPiece): PlacedPiece {
     const bounds = pieceBounds(piece)
+
+    if (!this.artAvailable) {
+      return this.add
+        .rectangle(
+          bounds.x,
+          bounds.y + bounds.h,
+          bounds.w,
+          bounds.h,
+          placeholderPieceColour(piece),
+        )
+        .setOrigin(0, 1)
+        .setStrokeStyle(
+          PLACEHOLDER_OUTLINE.width,
+          PLACEHOLDER_OUTLINE.colour,
+          PLACEHOLDER_OUTLINE.alpha,
+        )
+        .setDepth(pieceDepth(piece))
+    }
+
+    const { key, frame } = textureForSprite(piece.sprite)
 
     return this.add
       .image(bounds.x, bounds.y + bounds.h, key, frame)
       .setOrigin(0, 1)
       .setDepth(pieceDepth(piece))
+  }
+
+  /** The room without its art: a floor, a two-tone wall and a skirting shadow. */
+  private buildPlaceholderShell(def: InteriorDefinition): void {
+    this.add
+      .rectangle(
+        0,
+        def.wallHeightPx,
+        def.widthPx,
+        def.heightPx - def.wallHeightPx,
+        PLACEHOLDER_ROOM.floor,
+      )
+      .setOrigin(0, 0)
+      .setDepth(DEPTH_GROUND)
+
+    const upper = Math.round(def.wallHeightPx / 2)
+
+    this.add
+      .rectangle(0, 0, def.widthPx, upper, PLACEHOLDER_ROOM.wallUpper)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH_ROAD)
+
+    this.add
+      .rectangle(0, upper, def.widthPx, def.wallHeightPx - upper, PLACEHOLDER_ROOM.wallLower)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH_ROAD)
+
+    this.add
+      .rectangle(0, def.wallHeightPx - 2, def.widthPx, 2, PLACEHOLDER_ROOM.skirting)
+      .setOrigin(0, 0)
+      .setDepth(DEPTH_ROAD + 0.5)
   }
 
   private rebuildColliders(def: InteriorDefinition): void {
@@ -358,7 +433,8 @@ export class InteriorScene extends Phaser.Scene {
       template: this.template!,
       layout: this.layout!,
       store: houseLayouts,
-      canEdit: canEditHouse(this.houseId),
+      // Editing needs the real furniture art (the catalogue shows those sheets).
+      canEdit: this.artAvailable && canEditHouse(this.houseId),
     })
     this.renderedVersion = this.session.version
     this.overlay = new EditorOverlay(this, def)

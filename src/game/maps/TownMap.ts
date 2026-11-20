@@ -17,16 +17,10 @@ import {
   type FrameProp,
 } from './cute-props'
 import { addAnimalMotion, addChimneySmoke, createLampGlow, addWaterMotion } from './ambient'
+import { harmoniseCuteHouse } from './cute-house-palette'
 import { buildGrassDecor, buildPathEdges, buildWaterProps, type DecorTile } from './decor'
 import { kindAt, TILE_BANK, TILE_PATH, TILE_WATER } from './terrain'
 import { FENCES, STRUCTURES, TERRAIN, TREES, VILLAGE_PROPS } from './town-layout'
-
-/** Minimal shape of the FX controller we use, kept structural on purpose. */
-interface ColorMatrixLike {
-  saturate(value: number, multiply?: boolean): ColorMatrixLike
-  contrast(value: number, multiply?: boolean): ColorMatrixLike
-  brightness(value: number, multiply?: boolean): ColorMatrixLike
-}
 
 /**
  * Builds the town map using a single RenderTexture for every flat layer.
@@ -48,6 +42,8 @@ export class TownMap {
   private scene: Phaser.Scene
   /** Street-lamp lights, dimmed or lit by the day-night cycle. */
   private lampLights: Phaser.GameObjects.Image[] = []
+  /** Baked palette texture for the Cute Fantasy house, resolved once. */
+  private cuteHouseTextureKey?: string
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -148,11 +144,16 @@ export class TownMap {
       const x = structure.tileX * T
       const y = structure.tileY * T
 
-      const image = this.scene.add
-        .image(x + width / 2, y + height / 2, structure.key)
-        .setDepth(structure.depth)
+      // The Cute Fantasy house is drawn with a darker, more saturated palette
+      // than the Pixeljad tileset. Its harmonised colour is baked into a
+      // texture once (see cute-house-palette.ts) instead of being applied with
+      // a WebGL `preFX` matrix, which some devices render as a black sprite.
+      const textureKey =
+        structure.key === AssetKeys.CUTE_HOUSE ? this.cuteHouseKey() : structure.key
 
-      if (structure.key === AssetKeys.CUTE_HOUSE) this.harmonisePalette(image)
+      this.scene.add
+        .image(x + width / 2, y + height / 2, textureKey)
+        .setDepth(structure.depth)
 
       // A faint wisp above every inhabited roof. The church has no chimney.
       if (structure.solid && structure.key !== AssetKeys.CHURCH) {
@@ -162,29 +163,15 @@ export class TownMap {
   }
 
   /**
-   * The Cute Fantasy house is drawn with a darker, more saturated palette and
-   * near-black outlines than the Pixeljad tileset. Easing off the colour,
-   * compressing the tonality so the outlines lift to a soft dark brown, and
-   * then nudging the whole sprite brighter puts it in the same light as its
-   * neighbours.
-   *
-   * Phaser's colour matrix operations overwrite the matrix by default, hence
-   * `multiply = true` on every step after the first.
-   *
-   * This is a WebGL effect, so on a Canvas fallback it is skipped and the
-   * sprite simply renders untouched.
+   * The harmonised Cute Fantasy house texture, baked on first use. If the
+   * canvas cannot be read the original sprite is used, so the house still
+   * renders rather than failing.
    */
-  private harmonisePalette(
-    image: Phaser.GameObjects.Image,
-    saturate = -0.25,
-    contrast = 0.82,
-    brightness = 1.12,
-  ): void {
-    const fx = (
-      image as unknown as { preFX?: { addColorMatrix(): ColorMatrixLike } | null }
-    ).preFX
-
-    fx?.addColorMatrix().saturate(saturate).contrast(contrast, true).brightness(brightness, true)
+  private cuteHouseKey(): string {
+    if (!this.cuteHouseTextureKey) {
+      this.cuteHouseTextureKey = harmoniseCuteHouse(this.scene) ?? AssetKeys.CUTE_HOUSE
+    }
+    return this.cuteHouseTextureKey
   }
 
   // ── Trees (three different species) ─────────────────────────────────────

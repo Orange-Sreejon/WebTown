@@ -46,7 +46,8 @@ tiny_cast_village_folk_v1.0/
 
 # Interior art (work*.png, insp*, Interior1.tmx): source and licence UNVERIFIED.
 # Must not be committed or published until redistribution permission is confirmed
-# or the files are replaced. The game loads them lazily and works without them.
+# or the files are replaced. The game loads them lazily and falls back to a
+# placeholder room when they are absent, so a clone stays playable.
 # See docs/ASSETS.md "Asset Pack 7".
 public/assets/interior/
 
