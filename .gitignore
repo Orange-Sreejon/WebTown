@@ -67,3 +67,6 @@ public/assets/interior/*
 /spikes/site-sandbox/test-results/
 /playwright-report/
 /spikes/site-sandbox/findings/
+
+# Browser test output (npm run test:e2e)
+/tests/e2e/test-results/

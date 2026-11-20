@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_TEMPLATE, createDefaultLayout } from './default-interior'
+import { LAYOUT_SCHEMA_VERSION } from './house-layout'
 import { InMemoryHouseLayoutStore, houseLayouts } from './house-layout-store'
 import { moveItem, removeItem, type EditResult } from './layout-edits'
 import type { HouseLayout } from './house-layout'
@@ -102,5 +103,112 @@ describe('InMemoryHouseLayoutStore', () => {
     expect(await houseLayouts.load('house-never-edited')).toEqual(
       createDefaultLayout('house-never-edited'),
     )
+  })
+})
+
+
+describe('InMemoryHouseLayoutStore recovery', () => {
+  /**
+   * A store whose storage already holds `stored`, as a previous session or a
+   * backend would. `save` refuses illegal layouts, so this is the only way to
+   * reach the recovery path — and exactly the state that used to lock a house.
+   */
+  function seeded(stored: HouseLayout): InMemoryHouseLayoutStore {
+    const store = new InMemoryHouseLayoutStore()
+    const layouts = (store as unknown as { layouts: Map<string, HouseLayout> }).layouts
+    layouts.set(stored.houseId, stored)
+    return store
+  }
+
+  /** A layout a real edit can produce that the rules reject: the sketchbook is gone. */
+  const withoutNotebook = (houseId: string): HouseLayout => {
+    const layout = createDefaultLayout(houseId)
+    layout.items = layout.items.filter(item => item.id !== 'notebook')
+    return layout
+  }
+
+  it('opens the standard room when the stored layout breaks a rule, and keeps a copy', async () => {
+    const store = seeded(withoutNotebook('house-a'))
+    const loaded = await store.loadWithRecovery('house-a')
+
+    expect(loaded.layout).toEqual(createDefaultLayout('house-a'))
+    expect(loaded.recovered?.houseId).toBe('house-a')
+    expect(loaded.recovered?.problems.join(' ')).toMatch(/sketchbook/)
+
+    const kept = loaded.recovered?.raw as HouseLayout
+    expect(kept.items.some(item => item.id === 'notebook')).toBe(false)
+  })
+
+  it('replaces the unusable layout, so the next visit is not a recovery', async () => {
+    const store = seeded(withoutNotebook('house-a'))
+    await store.loadWithRecovery('house-a')
+
+    expect(await store.load('house-a')).toEqual(createDefaultLayout('house-a'))
+    expect((await store.loadWithRecovery('house-a')).recovered).toBeUndefined()
+    expect(store.recovered('house-a')).toHaveLength(1)
+  })
+
+  it('recovers from a stored value that is not a layout at all', async () => {
+    const corrupt = {
+      houseId: 'house-b',
+      templateId: 'cozy-room',
+      schemaVersion: 1,
+      items: 'nope',
+    } as unknown as HouseLayout
+    const store = seeded(corrupt)
+    const loaded = await store.loadWithRecovery('house-b')
+
+    expect(loaded.layout).toEqual(createDefaultLayout('house-b'))
+    expect(loaded.recovered?.raw).toEqual(corrupt)
+    expect(loaded.recovered?.problems.join(' ')).toMatch(/not readable/)
+  })
+
+  it('recovers from a layout written by a newer build', async () => {
+    const store = seeded({ ...createDefaultLayout('house-c'), schemaVersion: LAYOUT_SCHEMA_VERSION + 1 })
+    const loaded = await store.loadWithRecovery('house-c')
+
+    expect(loaded.layout).toEqual(createDefaultLayout('house-c'))
+    expect(loaded.recovered?.problems.join(' ')).toMatch(/newer than/)
+  })
+
+  it('upgrades an older stored layout instead of recovering it', async () => {
+    const unversioned = createDefaultLayout('house-d')
+    delete (unversioned as { schemaVersion?: number }).schemaVersion
+    const store = seeded(unversioned)
+    const loaded = await store.loadWithRecovery('house-d')
+
+    expect(loaded.recovered).toBeUndefined()
+    expect(loaded.layout.schemaVersion).toBe(LAYOUT_SCHEMA_VERSION)
+    expect(loaded.layout.items).toEqual(createDefaultLayout('house-d').items)
+  })
+
+  it('keeps the upgrade, so the migration runs once', async () => {
+    const unversioned = createDefaultLayout('house-e')
+    delete (unversioned as { schemaVersion?: number }).schemaVersion
+    const store = seeded(unversioned)
+    await store.loadWithRecovery('house-e')
+
+    const stored = (store as unknown as { layouts: Map<string, HouseLayout> }).layouts.get('house-e')!
+    expect(stored.schemaVersion).toBe(LAYOUT_SCHEMA_VERSION)
+    expect(store.recovered()).toEqual([])
+  })
+
+  it('lists kept copies per house and can discard them', async () => {
+    const store = seeded(withoutNotebook('house-a'))
+    const loaded = await store.loadWithRecovery('house-a')
+    const id = loaded.recovered!.id
+
+    expect(store.recovered('house-a').map(entry => entry.id)).toEqual([id])
+    expect(store.recovered('house-b')).toEqual([])
+    expect(store.discardRecovered(id)).toBe(true)
+    expect(store.recovered()).toEqual([])
+  })
+
+  it('hands out copies of the kept copy: editing one does not edit the store', async () => {
+    const store = seeded(withoutNotebook('house-a'))
+    await store.loadWithRecovery('house-a')
+    const first = store.recovered('house-a')[0]!
+    first.problems.push('edited')
+    expect(store.recovered('house-a')[0]!.problems).not.toContain('edited')
   })
 })

@@ -14,6 +14,7 @@ export type ErrorCode =
   | 'unavailable'
   | 'blocked'
   | 'storage'
+  | 'conflict'
 
 /** One thing wrong with some data: where, and what to do about it. */
 export interface Issue {
@@ -86,5 +87,12 @@ export class StorageBlockedError extends PersonalSpacesError {
 export class StorageError extends PersonalSpacesError {
   constructor(message = "Your browser couldn't save or read WebTown data. Please try again.", cause?: unknown) {
     super('storage', message, cause)
+  }
+}
+
+/** Someone else (another tab) saved this since it was opened, so saving now would overwrite their work. */
+export class ConflictError extends PersonalSpacesError {
+  constructor() {
+    super('conflict', 'This website was saved somewhere else (another tab) since you opened it.')
   }
 }

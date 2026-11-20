@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- WebTown website host page. Trusted, static, part of WebTown itself.
+     WebTown embeds it as   <iframe sandbox="allow-scripts" src="site-host.html">   (opaque origin #1).
+     It creates the resident's frame   <iframe sandbox="allow-scripts" srcdoc="...">   (opaque origin #2),
+     which inherits this policy. Only this page's bootstrap carries the nonce. The nonce is in a static file
+     and is not secret: resident pages also carry their own script-src 'none', and WebTown's page builder
+     removes every script and nonce attribute before a page gets here. See docs/site-sandbox-findings.md. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-wtHost1'; style-src 'unsafe-inline' data:; img-src data:; font-src data:; media-src data:; connect-src 'none'; frame-src 'self'; child-src 'none'; worker-src 'none'; object-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'">
+<title>WebTown website</title>
+<style>html, body { margin: 0; height: 100%; background: #fff; } iframe { border: 0; width: 100%; height: 100%; display: block; }</style>
+</head>
+<body>
+<script nonce="wtHost1">
+(function () {
+  'use strict'
+  // Opened directly, not inside WebTown: do nothing.
+  if (window.top === window || window.parent === window) return
+
+  // The only page the resident frame may load: WebTown's navigation page, next to this one.
+  // A policy added later can only narrow the one above.
+  var navPage = new URL('site-nav.html', location.href)
+  navPage.hash = ''
+  navPage.search = ''
+  var narrow = document.createElement('meta')
+  narrow.httpEquiv = 'Content-Security-Policy'
+  narrow.content = 'frame-src ' + navPage.href
+  document.head.appendChild(narrow)
+
+  var DENY = ['camera', 'microphone', 'geolocation', 'display-capture', 'fullscreen', 'payment', 'usb', 'serial',
+    'hid', 'bluetooth', 'midi', 'clipboard-read', 'clipboard-write', 'publickey-credentials-get', 'screen-wake-lock',
+    'xr-spatial-tracking', 'autoplay', 'encrypted-media', 'picture-in-picture', 'accelerometer', 'gyroscope',
+    'magnetometer'].map(function (f) { return f + " 'none'" }).join('; ')
+
+  var frame = document.createElement('iframe')
+  frame.setAttribute('sandbox', 'allow-scripts')
+  frame.setAttribute('referrerpolicy', 'no-referrer')
+  frame.setAttribute('allow', DENY)
+  frame.setAttribute('title', 'Resident website')
+  document.body.appendChild(frame)
+
+  // The app's origin, for replies. This page's own origin is opaque, but its URL is WebTown's.
+  var appOrigin = new URL(location.href).origin
+  var lastHtml = null
+  var loadsSinceRender = 0
+  var lastNavAt = 0
+  var restoreBudget = 3   // restores allowed per page WebTown asked for; stops a render loop
+  var pendingCheck = null
+
+  function toApp(msg) { window.parent.postMessage(msg, appOrigin) }
+
+  // Rate limits over a one-second window.
+  function limiter(max) {
+    var start = 0, count = 0, reportedAt = 0
+    return function () {
+      var now = Date.now()
+      if (now - start >= 1000) { start = now; count = 0 }
+      count++
+      if (count <= max) return true
+      if (now - reportedAt >= 1000) { reportedAt = now; toApp({ t: 'rate-limited' }) }
+      return false
+    }
+  }
+  var navLimit = limiter(10)
+
+  function render(html, fromApp) {
+    if (fromApp) restoreBudget = 3
+    lastHtml = html
+    loadsSinceRender = 0
+    frame.srcdoc = html
+  }
+
+  frame.addEventListener('load', function () {
+    loadsSinceRender++
+    if (loadsSinceRender === 1) { toApp({ t: 'rendered' }); return }
+    // A second load means the resident frame went somewhere. That is expected only when WebTown's
+    // navigation page loaded and asked for a navigation; otherwise put the page back.
+    var loadedAt = Date.now()
+    if (pendingCheck) clearTimeout(pendingCheck)
+    pendingCheck = setTimeout(function () {
+      if (lastNavAt >= loadedAt - 1000) return
+      toApp({ t: 'unexpected-nav' })
+      if (lastHtml !== null) {
+        if (restoreBudget > 0) { restoreBudget--; render(lastHtml, false) }
+        else toApp({ t: 'loop-detected' })
+      }
+    }, 1000)
+  })
+
+  window.addEventListener('message', function (event) {
+    var data = event.data
+    if (event.source === window.parent) {
+      // Only WebTown may ask for a render.
+      if (data && data.t === 'render' && typeof data.html === 'string' && data.html.length <= 80000000) render(data.html, true)
+      return
+    }
+    if (event.source === frame.contentWindow) {
+      var ok = data && data.t === 'nav' &&
+        (data.kind === 'page' || data.kind === 'external') &&
+        typeof data.value === 'string' && data.value.length > 0 && data.value.length <= 2048
+      if (!ok || !navLimit()) return
+      lastNavAt = Date.now()
+      toApp({ t: 'nav', kind: data.kind, value: data.value })
+      // An external link loaded the navigation page into the resident frame, so the page is gone.
+      // Put it back; the confirmation is shown by WebTown, outside the frame. (A page link is
+      // answered by WebTown with a render of the page that was asked for.)
+      if (data.kind === 'external' && lastHtml !== null) {
+        if (restoreBudget > 0) { restoreBudget--; render(lastHtml, false) }
+        else toApp({ t: 'loop-detected' })
+      }
+    }
+    // Anything else is ignored.
+  })
+
+  toApp({ t: 'ready' })
+})()
+</script>
+</body>
+</html>

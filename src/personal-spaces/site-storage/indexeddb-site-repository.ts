@@ -38,11 +38,16 @@ export class IndexedDbSiteRepository implements SiteRepository {
   }
 
   async load(houseId: string): Promise<ReadonlySiteContent> {
-    const id = requireHouseId(houseId)
-    const raw = await this.db.get(STORE_SITES, id)
-    const { site, report } = readRecord(id, raw, this.now)
+    const { site, report } = await this.loadWithReport(houseId)
     this.onLoad?.(report)
     return site
+  }
+
+  /** The site and where it came from (saved, default or recovered), without telling `onLoad`. */
+  async loadWithReport(houseId: string): Promise<{ site: ReadonlySiteContent; report: SiteLoadReport }> {
+    const id = requireHouseId(houseId)
+    const raw = await this.db.get(STORE_SITES, id)
+    return readRecord(id, raw, this.now)
   }
 
   async save(site: SiteContent): Promise<SiteContent> {

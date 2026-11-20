@@ -35,10 +35,15 @@ export class MemorySiteRepository implements SiteRepository {
   }
 
   async load(houseId: string): Promise<ReadonlySiteContent> {
-    const id = requireHouseId(houseId)
-    const { site, report } = readRecord(id, this.records.get(id), this.now)
+    const { site, report } = await this.loadWithReport(houseId)
     this.onLoad?.(report)
     return site
+  }
+
+  /** The site and where it came from (saved, default or recovered), without telling `onLoad`. */
+  async loadWithReport(houseId: string): Promise<{ site: ReadonlySiteContent; report: SiteLoadReport }> {
+    const id = requireHouseId(houseId)
+    return readRecord(id, this.records.get(id), this.now)
   }
 
   async save(site: SiteContent): Promise<SiteContent> {

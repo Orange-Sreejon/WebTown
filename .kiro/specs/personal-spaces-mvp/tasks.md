@@ -67,8 +67,7 @@ the specs are approved. D1-D9 are approved (see `design.md` section 1).**
       notice, storage failure and retry, close and restore, keyboard and accessibility basics, 1280x720,
       1920x1080 and 390x844 (49 checks in a real browser), and a clean `dist/`.
 - [~] **P3-07** Owner website editor, form-based: **superseded, not built on** (revision 2). Committed by the owner
-      in `9837da3` ("before-studio"), so it is preserved in history. It is still live in the app until it is taken
-      out (S-13, or an earlier revert if the owner prefers).
+      in `9837da3` ("before-studio"), so it is preserved in history. Removed from the app in website-studio W-07.
 
 ### Website, revision 2: WebTown Site Studio (file-based; design section 16)
 
@@ -88,6 +87,9 @@ navigation page and builder, and pass it in all three engines.
       prototype builder with four modes, hostile fixtures, a beacon recording HTTP, bare TCP and UDP, and 58 Playwright
       tests per engine. Two consecutive runs: 173 passed, 1 skipped (WebKit has no WebRTC), in Chromium, Firefox and
       WebKit. Findings, revised policy and residual risks: `docs/site-sandbox-findings.md`; design 16.4 to 16.9 revised.
+**S-02 to S-14 are replaced by `.kiro/specs/website-studio/` (W-01 to W-10, all done; pages + one `style.css` +
+images, CodeMirror 6 editor). The items below are kept for the record and are not worked on.**
+
 - [ ] **S-02** (M) Project domain, pure: `site-project/` types (16.2), path rules, type allow-list and content
       signatures, limits, change sets, revision rules, load validation with skip reports. Tests for every rule.
 - [ ] **S-03** (M) Templates and migration, pure: Blank, Classic home page (from `SiteContent`), one single-page

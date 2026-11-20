@@ -266,6 +266,16 @@ sandboxed-frame process isolation would protect against it. With no resident scr
 | Engine coverage | Chromium, Firefox and Playwright's WebKit on Windows, headless. Branded Safari, mobile browsers and headed mode were not tested. |
 | Browser bugs | The design layers sandbox, inherited CSP, resident CSP and builder stripping, so a single engine bug in one layer does not open everything; but it is not proof against all bugs. |
 | Client-side ownership | Unchanged: Phase 3a owner checks can be bypassed with developer tools. The sandbox protects players from pages; it is not authorisation. |
+| Links within a page (`#name`) | Found while building the Studio (W-09). A `srcdoc` document resolves `#name` against its parent's address (the host page), so the click becomes a navigation that `frame-src` blocks. WebTown writes these links as `about:srcdoc#name`: a same-document jump in Chromium and Firefox. **WebKit** still treats it as a navigation: it is blocked, the host puts the page back and WebTown says the page "tried to go somewhere else". No request is made in any engine. |
+
+## Shipped (website-studio, W-06 to W-09)
+
+The real host and navigation pages are `public/site-host.html` and `public/site-nav.html`: the spike's pages with
+`base-uri 'none'` (no `<base>` in resident pages), the navigation page found next to the host page (so a Vite `base`
+works), and the spike's test-only messages removed. `npm run test:e2e` runs the real app in all three engines:
+a hostile page saved through the Studio (scripts, handlers, meta refresh, `<base>`, forms, frames, objects,
+`@import`, fonts, `ping`, prefetch, `javascript:` links, declarative shadow DOM) sends nothing to the beacon and
+cannot reach WebTown.
 
 ## Files
 

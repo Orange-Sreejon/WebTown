@@ -74,11 +74,14 @@ All magic numbers belong in `src/game/config/GameConfig.ts`:
 - Pin exact versions (`npm install --save-exact`).
 - Do not add a dependency that can be replaced by 10 lines of code.
 - Audit new dependencies for active maintenance and known vulnerabilities.
-- No runtime dependencies beyond: React, ReactDOM, Phaser.
+- No runtime dependencies beyond: React, ReactDOM, Phaser, and the CodeMirror 6 editor packages (`codemirror`,
+  `@codemirror/state`, `view`, `commands`, `lang-html`, `lang-css`; decision W-2, approved in the Site Studio brief).
+  CodeMirror may be imported only by `src/components/website-studio/CodeEditor.tsx`, which is reached only from the
+  owner's lazily loaded Studio chunk; `source-safety.test.ts` enforces this.
 - Dev dependencies: Vite, TypeScript, Vitest, @types/*, `fake-indexeddb` (D5, tests only) and
   `@playwright/test` (SD-10, real-browser security tests in Chromium, Firefox and WebKit). Neither may be
   imported by anything under `src/` that ships, nor appear in `dist/`.
-- No code-editor dependency (CodeMirror or other) is approved; Site Studio uses a plain `textarea` (SD-3).
+- No other code-editor dependency (Monaco, Ace or similar) is approved.
 
 ## Git
 

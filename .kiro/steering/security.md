@@ -94,12 +94,13 @@ user-generated content".
 - `fake-indexeddb` is a dev dependency used by tests only; it must not appear in
   `dist/`.
 
-## Phase 3a - Resident websites (Site Studio, revision 2)
+## Phase 3a - Resident websites (HTML/CSS Site Studio)
 
-Resident websites are files written by residents: HTML, CSS, JavaScript, images,
-fonts. They are untrusted code. The policy below **passed the S-01 sandbox spike** in Chromium, Firefox and
-WebKit (`docs/site-sandbox-findings.md`) and is **awaiting review**; until then it is provisional, and the
-spike's verified results take precedence over anything written here.
+Resident websites are files written by residents: HTML pages, one shared stylesheet (`style.css`) and images
+(PNG, JPEG, GIF, WebP, SVG). They are untrusted code. The policy below **passed the S-01 sandbox spike** in Chromium,
+Firefox and WebKit (`docs/site-sandbox-findings.md`) and is **implemented** (`.kiro/specs/website-studio/`);
+`npm run test:e2e` checks it in the real app in all three engines. It still awaits the owner's review, and the
+measured results take precedence over anything written here.
 
 ### Where resident content may run
 
@@ -117,8 +118,9 @@ spike's verified results take precedence over anything written here.
 
 ### No resident JavaScript in Phase 3a
 
-- Resident `.js` files are stored and editable but **do not execute**: no inline
-  scripts, external scripts, event-handler attributes or `javascript:` URLs.
+- There are no `.js` files. Script a resident writes into a page stays in their HTML source (WebTown never
+  changes their code) but **is removed before the page is shown and never runs**: no inline scripts, external
+  scripts, event-handler attributes or `javascript:` URLs.
 - Enforced three ways: the resident page's own CSP has `script-src 'none'`; the
   inherited host policy allows only the host's nonce; and the page builder
   removes scripts, `on*` attributes, `nonce` attributes and script URLs.
@@ -160,8 +162,13 @@ spike's verified results take precedence over anything written here.
   with `noopener noreferrer`, and only if the URL policy passes.
 - SVG files are rendered only as image resources (`<img>`, CSS), never as
   documents.
-- Uploads: allow-listed types, checked by content signature, sanitised paths, and
-  the approved limits (1 MB text, 5 MB binary, 50 MB and 500 files per site).
+- Uploads: allow-listed image types only (no fonts or other files in 3a), checked by content signature, cleaned
+  names (`assets/<name>`), and the approved limits (1 MB per page or stylesheet, 5 MB per image, 50 MB and 500
+  files per site). Images reach the page only as `data:` URLs built by WebTown.
+- Links within a page (`#name`) are written as `about:srcdoc#name`. They jump within the page in Chromium and
+  Firefox; WebKit blocks them as a navigation and the page is put back. No request is made either way.
+- The page builder (`site-project/builder.ts`) is the only shipped code that serialises HTML, and only from an
+  inert `DOMParser` document into the sandbox. Preview and visitors use the same builder.
 ## Phase 3b — planned security model (not implemented)
 
 Needs its own spec and review before any code. Supabase is the preferred provider

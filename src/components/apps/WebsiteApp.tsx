@@ -2,22 +2,22 @@ import { Suspense, lazy, useEffect, useState } from 'react'
 import type { AppView } from '../../lib/app-bridge'
 import {
   getSiteStorage,
-  onSiteLoad,
-  siteAccessFor,
-  type SiteAccess,
+  websiteAccessFor,
   type SiteStorage,
+  type WebsiteAccess,
 } from '../../personal-spaces/composition'
-import { SiteWindow } from '../website/SiteWindow'
-import type { RecoveryNotice } from '../website/SiteBrowser'
+import { VISITOR_LOCAL_NOTICE, VISITOR_NOT_SAVED_NOTICE } from '../../personal-spaces/labels'
+import { HouseWebsite } from '../website/HouseWebsite'
+import { useWebsiteState } from '../website/useWebsiteState'
 import { WindowFrame } from './WindowFrame'
 
 /**
- * The owner's window, with the editor, is loaded on demand and only for an
- * owner. A visitor's page never imports it, so nothing that can write is even
- * downloaded or evaluated for them (it is a separate chunk in the build).
+ * The owner's window, with the Site Studio and the code editor, is loaded on
+ * demand and only for an owner. A visitor never imports it, so nothing that
+ * can write is downloaded or evaluated for them (it is a separate chunk).
  */
 const OwnerWebsiteWindow = lazy(() =>
-  import('../website-editor/OwnerWebsiteWindow').then(module => ({ default: module.OwnerWebsiteWindow })),
+  import('../website-studio/OwnerWebsiteWindow').then(module => ({ default: module.OwnerWebsiteWindow })),
 )
 
 interface WebsiteAppProps {
@@ -30,7 +30,7 @@ interface WebsiteAppProps {
 
 type Opening =
   | { status: 'opening' }
-  | { status: 'ready'; storage: SiteStorage; access: SiteAccess }
+  | { status: 'ready'; storage: SiteStorage; access: WebsiteAccess }
   | { status: 'failed'; message: string }
 
 function Waiting({ onClose, children, alert = false }: { onClose: () => void; children: string; alert?: boolean }): React.ReactElement {
@@ -41,41 +41,44 @@ function Waiting({ onClose, children, alert = false }: { onClose: () => void; ch
   )
 }
 
+/** A visitor's window: the website, read-only, and nothing that can save. */
+function VisitorWebsiteWindow({ houseId, open, persistent, onClose }: { houseId: string; open: WebsiteAccess['open']; persistent: boolean; onClose: () => void }): React.ReactElement {
+  const { load, reload } = useWebsiteState(open)
+  return (
+    <WindowFrame title="WebTown Browser" onClose={onClose} size="wide">
+      <HouseWebsite
+        houseId={houseId}
+        load={load}
+        onRetry={reload}
+        status={persistent ? VISITOR_LOCAL_NOTICE : VISITOR_NOT_SAVED_NOTICE}
+        empty={<p className="wt-message">Nothing here yet. The owner of this house hasn't made a website.</p>}
+        damaged={() => <p className="wt-message">This website can't be shown right now.</p>}
+      />
+    </WindowFrame>
+  )
+}
+
 /**
  * Connects the website window to storage and to what the app bridge decided.
  *
- * The bridge's `mode` goes straight into `siteAccessFor`; this is not a second
- * ownership check. `siteAccessFor` builds a writer only for `owner`, and only in
- * the owner branch below is it passed on, to the editor window. The visitor's
- * window is given `access.reader` and nothing else.
+ * The bridge's `mode` goes straight into `websiteAccessFor`; this is not a
+ * second ownership check. A writer exists only for `owner`, and only in the
+ * owner branch below is it passed on. The visitor's window gets `access.open`
+ * and nothing else.
  *
  * Phaser decides who is the owner, from a client-side stand-in. Browser
  * developer tools can bypass all of this; real enforcement is Phase 3b.
  */
-export function WebsiteApp({
-  view,
-  onClose,
-  getStorage = getSiteStorage,
-}: WebsiteAppProps): React.ReactElement {
+export function WebsiteApp({ view, onClose, getStorage = getSiteStorage }: WebsiteAppProps): React.ReactElement {
   const [opening, setOpening] = useState<Opening>({ status: 'opening' })
-  const [recovery, setRecovery] = useState<RecoveryNotice | null>(null)
-
   const houseId = view.houseId
   const mode = view.mode
 
   useEffect(() => {
     let current = true
-    // Listen before storage is ready, so the first load's report is not missed.
-    const stop = onSiteLoad(report => {
-      if (report.houseId !== houseId) return
-      setRecovery(report.origin === 'recovered' ? { problems: report.problems } : null)
-    })
-
     getStorage().then(
       storage => {
-        if (!current) return
-        const access = siteAccessFor({ houseId, mode }, storage.repository)
-        setOpening({ status: 'ready', storage, access })
+        if (current) setOpening({ status: 'ready', storage, access: websiteAccessFor({ houseId, mode }, storage) })
       },
       (error: unknown) => {
         console.error('[WebTown] Storage could not be opened.', error)
@@ -84,7 +87,6 @@ export function WebsiteApp({
     )
     return () => {
       current = false
-      stop()
     }
   }, [getStorage, houseId, mode])
 
@@ -98,26 +100,10 @@ export function WebsiteApp({
   if (access.mode === 'owner') {
     return (
       <Suspense fallback={<Waiting onClose={onClose}>Opening website...</Waiting>}>
-        <OwnerWebsiteWindow
-          houseId={houseId}
-          reader={access.reader}
-          writer={access.writer}
-          persistent={storage.persistent}
-          recovery={recovery}
-          onClose={onClose}
-        />
+        <OwnerWebsiteWindow access={access} persistent={storage.persistent} onClose={onClose} />
       </Suspense>
     )
   }
 
-  return (
-    <SiteWindow
-      houseId={houseId}
-      reader={access.reader}
-      isOwner={false}
-      persistent={storage.persistent}
-      recovery={null}
-      onClose={onClose}
-    />
-  )
+  return <VisitorWebsiteWindow houseId={houseId} open={access.open} persistent={storage.persistent} onClose={onClose} />
 }
