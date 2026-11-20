@@ -10,6 +10,7 @@ import {
 import { AssetKeys, AssetPaths } from '../config/AssetKeys'
 import {
   DEPTH_GROUND,
+  DEPTH_PROMPT,
   DEPTH_ROAD,
   EDITOR_DRAG_THRESHOLD_PX,
   INTERACT_COOLDOWN_MS,
@@ -28,14 +29,13 @@ import { getTemplate } from '../maps/house/default-interior'
 import { EditorSession, type EditorMode } from '../maps/house/editor-session'
 import type { HouseLayout, InteriorTemplate } from '../maps/house/house-layout'
 import { houseLayouts } from '../maps/house/house-layout-store'
-import { validateLayout } from '../maps/house/layout-rules'
+import { ROOM_RESTORED_NOTICE, openRoom } from '../maps/house/room-opening'
 import { buildObjectTargets, type ObjectTarget } from '../maps/house/object-targets'
 import {
   PLACEHOLDER_OUTLINE,
   PLACEHOLDER_ROOM,
   placeholderPieceColour,
 } from '../maps/house/placeholder-room'
-import { resolveInterior } from '../maps/house/resolve-interior'
 import {
   getInteriorCollisionRects,
   interiorViewRect,
@@ -65,9 +65,12 @@ export interface InteriorSceneData {
   interiorId: string
   /**
    * This house's own furniture layout, loaded from the `HouseLayoutStore`.
-   * Absent when the load failed, in which case the scene returns to the town.
+   * Absent when the load failed; the standard room then opens instead of the
+   * player being sent back to the town.
    */
   layout?: HouseLayout
+  /** The store had to replace an unusable stored layout. Open the standard room and say so. */
+  recovered?: boolean
 }
 
 type PointerEvent = 'pointerdown' | 'pointermove' | 'pointerup' | 'pointerupoutside'
@@ -119,6 +122,8 @@ export class InteriorScene extends Phaser.Scene {
   private objectTargetsFor: InteriorDefinition | undefined
   /** The website / Paint overlay state. Created with the scene, disposed on shutdown. */
   private appSession: AppSession | undefined
+  /** Shown over the room when the stored furniture could not be opened. */
+  private notice: string | null = null
 
   private walls: Phaser.Physics.Arcade.StaticGroup | undefined
   private readonly pieceImages = new Map<string, PlacedPiece>()
@@ -146,6 +151,7 @@ export class InteriorScene extends Phaser.Scene {
     this.definition = this.buildDefinition(data)
     this.loadFailed = false
     this.artAvailable = true
+    this.notice = null
     this.nearExit = false
     this.nearObject = null
     this.objectTargetsFor = undefined
@@ -157,22 +163,33 @@ export class InteriorScene extends Phaser.Scene {
 
   /**
    * This house's room: the template furnished with the house's own layout.
-   * Anything wrong (unknown template, missing or rule-breaking layout) gives
-   * undefined, and `create` then returns the player to the town.
+   *
+   * A missing or rule-breaking layout is not a reason to throw the player out:
+   * the standard room opens and a notice says why, so the house is still
+   * enterable and the owner can be told what happened. Only an unknown template
+   * (no room to draw at all) returns undefined, and `create` then returns to
+   * the town.
    */
   private buildDefinition(data: InteriorSceneData): InteriorDefinition | undefined {
-    const template = getTemplate(data.interiorId)
-    if (!template || !data.layout) return undefined
+    this.notice = null
+    const opening = openRoom(data.houseId, data.interiorId, data.layout, data.recovered === true)
 
-    const violations = validateLayout(template, data.layout)
-    if (violations.length > 0) {
-      console.error(
-        `[InteriorScene] layout for "${data.houseId}" breaks ${violations.length} rule(s)`,
-        violations,
-      )
+    if (!opening.ok) {
+      console.error(`[InteriorScene] cannot open "${data.interiorId}" — returning to town`)
       return undefined
     }
-    return resolveInterior(template, data.layout)
+
+    if (opening.violations.length > 0) {
+      console.warn(
+        `[InteriorScene] layout for "${data.houseId}" breaks ${opening.violations.length} rule(s); ` +
+          'opening the standard room',
+        opening.violations,
+      )
+    }
+    if (opening.restored) this.notice = ROOM_RESTORED_NOTICE
+
+    this.layout = opening.layout
+    return opening.definition
   }
 
   preload(): void {
@@ -246,6 +263,8 @@ export class InteriorScene extends Phaser.Scene {
     this.onResize = () => this.fitCamera()
     this.scale.on('resize', this.onResize)
 
+    if (this.notice) this.showNotice(this.notice)
+
     this.onInteractKey = (event: KeyboardEvent): void => {
       // A held key repeats; only a fresh press may open or close anything. While
       // the editor or an app is open, or a door is moving, E does nothing.
@@ -262,6 +281,36 @@ export class InteriorScene extends Phaser.Scene {
     // The E that opened the door must not also close it.
     this.lock.release(performance.now())
     this.cameras.main.fadeIn(TRANSITION_FADE_MS, 0, 0, 0)
+  }
+
+  /**
+   * A short line at the top of the room, then gone. The player was expecting
+   * their own furniture; saying so is better than a room that silently changed.
+   */
+  private showNotice(text: string): void {
+    const def = this.definition
+    if (!def) return
+
+    const label = this.add
+      .text(def.widthPx / 2, 8, text, {
+        fontFamily: 'monospace',
+        fontSize: '8px',
+        color: '#fff4d6',
+        backgroundColor: '#2b1d14',
+        padding: { x: 3, y: 2 },
+        align: 'center',
+        wordWrap: { width: def.widthPx - 24 },
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(DEPTH_PROMPT)
+
+    this.tweens.add({
+      targets: label,
+      alpha: 0,
+      delay: 6000,
+      duration: 800,
+      onComplete: () => label.destroy(),
+    })
   }
 
   update(): void {

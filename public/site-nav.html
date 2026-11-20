@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- WebTown website navigation page. Trusted, static, part of WebTown itself. A link in a resident's
+     page is rewritten to load this page into the resident frame, which is still sandboxed and opaque.
+     Its only job is to tell the host page which link was followed. It sends nothing secret; the host
+     page and WebTown treat the message as a request and check it. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-wtNav1'; base-uri 'none'; form-action 'none'">
+<title>WebTown</title>
+</head>
+<body>
+<script nonce="wtNav1">
+(function () {
+  if (window.parent === window) return
+  var hash = location.hash.slice(1)
+  if (hash.length > 4200) return
+  var params = new URLSearchParams(hash)
+  var kind = params.get('k')
+  var value = kind === 'page' ? params.get('p') : kind === 'external' ? params.get('u') : null
+  if (typeof value !== 'string') return
+  // The host page is an opaque origin, so '*' is the only target that reaches it.
+  // The message carries only the link the player clicked.
+  window.parent.postMessage({ t: 'nav', kind: kind, value: value }, '*')
+})()
+</script>
+</body>
+</html>

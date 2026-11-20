@@ -26,7 +26,7 @@ import { buildEntrances, findNearbyTarget, type Entrance } from '../systems/inte
 import { captureReturnState, planReturn, type TownReturnState } from '../systems/return-position'
 import { TransitionLock } from '../systems/transition'
 import { InteractionPrompt } from '../entities/InteractionPrompt'
-import { houseLayouts } from '../maps/house/house-layout-store'
+import { houseLayouts, type LoadedLayout } from '../maps/house/house-layout-store'
 import type { InteriorSceneData } from './InteriorScene'
 import { Player } from '../entities/Player'
 import { emit } from '../../lib/event-bus'
@@ -206,19 +206,24 @@ export class TownScene extends Phaser.Scene {
     this.player.halt()
 
     // The layout loads while the door fades, so the interior is handed it ready-made.
-    // A failed load still launches the interior, which then returns to the town.
-    const layoutLoad = houseLayouts.load(entrance.id).catch((error: unknown) => {
-      console.error(`[TownScene] could not load the layout for "${entrance.id}"`, error)
-      return undefined
-    })
+    // A layout that cannot be used is replaced by the standard room (and a copy
+    // kept) rather than costing the player the visit; a failed load is handed to
+    // the interior as absent, which opens the standard room as well.
+    const layoutLoad = houseLayouts.loadWithRecovery(entrance.id).catch(
+      (error: unknown): LoadedLayout | undefined => {
+        console.error(`[TownScene] could not load the layout for "${entrance.id}"`, error)
+        return undefined
+      },
+    )
 
     const cam = this.cameras.main
     cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      void layoutLoad.then(layout => {
+      void layoutLoad.then(loaded => {
         const data: InteriorSceneData = {
           houseId: entrance.id,
           interiorId: entrance.interiorId,
-          layout,
+          ...(loaded ? { layout: loaded.layout } : {}),
+          ...(loaded?.recovered ? { recovered: true } : {}),
         }
         this.scene.launch(SceneKeys.INTERIOR, data)
         this.scene.sleep()

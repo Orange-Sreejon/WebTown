@@ -11,8 +11,12 @@ import { IdbDatabase, mapIdbError, type DatabaseSpec } from './idb'
 import { domError, faultyFactory } from './fault-injection.test-support'
 import {
   DB_NAME,
+  DB_VERSION,
   INDEX_ARTWORKS_BY_HOUSE,
+  INDEX_SITE_ASSETS_BY_HOUSE,
   STORE_ARTWORKS,
+  STORE_SITE_ASSETS,
+  STORE_SITE_PROJECTS,
   STORE_SITES,
   WEBTOWN_DB,
 } from './webtown-db'
@@ -46,11 +50,11 @@ describe('the WebTown database', () => {
     await database(factory).ready()
 
     const raw = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = factory.open(DB_NAME, 1)
+      const request = factory.open(DB_NAME, DB_VERSION)
       request.onsuccess = (): void => resolve(request.result)
       request.onerror = (): void => reject(request.error)
     })
-    expect([...raw.objectStoreNames].sort()).toEqual([STORE_ARTWORKS, STORE_SITES].sort())
+    expect([...raw.objectStoreNames].sort()).toEqual([STORE_ARTWORKS, STORE_SITES, STORE_SITE_PROJECTS, STORE_SITE_ASSETS].sort())
     const transaction = raw.transaction(STORE_ARTWORKS)
     expect([...transaction.objectStore(STORE_ARTWORKS).indexNames]).toEqual([INDEX_ARTWORKS_BY_HOUSE])
     expect(transaction.objectStore(STORE_ARTWORKS).keyPath).toBe('id')
@@ -163,7 +167,7 @@ describe('storage that is not there', () => {
 
   it('says so when the saved data comes from a newer version', async () => {
     const factory = newFactory()
-    await database(factory, { ...WEBTOWN_DB, version: 2, upgrade: WEBTOWN_DB.upgrade }).ready()
+    await database(factory, { ...WEBTOWN_DB, version: DB_VERSION + 1, upgrade: WEBTOWN_DB.upgrade }).ready()
     const error = await rejection(database(factory).ready())
     expect(error).toBeInstanceOf(StorageUnavailableError)
     expect((error as Error).message).toContain('newer version')
@@ -360,5 +364,99 @@ describe('mapIdbError', () => {
     expect(mapped.cause).toBe(original)
     expect(mapIdbError(null)).toBeInstanceOf(StorageError)
     expect(mapIdbError('text')).toBeInstanceOf(StorageError)
+  })
+})
+
+describe('the version 2 upgrade', () => {
+  it('adds the website project and asset stores and keeps version 1 data exactly', async () => {
+    const factory = newFactory()
+    // The schema exactly as version 1 shipped it.
+    const v1 = database(factory, {
+      name: DB_NAME,
+      version: 1,
+      upgrade(raw): void {
+        raw.createObjectStore(STORE_SITES, { keyPath: 'houseId' })
+        raw.createObjectStore(STORE_ARTWORKS, { keyPath: 'id' }).createIndex(INDEX_ARTWORKS_BY_HOUSE, 'houseId')
+      },
+    })
+    await v1.put(STORE_SITES, { houseId: 'house-a', title: 'Old site' })
+    await v1.put(STORE_ARTWORKS, { id: 'art-1', houseId: 'house-a' })
+    v1.close()
+
+    const v2 = database(factory)
+    expect(await v2.get(STORE_SITES, 'house-a')).toEqual({ houseId: 'house-a', title: 'Old site' })
+    expect(await v2.getAll(STORE_ARTWORKS)).toEqual([{ id: 'art-1', houseId: 'house-a' }])
+    expect(await v2.getAll(STORE_SITE_PROJECTS)).toEqual([])
+    await v2.put(STORE_SITE_ASSETS, { id: 'a1', houseId: 'house-a' })
+    await v2.put(STORE_SITE_ASSETS, { id: 'b1', houseId: 'house-b' })
+    expect(await v2.getAllByIndex(STORE_SITE_ASSETS, INDEX_SITE_ASSETS_BY_HOUSE, 'house-a')).toEqual([
+      { id: 'a1', houseId: 'house-a' },
+    ])
+  })
+})
+
+describe('atomic transactions', () => {
+  it('commits every write together and resolves with the value', async () => {
+    const db = database(newFactory())
+    const value = await db.atomic<string>([STORE_SITE_PROJECTS, STORE_SITE_ASSETS], (tx, done) => {
+      tx.objectStore(STORE_SITE_PROJECTS).put({ houseId: 'house-a', revision: 1 })
+      tx.objectStore(STORE_SITE_ASSETS).put({ id: 'a1', houseId: 'house-a' })
+      done('ok')
+    })
+    expect(value).toBe('ok')
+    expect(await db.get(STORE_SITE_PROJECTS, 'house-a')).toEqual({ houseId: 'house-a', revision: 1 })
+    expect(await db.get(STORE_SITE_ASSETS, 'a1')).toEqual({ id: 'a1', houseId: 'house-a' })
+  })
+
+  it('rolls everything back when the body aborts', async () => {
+    const db = database(newFactory())
+    const error = await rejection(
+      db.atomic([STORE_SITE_PROJECTS, STORE_SITE_ASSETS], (tx, _done, abort) => {
+        tx.objectStore(STORE_SITE_ASSETS).put({ id: 'a1', houseId: 'house-a' })
+        const read = tx.objectStore(STORE_SITE_PROJECTS).get('house-a')
+        read.onsuccess = (): void => abort(new StorageError('stop'))
+      }),
+    )
+    expect(error).toBeInstanceOf(StorageError)
+    expect((error as Error).message).toBe('stop')
+    expect(await db.get(STORE_SITE_ASSETS, 'a1')).toBeUndefined()
+  })
+
+  it('rolls everything back when one request fails', async () => {
+    const db = database(newFactory())
+    await db.put(STORE_SITE_ASSETS, { id: 'kept', houseId: 'house-a' })
+    const error = await rejection(
+      db.atomic([STORE_SITE_PROJECTS, STORE_SITE_ASSETS], (tx, done) => {
+        tx.objectStore(STORE_SITE_PROJECTS).put({ houseId: 'house-a' })
+        tx.objectStore(STORE_SITE_ASSETS).delete('kept')
+        // `add` of an existing key fails with ConstraintError.
+        tx.objectStore(STORE_SITE_PROJECTS).add({ houseId: 'house-a' })
+        done(undefined)
+      }),
+    )
+    expect(error).toBeInstanceOf(PersonalSpacesError)
+    expect(await db.get(STORE_SITE_PROJECTS, 'house-a')).toBeUndefined()
+    expect(await db.get(STORE_SITE_ASSETS, 'kept')).toEqual({ id: 'kept', houseId: 'house-a' })
+  })
+
+  it('reports a transaction that cannot start', async () => {
+    const faulty = faultyFactory(newFactory())
+    const db = database(faulty.factory)
+    await db.ready()
+    faulty.faults.transactionThrows = domError('UnknownError')
+    const error = await rejection(db.atomic([STORE_SITE_PROJECTS], (_tx, done) => done(1)))
+    expect(error).toBeInstanceOf(StorageError)
+  })
+
+  it('reports a body that throws, and writes nothing', async () => {
+    const db = database(newFactory())
+    const error = await rejection(
+      db.atomic([STORE_SITE_ASSETS], tx => {
+        tx.objectStore(STORE_SITE_ASSETS).put({ id: 'a1', houseId: 'house-a' })
+        throw new Error('bug')
+      }),
+    )
+    expect(error).toBeInstanceOf(StorageError)
+    expect(await db.get(STORE_SITE_ASSETS, 'a1')).toBeUndefined()
   })
 })

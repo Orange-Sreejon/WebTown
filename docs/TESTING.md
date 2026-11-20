@@ -281,65 +281,62 @@ Manual, in the browser (1280x720), owner house `house-a` and a visitor house `ho
 - [ ] In furniture edit mode E opens nothing; Save and Cancel still work.
 - [ ] Open and close 20 times: nothing changes; walk out, back in, and repeat once.
 - [ ] Move the table in the furniture editor: the Sketchbook prompt follows it.
-## Website (P3-06, P3-07)
+## Website: HTML/CSS Site Studio (`.kiro/specs/website-studio/`)
 
-Automated: every page, navigation and history, literal text and injection, external links, visitor read-only,
-recovered and failed loads, closing, accessibility basics, and the import-graph boundary. A real-browser script also
-checked 1280x720, 1920x1080 and 390x844 (window fits, no sideways scroll, navigation moves above the page when narrow).
+Automated in Vitest: the project rules (names, limits, image signatures), the markup check, templates and the
+migration of every old field with hostile strings, the page builder (every removal and rewrite), storage v2 (upgrade
+keeps v1 data, one transaction per save, conflicts, damaged records, house isolation, fault injection), the host
+message guards, `SiteFrame`, the Studio (pages, images, save, conflict, layouts, leaving), CodeMirror in jsdom, and
+the import boundaries (visitor code cannot reach the Studio, writers, storage or CodeMirror).
 
-Manual, in a headed browser (the website editor arrives in P3-07, so saved content is made through the console or
-the editor later):
+Automated in real browsers: `npm run test:e2e` (Playwright: Chromium, Firefox and WebKit; starts the Vite dev server
+on port 5180 and a beacon on 8766). It opens the website window with the same app-bridge message Phaser sends and
+checks: an owner builds a grid-based zine from Blank with an uploaded animated GIF, a second page and a phone-width
+media query; Save; reload; a visitor sees the same page and can follow links; external links ask first; another
+house is untouched; a hostile page (scripts, handlers, refresh, base, forms, frames, `@import`, fonts, `ping`,
+prefetch) sends nothing to the beacon and cannot reach WebTown; a visitor never downloads the Studio or CodeMirror.
+Playwright's WebKit is not branded Safari; Safari and mobile browsers are untested.
 
-- [ ] At the computer in `house-a`, E opens "WebTown Browser" over the room; the player does not move.
-- [ ] The page looks like a late-1990s home page: banner, side menu, framed boxes, "Under construction" strip.
-- [ ] Home, About, Projects and Links each show their content; Back, Forward and Home work; the address changes
-      (`webtown://house-a/about`) and cannot be typed into. Alt+Left and Alt+Right go back and forward.
-- [ ] The browser's own address bar and Back button are untouched by moving around the site.
-- [ ] Tab reaches every button in a sensible order and stays inside the window; focus is clearly visible; after
-      choosing a page, focus is on the page. With a screen reader the window is announced as "WebTown Browser" and the
-      page change is announced.
-- [ ] A link to another site opens in a new tab and shows its host; the original tab is not changed.
-- [ ] `?owner=house-b` (dev) makes `house-a` a visitor's view: same website, the "stored on this device only, visitors
-      on other devices can't see it" line, and no way to edit.
-- [ ] Esc and the Close button return to the room at the same spot, facing the same way; WASD, E and the door work again.
-- [ ] Open and close it twenty times; then enter and leave the house.
-- [ ] The furniture editor, the Sketchbook placeholder and the day/night cycle behave as before.
-### Website editor (P3-07)
+Manual, in a headed browser, owner `house-a`, visitor `house-b` (or `?owner=house-b`):
 
-Automated: every field, live preview identical to the visitor page, draft isolation, save and reload through
-IndexedDB, cancel and close confirmation, validation messages, contrast table, invalid addresses, save failures
-keeping the draft, and the owner/visitor import boundaries. A real-browser script also checked 1280x720, 1920x1080 and
-390x844, real typing, Enter to save, the discard question, and that a visitor never loads the editor code.
-
-Manual, in a headed browser, in `house-a`:
-
-- [ ] "Edit this website" opens the editor beside a live preview; typing changes the preview at once.
-- [ ] Each section (page, home, about, projects, links, look) saves and shows after Save, and after a page reload.
-- [ ] Add, move and remove projects and links; Add stops at 12 projects and 20 links and says why.
-- [ ] Pick each theme; change a colour (text box and the colour picker) and see "Custom colours" and the contrast table update.
-- [ ] Make text unreadable (light grey on white): the table says "Fails AA" and Save refuses with the numbers.
-- [ ] A `javascript:` or `http://` link is refused with a reason; `https://example.com:8443/` is accepted.
-- [ ] Paste far more than 60 characters into the title: nothing is cut off; the counter says "too long"; Save refuses.
-- [ ] Cancel, Close and Escape with changes ask "Discard your changes?"; Keep editing keeps them.
-- [ ] With DevTools set to offline storage / a full disk, Save shows the reason and the draft stays.
-- [ ] Tab through the whole editor; focus is always visible; a screen reader reads labels, counts and problems.
-- [ ] At a narrow width, Edit / Preview switches between the form and the page.
-- [ ] As a visitor (`?owner=house-b`), there is no Edit button; the Network panel shows no `OwnerWebsiteWindow` chunk.
+- [ ] At the computer, E opens "WebTown Browser". With nothing saved: "Nothing here yet" and, for the owner,
+      Blank website and Classic personal homepage. A visitor sees only "Nothing here yet".
+- [ ] Blank opens the Site Studio: name, status ("Not saved yet"), Save, Split / Code / Preview, Desktop / Phone,
+      Refresh, Auto, Start over, Exit; Pages, `style.css` and Images on the left; HTML editor and preview.
+- [ ] The editor highlights HTML and CSS, shows line numbers and indents new lines; Tab indents; Escape then Tab
+      leaves the editor; Ctrl+Z / Ctrl+Y undo and redo; Ctrl+F searches; Ctrl+S saves.
+- [ ] Typing updates the preview about half a second later; with Auto off, only Refresh does.
+- [ ] New page (type `about`: it becomes `about.html`), Rename, Set as homepage (star), Delete (asks; the last page
+      cannot be deleted). Unsaved pages have a dot.
+- [ ] Upload a PNG, a JPEG, an animated GIF, a WebP and an SVG (button and drag and drop): each shows as
+      `assets/<name>`; Copy path, Insert (`<img>` in HTML, `url()` in CSS); Delete warns where it is still used.
+      A text file renamed `.png`, a file over 5 MB and an unknown type are refused with a reason.
+- [ ] A link in the preview to another page switches the Studio to it; `#section` links scroll within the page.
+- [ ] Save, Exit, reload the tab, open the computer again: the website is the same. As a visitor it is the same page.
+- [ ] An external `https://` link asks "Open it in a new tab?" in WebTown's own bar; Open uses a new tab; Cancel does
+      nothing. `javascript:` and `http://` links do nothing.
+- [ ] Two tabs: save in one, then in the other: "Saved somewhere else" offers Keep editing, Load the other version
+      and Save mine anyway.
+- [ ] Close, Escape (outside the editor) or Exit with unsaved changes asks "Leave without saving?"; closing the
+      browser tab asks too.
+- [ ] Start over offers Blank or Classic and keeps the images.
+- [ ] A house with an old (form-based) website shows it converted, with a note; Open Site Studio and Save keep it;
+      the old `sites` record in DevTools > IndexedDB is unchanged.
+- [ ] Damage the `siteProjects` record in DevTools: the owner is told it can't be read and is offered a fresh start;
+      the visitor sees "This website can't be shown right now"; nothing is deleted until the owner saves.
+- [ ] In a private window with storage blocked: "Not saved: changes will be lost when you close this tab."
+- [ ] Check at 1280x720, 1920x1080 and 390x844: the window fits; the Studio stacks its panels when narrow.
 - [ ] After closing, the player is where they were and WASD, E and the door work.
-
 ## WebTown Paint (P3-12 to P3-15)
 ## Persistence and limits (P3-05, P3-11, P3-14)
 
-Automated (Vitest, fake-indexeddb): website save, load, update, reload persistence, independence between houses,
-invalid and damaged records, full disk, blocked upgrade, closed connection, owner guard, visitor reader.
+Automated (Vitest, fake-indexeddb): website projects and images saved in one transaction, reload persistence,
+independence between houses, damaged records and images, full disk, blocked upgrade, closed connection, revision
+conflicts, owner guard, visitor access without a writer, and the version 1 to 2 upgrade keeping old data.
 
-Manual, in a real browser (once the website window exists, P3-06/07):
+Manual, in a real browser:
 
 - [ ] Save a website, reload the page: it is still there, and the window says "Saved on this device only".
-- [ ] Open the same page in a different browser or device: the default site shows, not yours (3a is local).
-- [ ] In DevTools > Application > IndexedDB, edit a record to nonsense, reload: the default site shows and the owner is told.
-- [ ] In a private window (storage blocked), the window says "Not saved" and editing still works until the tab closes.
-- [ ] Open two WebTown tabs and save in both: the later save wins; no error.
-- [ ] A title of `<script>alert(1)</script>` shows as text, and a link to `http://`, `javascript:` or `https://localhost` is refused.
-- [ ] A link to `https://example.com:8443/` is accepted and opens in a new tab.
+- [ ] Open the same page in a different browser or device: your website is not there (3a is local).
+- [ ] A website name of `<script>alert(1)</script>` shows as text in WebTown's window.
 ## Regression

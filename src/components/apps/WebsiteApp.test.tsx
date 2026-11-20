@@ -3,27 +3,28 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HIDDEN_APP_VIEW, emitAppState, type AppCommand, type AppView } from '../../lib/app-bridge'
-import { resetSiteStorage, type SiteStorage } from '../../personal-spaces/composition'
-import { QuotaError, StorageError } from '../../personal-spaces/errors'
+import { createSiteStorage, resetSiteStorage, type SiteStorage } from '../../personal-spaces/composition'
+import { StorageError } from '../../personal-spaces/errors'
 import { NOT_SAVED_NOTICE, VISITOR_LOCAL_NOTICE, VISITOR_NOT_SAVED_NOTICE } from '../../personal-spaces/labels'
-import { MemorySiteRepository } from '../../personal-spaces/site-storage/memory-site-repository'
+import { blankProject } from '../../personal-spaces/site-project/templates'
 import { IdbDatabase } from '../../personal-spaces/storage/idb'
-import { STORE_SITES, WEBTOWN_DB } from '../../personal-spaces/storage/webtown-db'
+import { STORE_SITE_PROJECTS, STORE_SITES, WEBTOWN_DB } from '../../personal-spaces/storage/webtown-db'
 import { createDefaultSite } from '../../personal-spaces/website/default-site'
-import type { SiteRepository } from '../../personal-spaces/website/site-repository'
+import '../website-studio/codemirror-jsdom.test-support'
 import { AppHost } from './AppHost'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 /**
  * The website window as the game uses it: opened by an app-bridge message,
- * reading through the real storage wiring (`getSiteStorage`, IndexedDB), told who
- * the player is only by the bridge's `mode`.
+ * through the real storage wiring (`getSiteStorage`, IndexedDB), told who the
+ * player is only by the bridge's `mode`. jsdom does not load the sandbox host
+ * page, so what the page looks like is checked in the browser tests
+ * (tests/e2e); here it is the window, the data and who may do what.
  */
 
 const OWNER: AppView = { open: 'website', houseId: 'house-a', mode: 'owner' }
 const VISITOR: AppView = { open: 'website', houseId: 'house-a', mode: 'visitor' }
-const OTHER_HOUSE_VISITOR: AppView = { open: 'website', houseId: 'house-b', mode: 'visitor' }
 
 let container: HTMLDivElement
 let root: Root
@@ -49,389 +50,187 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-/**
- * Lets storage open, the owner's window load on demand, and the page load.
- * Waits until the window has been quiet for a moment (or a short time limit),
- * without guessing what the window says.
- */
+/** Lets storage open, the owner's window load on demand, and the website load. */
 const settle = async (): Promise<void> => {
   let quiet = 0
   let last = ''
-  for (let i = 0; i < 60 && quiet < 4; i++) {
+  for (let i = 0; i < 100 && quiet < 4; i++) {
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)) })
     const now = container.innerHTML
-    const busy = /Opening website|Loading website/.test(container.textContent ?? '')
+    const busy = /Opening website|Loading website|Saving\.\.\./.test(container.textContent ?? '')
     quiet = now === last && !busy ? quiet + 1 : 0
     last = now
   }
 }
 
-async function openApp(
-  view: AppView,
-  props: { sendCommand?: (c: AppCommand) => void; getSiteStorage?: () => Promise<SiteStorage>; wait?: boolean } = {},
-): Promise<void> {
+async function openApp(view: AppView, props: { sendCommand?: (c: AppCommand) => void; getSiteStorage?: () => Promise<SiteStorage> } = {}): Promise<void> {
   act(() => root.render(<AppHost sendCommand={props.sendCommand ?? vi.fn()} {...(props.getSiteStorage ? { getSiteStorage: props.getSiteStorage } : {})} />))
   act(() => emitAppState(view))
-  if (props.wait === false) await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
-  else await settle()
+  await settle()
 }
 
-const q = <T extends Element>(selector: string): T => {
-  const found = container.querySelector<T>(selector)
-  if (!found) throw new Error(`nothing matches ${selector}`)
-  return found
-}
-const has = (selector: string): boolean => container.querySelector(selector) !== null
+const text = (): string => container.textContent ?? ''
+const findButton = (name: string): HTMLButtonElement | undefined =>
+  [...container.querySelectorAll('button')].find(b =>
+    b.getAttribute('aria-label') === name || b.textContent?.trim() === name || b.querySelector('strong')?.textContent === name)
 const button = (name: string): HTMLButtonElement => {
-  const found = [...container.querySelectorAll('button')].find(
-    b => b.getAttribute('aria-label') === name || b.textContent?.trim() === name,
-  )
-  if (!found) throw new Error(`no button "${name}"`)
+  const found = findButton(name)
+  if (!found) throw new Error(`no button "${name}" in: ${text().slice(0, 300)}`)
   return found
 }
-const click = (el: HTMLElement): void => act(() => el.click())
+const click = async (el: HTMLElement): Promise<void> => {
+  act(() => el.click())
+  await settle()
+}
 
-/** The database the app itself reads: same factory, so it sees what the app saved. */
 function rawDb(): IdbDatabase {
   const db = new IdbDatabase(WEBTOWN_DB, { factory })
   connections.push(db)
   return db
 }
 
-/** Saves a website the way the owner's editor will: through the repository, into IndexedDB. */
-async function saveSite(houseId: string, title: string): Promise<void> {
-  const { createSiteStorage } = await import('../../personal-spaces/composition')
+async function seedProject(houseId: string, change: Record<string, unknown> = {}): Promise<void> {
   const storage = await createSiteStorage({ factory })
-  await storage.repository.save({ ...createDefaultSite(houseId, '2026-11-16T00:00:00.000Z'), title })
+  await storage.projects.save({ project: { ...blankProject(houseId, '2026-11-16T00:00:00.000Z'), ...change }, baseRevision: 0, putAssets: [], deleteAssetIds: [] })
   storage.close()
 }
 
-describe('the owner opens the computer', () => {
-  it('shows a complete default website when nothing has been saved', async () => {
-    await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Welcome to House A!')
-    expect(q('.wt-status').textContent).toBe('Saved on this device only.')
-    expect(has('[role="alert"]')).toBe(false)
-    for (const label of ['About', 'Projects', 'Links']) {
-      click(button(label))
-      expect(q('main').textContent!.length).toBeGreaterThan(40)
-    }
-  })
+async function seedLegacy(houseId: string, title: string): Promise<void> {
+  const storage = await createSiteStorage({ factory })
+  await storage.repository.save({ ...createDefaultSite(houseId, '2026-11-01T00:00:00.000Z'), title })
+  storage.close()
+}
 
-  it('shows what was saved earlier, from IndexedDB', async () => {
-    await saveSite('house-a', 'Saved earlier')
-    await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Saved earlier')
-  })
-
-  it('shows it again after a reload (new storage connection, same browser data)', async () => {
-    await saveSite('house-a', 'Still here after reload')
-    await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Still here after reload')
-
-    act(() => emitAppState(HIDDEN_APP_VIEW)) // close
-    await resetSiteStorage() // the page is gone; only the browser's data is left
-    await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Still here after reload')
-  })
-
-  it('opens without changing the stored data', async () => {
-    await saveSite('house-a', 'Untouched')
-    const before = await rawDb().get(STORE_SITES, 'house-a')
-    await openApp(OWNER)
-    click(button('Projects'))
-    expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(before)
-  })
-})
-
-describe('the owner edits the website through the real storage', () => {
-  /** Types into a field the way React sees it. */
-  function typeInto(id: string, value: string): void {
-    const element = q<HTMLInputElement>(`#${id}`)
-    act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value)
-      element.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-  }
-
-  it('offers Edit to the owner, and never to a visitor', async () => {
-    await openApp(OWNER)
-    expect(button('Edit this website').disabled).toBe(false)
-
-    act(() => emitAppState(HIDDEN_APP_VIEW))
+describe('a visitor', () => {
+  it('sees "nothing here yet" when the owner has not made a website, and nothing that builds one', async () => {
     await openApp(VISITOR)
-    expect([...container.querySelectorAll('button')].some(b => /edit/i.test(b.textContent ?? ''))).toBe(false)
-    expect(has('.we-editor')).toBe(false)
+    expect(text()).toContain('Nothing here yet')
+    expect(findButton('Blank website')).toBeUndefined()
+    expect(findButton('Open Site Studio')).toBeUndefined()
+    expect(container.querySelector('iframe')).toBeNull()
   })
 
-  it('saves into IndexedDB, and the website still shows it after a reload, to the owner and to a visitor', async () => {
-    await openApp(OWNER)
-    click(button('Edit this website'))
-    await settle()
-    typeInto('we-title', 'Saved through the editor')
-    typeInto('we-links-0-url', 'https://example.com:8443/')
-    click(button('Save'))
-    await settle()
-
-    expect(has('.we-editor')).toBe(false)
-    expect(q('h1').textContent).toBe('Saved through the editor')
-    const stored = (await rawDb().get(STORE_SITES, 'house-a')) as { title: string; links: Array<{ url: string }> }
-    expect(stored.title).toBe('Saved through the editor')
-    expect(stored.links[0]!.url).toBe('https://example.com:8443/')
-
-    // A reload: nothing is left of the page but the browser's data.
-    act(() => emitAppState(HIDDEN_APP_VIEW))
-    await resetSiteStorage()
-    await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Saved through the editor')
-
-    act(() => emitAppState(HIDDEN_APP_VIEW))
-    await resetSiteStorage()
+  it('sees the saved website in the sandboxed frame, with a display-only address', async () => {
+    await seedProject('house-a', { title: 'Zine' })
     await openApp(VISITOR)
-    expect(q('h1').textContent).toBe('Saved through the editor')
+    const frame = container.querySelector('iframe')!
+    expect(frame.getAttribute('sandbox')).toBe('allow-scripts')
+    expect(frame.getAttribute('src')).toMatch(/\/site-host\.html$/)
+    const address = container.querySelector<HTMLInputElement>('#wt-address-field')!
+    expect(address.value).toBe('webtown://house-a/index.html')
+    expect(address.readOnly).toBe(true)
+    expect(findButton('Open Site Studio')).toBeUndefined()
+    expect(container.querySelector('.wt-status')!.textContent).toBe(VISITOR_LOCAL_NOTICE)
   })
 
-  it('writes nothing to IndexedDB while editing, or when the draft is thrown away', async () => {
-    await saveSite('house-a', 'Before editing')
-    const before = await rawDb().get(STORE_SITES, 'house-a')
-    await openApp(OWNER)
-    click(button('Edit this website'))
-    await settle()
-    typeInto('we-title', 'Never saved')
-    expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(before)
-
-    click(button('Cancel'))
-    click(button('Discard changes'))
-    await settle()
-    expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(before)
-    expect(q('h1').textContent).toBe('Before editing')
-  })
-
-  it('repairs a damaged record when the owner saves, and the warning goes away', async () => {
-    await rawDb().put(STORE_SITES, { houseId: 'house-a', nonsense: true })
-    await openApp(OWNER)
-    expect(has('.wt-notice--problem')).toBe(true)
-
-    click(button('Edit this website'))
-    await settle()
-    typeInto('we-title', 'Repaired')
-    click(button('Save'))
-    await settle()
-    expect(q('h1').textContent).toBe('Repaired')
-    expect(has('.wt-notice--problem')).toBe(false)
-  })
-
-  it('cannot save another house’s website, even if a draft for it is forced in', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    await openApp(OWNER)
-    click(button('Edit this website'))
-    await settle()
-    // The editor offers no way to change which house it saves, so this goes through the writer's guard directly.
-    const { siteAccessFor } = await import('../../personal-spaces/composition')
-    const { getSiteStorage } = await import('../../personal-spaces/composition')
-    const access = siteAccessFor({ houseId: 'house-a', mode: 'owner' }, (await getSiteStorage()).repository)
-    if (access.mode !== 'owner') throw new Error('expected an owner')
-    await expect(access.writer.save(createDefaultSite('house-b', '2026-11-16T00:00:00.000Z'))).rejects.toThrow(/different house/)
-    expect(await rawDb().get(STORE_SITES, 'house-b')).toBeUndefined()
-  })
-})
-
-describe('a visitor opens the computer', () => {
-  it('sees the same website, read-only, with an honest note about where it is kept', async () => {
-    await saveSite('house-a', 'Owner’s page')
+  it("sees an owner's earlier website, converted, without anything being written", async () => {
+    await seedLegacy('house-a', 'Old corner')
     await openApp(VISITOR)
-    expect(q('h1').textContent).toBe('Owner’s page')
-    expect(q('.wt-status').textContent).toBe(VISITOR_LOCAL_NOTICE)
+    expect(container.querySelector('iframe')).not.toBeNull()
+    expect(text()).not.toContain('turned into HTML')
+    expect(await rawDb().getAll(STORE_SITE_PROJECTS)).toEqual([])
   })
 
-  it('can browse every page', async () => {
-    await openApp(OTHER_HOUSE_VISITOR)
-    expect(q('h1').textContent).toBe('Welcome to House B!')
-    for (const [label, heading] of [['About', 'About House B'], ['Projects', 'Projects'], ['Links', 'Links']] as const) {
-      click(button(label))
-      expect(q('main h2').textContent).toBe(heading)
-    }
-  })
-
-  it('has no way to change anything', async () => {
-    await openApp(VISITOR)
-    const names = [...container.querySelectorAll('button')].map(b => (b.getAttribute('aria-label') ?? b.textContent ?? '').toLowerCase())
-    for (const name of names) expect(name).not.toMatch(/edit|save|rename|delete|publish|upload|remove|add/)
-    expect(container.querySelectorAll('textarea, form, [contenteditable], input:not([readonly])')).toHaveLength(0)
-  })
-
-  it('never writes: nothing is saved when a visitor browses', async () => {
-    const memory = new MemorySiteRepository()
-    const save = vi.spyOn(memory, 'save')
-    const storage: SiteStorage = { repository: memory, persistent: true, notice: null, reason: null, close: () => undefined }
-    await openApp(VISITOR, { getSiteStorage: async () => storage })
-    for (const name of ['About', 'Projects', 'Links', 'Back', 'Home page']) click(button(name))
-    expect(save).not.toHaveBeenCalled()
-  })
-
-  it('is not told about a damaged record, and sees the default instead', async () => {
-    await rawDb().put(STORE_SITES, { houseId: 'house-a', nonsense: true })
-    await openApp(VISITOR)
-    expect(q('h1').textContent).toBe('Welcome to House A!')
-    expect(has('[role="alert"]')).toBe(false)
-    expect(container.textContent).not.toContain('could not be read')
-  })
-
-  it('opens nothing for a view with an unknown mode: the bridge refuses it', async () => {
-    await openApp({ ...VISITOR, mode: 'admin' as never })
-    expect(has('[role="dialog"]')).toBe(false)
-  })
-})
-
-describe('a damaged saved website', () => {
-  const damaged = { houseId: 'house-a', schemaVersion: 99, title: 'From the future' }
-
-  it('shows the owner the default website and tells them, without deleting anything', async () => {
-    await rawDb().put(STORE_SITES, damaged)
-    await openApp(OWNER)
-
-    expect(q('h1').textContent).toBe('Welcome to House A!')
-    const alert = q('[role="alert"]')
-    expect(alert.textContent).toContain('could not be read')
-    expect(alert.textContent).toContain('Nothing was deleted')
-    expect(alert.querySelectorAll('li').length).toBeGreaterThan(0)
-
-    expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(damaged) // still exactly as it was
-  })
-
-  it('goes away once the website is whole again', async () => {
-    await rawDb().put(STORE_SITES, damaged)
-    await openApp(OWNER)
-    expect(has('[role="alert"]')).toBe(true)
-
-    act(() => emitAppState(HIDDEN_APP_VIEW))
-    await saveSite('house-a', 'Repaired')
-    await resetSiteStorage()
-    await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Repaired')
-    expect(has('[role="alert"]')).toBe(false)
-  })
-
-  it('does not warn about a different house’s damaged record', async () => {
-    await rawDb().put(STORE_SITES, { houseId: 'house-b', nonsense: true })
-    await openApp(OWNER)
-    expect(has('[role="alert"]')).toBe(false)
-  })
-})
-
-describe('when browser storage is unavailable', () => {
-  it('opens anyway, from memory, and says nothing is being saved', async () => {
+  it('is told when browser storage is unavailable and the website is only in memory', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     delete (globalThis as { indexedDB?: IDBFactory }).indexedDB
-    await resetSiteStorage()
-
+    // The owner builds a website in this tab; it lives in memory only.
     await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Welcome to House A!')
-    expect(q('.wt-status').textContent).toBe(NOT_SAVED_NOTICE)
-
+    await click(button('Blank website'))
+    await click(button('Save'))
     act(() => emitAppState(HIDDEN_APP_VIEW))
-    await resetSiteStorage()
     await openApp(VISITOR)
-    expect(q('.wt-status').textContent).toBe(VISITOR_NOT_SAVED_NOTICE)
+    expect(container.querySelector('iframe')).not.toBeNull()
+    expect(container.querySelector('.wt-status')!.textContent).toBe(VISITOR_NOT_SAVED_NOTICE)
   })
 })
+describe('the owner', () => {
+  it('is offered Blank or Classic when there is nothing yet, and builds and saves a website', async () => {
+    await openApp(OWNER)
+    expect(text()).toContain('Nothing here yet')
+    expect(text()).toContain('Build your website')
+    await click(button('Blank website'))
 
-describe('when reading fails', () => {
-  function storageWith(repository: SiteRepository): SiteStorage {
-    return { repository, persistent: true, notice: null, reason: null, close: () => undefined }
-  }
+    expect(text()).toContain('Site Studio')
+    expect(text()).toContain('Not saved yet')
+    expect(text()).toContain('index.html')
+    expect(text()).toContain('style.css')
+    await click(button('Save'))
+    expect(text()).toContain('Saved on this device only.')
 
-  it('shows the reason and lets the user try again', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const memory = new MemorySiteRepository()
-    const load = vi.spyOn(memory, 'load')
-    load.mockRejectedValueOnce(new QuotaError())
-    await openApp(OWNER, { getSiteStorage: async () => storageWith(memory) })
+    const stored = await rawDb().get(STORE_SITE_PROJECTS, 'house-a') as { revision: number; origin: { kind: string } }
+    expect(stored.revision).toBe(1)
+    expect(stored.origin.kind).toBe('blank')
 
-    expect(q('[role="alert"]').textContent).toContain('could not be opened')
-    expect(q('[role="alert"]').textContent).toContain("There isn't enough storage space")
-    expect(has('main')).toBe(false)
-
-    click(button('Try again'))
-    await settle()
-    expect(has('[role="alert"]')).toBe(false)
-    expect(q('h1').textContent).toBe('Welcome to House A!')
-    expect(load).toHaveBeenCalledTimes(2)
+    await click(button('Exit'))
+    expect(findButton('Open Site Studio')).toBeDefined()
+    expect(container.querySelector('iframe')).not.toBeNull()
   })
 
-  it('says so when storage cannot be opened at all, and can still be closed', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  it('can start from the classic homepage', async () => {
+    await openApp(OWNER)
+    await click(button('Classic personal homepage'))
+    for (const page of ['index.html', 'about.html', 'projects.html', 'links.html']) expect(text()).toContain(page)
+  })
+
+  it('opens an earlier website converted, and saving keeps the earlier record untouched', async () => {
+    await seedLegacy('house-a', 'Old corner')
+    const before = await rawDb().get(STORE_SITES, 'house-a')
+    await openApp(OWNER)
+    expect(text()).toContain('turned into HTML and CSS')
+    await click(button('Open Site Studio'))
+    expect(text()).toContain('Not saved yet')
+    expect(container.querySelector<HTMLInputElement>('.ws-field input')!.value).toBe('Old corner')
+    await click(button('Save'))
+    const stored = await rawDb().get(STORE_SITE_PROJECTS, 'house-a') as { origin: { kind: string }; pages: unknown[] }
+    expect(stored.origin.kind).toBe('migrated')
+    expect(stored.pages).toHaveLength(4)
+    expect(await rawDb().get(STORE_SITES, 'house-a')).toEqual(before)
+  })
+
+  it('reopens a saved website in the Studio, clean', async () => {
+    await seedProject('house-a', { css: 'body { display: grid }' })
+    await openApp(OWNER)
+    await click(button('Open Site Studio'))
+    expect(text()).toContain('Saved')
+    expect(button('Save').disabled).toBe(true)
+  })
+
+  it('asks before closing the Studio with unsaved changes', async () => {
     const sendCommand = vi.fn()
-    await openApp(OWNER, { sendCommand, getSiteStorage: async () => { throw new StorageError() } })
-    expect(q('[role="alert"]').textContent).toContain('could not open its storage')
-    click(button('Close'))
+    await openApp(OWNER, { sendCommand })
+    await click(button('Blank website'))
+    await click(button('Close'))
+    expect(text()).toContain('Leave without saving?')
+    expect(sendCommand).not.toHaveBeenCalled()
+    await click(button('Keep editing'))
+    expect(text()).toContain('Site Studio')
+    await click(button('Close'))
+    await click(button('Leave without saving'))
     expect(sendCommand).toHaveBeenCalledWith({ type: 'close' })
   })
 
-  it('shows a short opening message while storage starts', async () => {
-    let finish!: (storage: SiteStorage) => void
-    await openApp(OWNER, { wait: false, getSiteStorage: () => new Promise(resolve => { finish = resolve }) })
-    expect(q('[role="status"]').textContent).toContain('Opening website')
-    await act(async () => finish(storageWith(new MemorySiteRepository())))
-    await settle()
-    expect(q('h1').textContent).toBe('Welcome to House A!')
+  it('is told saves last only for this tab when storage is unavailable', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    delete (globalThis as { indexedDB?: IDBFactory }).indexedDB
+    await openApp(OWNER)
+    await click(button('Blank website'))
+    expect(text()).toContain(NOT_SAVED_NOTICE)
+    await click(button('Save'))
+    expect(text()).toContain('Saved for this tab only')
+  })
+
+  it("never sees another house's website as theirs", async () => {
+    await seedProject('house-b', { title: 'B site' })
+    await openApp(OWNER)
+    expect(text()).toContain('Nothing here yet')
   })
 })
 
-describe('closing the website and returning to the game', () => {
-  it('asks Phaser to close from the Close button and from Escape, and only that', async () => {
-    const sendCommand = vi.fn()
-    await openApp(OWNER, { sendCommand })
-    click(button('Close'))
-    act(() => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
-    expect(sendCommand.mock.calls).toEqual([[{ type: 'close' }], [{ type: 'close' }]])
-  })
-
-  it('goes away when Phaser reports the app closed, and gives focus back', async () => {
-    const before = document.createElement('button')
-    document.body.appendChild(before)
-    before.focus()
-
-    await openApp(OWNER)
-    expect(has('[role="dialog"]')).toBe(true)
-
-    act(() => emitAppState(HIDDEN_APP_VIEW))
-    expect(container.innerHTML).toBe('')
-    expect(document.activeElement).toBe(before)
-    before.remove()
-  })
-
-  it('opens fresh next time: no leftover page, history or error', async () => {
-    await openApp(OWNER)
-    click(button('Links'))
-    expect(q('main h2').textContent).toBe('Links')
-
-    act(() => emitAppState(HIDDEN_APP_VIEW))
-    await openApp(OWNER)
-    expect(q('main h2').textContent).toBe('Welcome!')
-    expect(button('Back').disabled).toBe(true)
-  })
-
-  it('opens the other house’s website when the view changes', async () => {
-    await openApp(OWNER)
-    expect(q('h1').textContent).toBe('Welcome to House A!')
-    act(() => emitAppState(OTHER_HOUSE_VISITOR))
-    await settle()
-    expect(q('h1').textContent).toBe('Welcome to House B!')
-    expect(q('.wt-status').textContent).toBe(VISITOR_LOCAL_NOTICE)
-  })
-
-  it('leaves no storage connection or listener behind when closed repeatedly', async () => {
-    for (let i = 0; i < 10; i++) {
-      await openApp(OWNER)
-      act(() => emitAppState(HIDDEN_APP_VIEW))
-    }
-    expect(container.innerHTML).toBe('')
-  })
-
-  it('leaves the Sketchbook alone: it still opens its own window', async () => {
-    await openApp({ open: 'paint', houseId: 'house-a', mode: 'owner' })
-    expect(q('[role="dialog"]').textContent).toContain('Sketchbook')
-    expect(has('.wt-window')).toBe(false)
+describe('when storage cannot be opened at all', () => {
+  it('says so and does not crash', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await openApp(OWNER, { getSiteStorage: () => Promise.reject(new StorageError()) })
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain('could not open its storage')
   })
 })

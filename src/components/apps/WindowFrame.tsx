@@ -3,8 +3,8 @@ import { useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent, typ
 interface WindowFrameProps {
   title: string
   onClose: () => void
-  /** 'compact' is a small dialog; 'wide' fills most of the screen, for apps with their own layout. */
-  size?: 'compact' | 'wide'
+  /** 'compact' is a small dialog; 'wide' fills most of the screen, for apps with their own layout; 'full' nearly all of it. */
+  size?: 'compact' | 'wide' | 'full'
   children: ReactNode
 }
 
@@ -76,7 +76,7 @@ export function WindowFrame({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        style={size === 'wide' ? { ...styles.window, ...styles.windowWide } : styles.window}
+        style={size === 'compact' ? styles.window : { ...styles.window, ...(size === 'full' ? styles.windowFull : styles.windowWide) }}
         onKeyDown={trapTab}
       >
         <div style={styles.titleBar}>
@@ -85,7 +85,7 @@ export function WindowFrame({
             <span aria-hidden="true">x</span>
           </button>
         </div>
-        <div style={size === 'wide' ? { ...styles.body, ...styles.bodyWide } : styles.body}>{children}</div>
+        <div style={size === 'compact' ? styles.body : { ...styles.body, ...styles.bodyWide }}>{children}</div>
       </div>
     </div>
   )
@@ -118,6 +118,12 @@ const styles = {
     width: 'min(1040px, 96vw)',
     height: 'min(720px, 92vh)',
     maxHeight: '92vh',
+  },
+  // For work that needs room, such as the Site Studio. Still never larger than the viewport.
+  windowFull: {
+    width: 'min(1600px, 98vw)',
+    height: '96vh',
+    maxHeight: '96vh',
   },
   titleBar: {
     display: 'flex',

@@ -2,11 +2,15 @@ import type { AppView } from '../lib/app-bridge'
 import { IdbDatabase, type IdbOptions } from './storage/idb'
 import { WEBTOWN_DB } from './storage/webtown-db'
 import { LOCAL_ONLY_LABEL, NOT_SAVED_NOTICE } from './labels'
-import { guardSiteWriter } from './site-storage/guarded-site-writer'
 import { IndexedDbSiteRepository } from './site-storage/indexeddb-site-repository'
 import { MemorySiteRepository, type SiteRepositoryOptions } from './site-storage/memory-site-repository'
-import type { SiteLoadReport } from './site-storage/site-record'
-import type { SiteReader, SiteRepository, SiteWriter } from './website/site-repository'
+import { systemClock, type Clock, type SiteLoadReport } from './site-storage/site-record'
+import { guardProjectWriter } from './site-project-storage/guarded-project-writer'
+import { IndexedDbProjectRepository } from './site-project-storage/indexeddb-project-repository'
+import { MemoryProjectRepository } from './site-project-storage/memory-project-repository'
+import type { SiteProjectRepository, SiteProjectWriter } from './site-project-storage/project-repository'
+import { resolveWebsite, type LegacySiteSource, type WebsiteState } from './site-project-storage/resolve-website'
+import type { SiteRepository } from './website/site-repository'
 
 /**
  * The one place that decides which storage the interface uses and what each
@@ -19,7 +23,10 @@ import type { SiteReader, SiteRepository, SiteWriter } from './website/site-repo
 export { LOCAL_ONLY_LABEL, NOT_SAVED_NOTICE }
 
 export interface SiteStorage {
-  repository: SiteRepository
+  /** The old structured websites (version 1). Read for migration; written only by the old editor. */
+  repository: SiteRepository & LegacySiteSource
+  /** HTML/CSS websites. */
+  projects: SiteProjectRepository
   /** False when the browser's storage is unusable and nothing survives a reload. */
   persistent: boolean
   /** Why storage is not persistent, for a banner; null when it is. */
@@ -49,6 +56,7 @@ export async function createSiteStorage(options: SiteStorageOptions = {}): Promi
     db.close()
     return {
       repository: new MemorySiteRepository(repositoryOptions),
+      projects: new MemoryProjectRepository({ now: repositoryOptions.now }),
       persistent: false,
       notice: NOT_SAVED_NOTICE,
       reason: error instanceof Error ? error : new Error(String(error)),
@@ -58,6 +66,7 @@ export async function createSiteStorage(options: SiteStorageOptions = {}): Promi
 
   return {
     repository: new IndexedDbSiteRepository(db, repositoryOptions),
+    projects: new IndexedDbProjectRepository(db, { now: repositoryOptions.now }),
     persistent: true,
     notice: null,
     reason: null,
@@ -65,44 +74,43 @@ export async function createSiteStorage(options: SiteStorageOptions = {}): Promi
   }
 }
 
-// ── Who gets what ───────────────────────────────────────────────────────────
+// ── HTML/CSS websites: who gets what ────────────────────────────────────────
 
-/** A visitor is given the means to read, and nothing else. There is no `writer` to find. */
-export interface VisitorSiteAccess {
+/** A visitor can look at the website and do nothing else. There is no writer to find. */
+export interface VisitorWebsiteAccess {
   mode: 'visitor'
-  reader: SiteReader
+  houseId: string
+  open(): Promise<WebsiteState>
 }
 
-/** The owner also gets a writer that only writes the house the window was opened for. */
-export interface OwnerSiteAccess {
+/** The owner can also save, but only this house's website. */
+export interface OwnerWebsiteAccess {
   mode: 'owner'
-  reader: SiteReader
-  writer: SiteWriter
+  houseId: string
+  open(): Promise<WebsiteState>
+  writer: SiteProjectWriter
 }
 
-export type SiteAccess = VisitorSiteAccess | OwnerSiteAccess
+export type WebsiteAccess = VisitorWebsiteAccess | OwnerWebsiteAccess
 
 /**
- * What a window may do with websites, from the answer the app bridge already
- * gave (`AppView.mode`, decided by Phaser from `canEditHouse`). There is no
- * second ownership check.
- *
- * For a visitor, no writer is created at all, and the reader is a plain
- * object with a `load` method, not the repository, so a `save` is not even
- * present to be reached by mistake. Anything other than exactly `owner` is a
- * visitor.
- *
- * Phase 3a: this prevents mistakes; browser developer tools can bypass it.
+ * What a website window may do, from the app bridge's answer (AppView.mode).
+ * Anything other than exactly owner is a visitor, and a visitor is given no
+ * writer at all. Phase 3a: this prevents mistakes; developer tools can bypass it.
  */
-export function siteAccessFor(
+export function websiteAccessFor(
   view: Pick<AppView, 'houseId' | 'mode'>,
-  repository: SiteRepository,
-): SiteAccess {
-  const reader: SiteReader = { load: houseId => repository.load(houseId) }
-  if (view.mode !== 'owner') return { mode: 'visitor', reader }
+  storage: Pick<SiteStorage, 'repository' | 'projects'>,
+  now: Clock = systemClock,
+): WebsiteAccess {
+  const houseId = view.houseId
+  const projects = { load: (id: string) => storage.projects.load(id) }
+  const legacy: LegacySiteSource = { loadWithReport: id => storage.repository.loadWithReport(id) }
+  const open = (): Promise<WebsiteState> => resolveWebsite(houseId, { projects, legacy, now })
+  if (view.mode !== 'owner') return { mode: 'visitor', houseId, open }
 
-  const writer: SiteWriter = { save: site => repository.save(site) }
-  return { mode: 'owner', reader, writer: guardSiteWriter(writer, { houseId: view.houseId, mode: view.mode }) }
+  const writer: SiteProjectWriter = { save: save => storage.projects.save(save) }
+  return { mode: 'owner', houseId, open, writer: guardProjectWriter(writer, { houseId, mode: view.mode }) }
 }
 
 // ── The shared instance ─────────────────────────────────────────────────────

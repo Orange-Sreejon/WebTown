@@ -105,6 +105,72 @@ export class IdbDatabase {
     this.db = null
   }
 
+  /**
+   * One transaction over several stores, all or nothing. `body` issues its
+   * requests synchronously or from request callbacks (IndexedDB commits a
+   * transaction as soon as it has nothing pending), then calls `done(value)`.
+   * Calling `abort(error)` rolls everything back and rejects with that error.
+   * Resolves only once the transaction has committed.
+   */
+  async atomic<T>(
+    stores: readonly string[],
+    body: (tx: IDBTransaction, done: (value: T) => void, abort: (error: PersonalSpacesError) => void) => void,
+  ): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      const db = await this.open()
+      try {
+        return await new Promise<T>((resolve, reject) => {
+          let tx: IDBTransaction
+          try {
+            tx = db.transaction([...stores], 'readwrite')
+          } catch (error) {
+            reject(errorName(error) === 'InvalidStateError' ? new ConnectionClosed() : mapIdbError(error))
+            return
+          }
+          let value: T | undefined
+          let finished = false
+          let reason: PersonalSpacesError | null = null
+          tx.oncomplete = (): void => {
+            if (finished) resolve(value as T)
+            else reject(new StorageError('The save did not finish. Please try again.'))
+          }
+          tx.onerror = (event): void => {
+            // A request failed: let the transaction abort and report through onabort.
+            event.preventDefault?.()
+            if (!reason) reason = mapIdbError((event.target as IDBRequest | null)?.error ?? tx.error)
+            try { tx.abort() } catch { /* already finishing */ }
+          }
+          tx.onabort = (): void => reject(reason ?? mapIdbError(tx.error))
+          try {
+            body(
+              tx,
+              result => { finished = true; value = result },
+              error => {
+                reason = error
+                try { tx.abort() } catch { /* already finishing */ }
+              },
+            )
+          } catch (error) {
+            reason = mapIdbError(error)
+            try { tx.abort() } catch { /* already finishing */ }
+          }
+        })
+      } catch (error) {
+        if (error instanceof ConnectionClosed && attempt === 0) {
+          if (this.db === db) this.db = null
+          try { db.close() } catch { /* already closed */ }
+          continue
+        }
+        throw error instanceof ConnectionClosed ? new StorageError(undefined, error) : error
+      }
+    }
+  }
+
+  /** Every value in a store whose `index` equals `key`. Untrusted. */
+  async getAllByIndex(store: string, index: string, key: IDBValidKey): Promise<unknown[]> {
+    return (await this.transact(store, 'readonly', s => s.index(index).getAll(key))) as unknown[]
+  }
+
   // ── Opening ──────────────────────────────────────────────────────────────
 
   private open(): Promise<IDBDatabase> {
