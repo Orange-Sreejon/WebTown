@@ -44,12 +44,16 @@ npm-debug.log*
 TILESET VILLAGE TOP DOWN/
 tiny_cast_village_folk_v1.0/
 
-# Interior art (work*.png, insp*, Interior1.tmx): source and licence UNVERIFIED.
-# Must not be committed or published until redistribution permission is confirmed
-# or the files are replaced. The game loads them lazily and falls back to a
-# placeholder room when they are absent, so a clone stays playable.
+# Interior art. The three sheets the game loads at runtime (work.png, work3.png,
+# work4.png) are committed: the project owner confirmed the redistribution rights,
+# so a clone shows the real room instead of the placeholder.
+# Everything else in this folder (insp*, work2.png, Interior1.tmx) is unverified
+# reference material and stays local-only.
 # See docs/ASSETS.md "Asset Pack 7".
-public/assets/interior/
+public/assets/interior/*
+!public/assets/interior/work.png
+!public/assets/interior/work3.png
+!public/assets/interior/work4.png
 
 # Screenshots of the interior art (unverified licence) - never commit.
 /previews/

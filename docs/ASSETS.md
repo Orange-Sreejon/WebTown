@@ -420,42 +420,45 @@ matters when deploying to a case-sensitive server.
 
 ---
 
-## Asset Pack 7 - INTERIOR ART (Phase 2, Milestone 0 — UNVERIFIED)
+## Asset Pack 7 - INTERIOR ART (Phase 2, Milestone 0 — COMMITTED)
 
-**Provenance and licence of every file in this section are unknown.** No licence
-file was supplied. Do not publish these files, and do not ship a release that
-uses them, until the source and terms are recorded here.
+**The project owner has confirmed the redistribution rights for the three sheets
+the game loads.** They are committed so a fresh clone renders the real room
+instead of the placeholder. Everything else in the folder (`insp*`, `work2.png`,
+`Interior1.tmx`) is unverified reference material, is not used by the game, and
+stays gitignored/local-only.
 
 Location: `public/assets/interior/`
 
 | File | Size | Used for | Notes |
 |------|------|----------|-------|
-| `work3.png` | 288×64 | Walls, floor, door, desk-top items | Regular 16px grid. Floor and brick wall tile in 32×32 blocks; door is 32×64. |
-| `work4.png` | 675×672 | Bookshelves, windows, tables, chair, rugs, beds, doors | Irregular sprite sizes on a 16px-aligned layout. Transparent background. |
-| `work.png` | 1774×887 | Computers on desks, monitors, books, notebooks | **Opaque near-black ground** (RGB 1,0,0) and much higher resolution than the rest. Keyed and area-averaged down at load time (`maps/sprite-prep.ts`). |
-| `work2.png` | 224×432 | Not yet used | Identical bytes to the earlier `Interior.png`; different from the Farm RPG pack's `Interior.png`. |
-| `insp1.png`, `insp2.png`, `insp3.jpg` | — | Visual reference only | Never loaded by the game. |
-| `Interior1.tmx` | — | Not used | References `walls_floor.png` and `Doors_windows_animation.png`, which are not in the repo. No Tiled pipeline in this project. |
+| `work3.png` | 288×64 | Walls, floor, door, desk-top items | Regular 16px grid. Floor and brick wall tile in 32×32 blocks; door is 32×64. **Committed.** |
+| `work4.png` | 675×672 | Bookshelves, windows, tables, chair, rugs, beds, doors | Irregular sprite sizes on a 16px-aligned layout. Transparent background. **Committed.** |
+| `work.png` | 1774×887 | Computers on desks, monitors, books, notebooks | **Opaque near-black ground** (RGB 1,0,0) and much higher resolution than the rest. Keyed and area-averaged down at load time (`maps/sprite-prep.ts`). **Committed.** |
+| `work2.png` | 224×432 | Not yet used | Identical bytes to the earlier `Interior.png`; different from the Farm RPG pack's `Interior.png`. Local-only, gitignored. |
+| `insp1.png`, `insp2.png`, `insp3.jpg` | — | Visual reference only | Never loaded by the game. Local-only, gitignored. |
+| `Interior1.tmx` | — | Not used | References `walls_floor.png` and `Doors_windows_animation.png`, which are not in the repo. No Tiled pipeline in this project. Local-only, gitignored. |
 
 Slice rectangles for each sprite are in `src/game/maps/interior-slices.ts`.
 
 ### How the game uses them
 
 - Loaded **lazily** by `InteriorScene.preload`, never by `BootScene`.
-- If the files are missing — as in a fresh clone, because this folder is
-  ignored — the house still opens: the room is drawn as a **placeholder**
-  (floor, wall and coloured furniture blocks sized by the real layout), so the
-  player can walk, use the computer and the notebook. Editing is disabled in
-  that mode because the furniture catalogue shows these sheets. The real art is
-  used automatically whenever the folder is present.
+- The three sheets ship in the repo, so a clone loads the real art. If they are
+  ever missing (deleted, renamed, or none of the loaders succeed), the house
+  still opens: the room is drawn as a **placeholder** (floor, wall and coloured
+  furniture blocks sized by the real layout), so the player can walk, use the
+  computer and the notebook instead of dropping back to town. Editing is
+  disabled in that mode because the furniture catalogue shows these sheets.
 - `work.png` sprites (computer desk, notebook, book stack) are cropped, keyed
   and area-averaged at runtime; no derived image is written to disk. The
   computer is always 48px wide.
-- `public/assets/interior/` is listed in `.gitignore`, so none of these files
-  can be committed by accident. Remove that rule only once redistribution
-  permission is confirmed or the files are replaced.
+- `.gitignore` ignores `public/assets/interior/*` but re-includes the three
+  runtime sheets, so the unverified reference files cannot be committed by
+  accident.
 - They are inside `public/`, so `npm run build` copies them into `dist/`.
-  **Do not deploy a build publicly** while their status is unverified.
+- If the committed sheets are ever replaced with different art, update this
+  section with the new source and terms in the same commit.
 
 ### Milestone 0 visual test
 
