@@ -129,6 +129,10 @@ images, CodeMirror 6 editor). The items below are kept for the record and are no
 
 Paint (P3-08 onwards) is independent of this work and can follow or interleave. Both use database `webtown`;
 the version-2 upgrade in S-05 already contains the `artworks` store, so P3-11 needs no further version.
+**P3-08 to P3-16 are replaced by `.kiro/specs/sketchbook-paint/` (K-01 to K-08, done): white 640 x 480 canvas,
+Attributes, text and airbrush, autosave, View and Colors menus. The items below are kept for the record. P3-17's
+accessibility pass and manual checklist remain open.**
+
 ### Paint engine (pure, no React)
 
 - [ ] **P3-08** `pixel-buffer`, `stamp`, `line`, with clipping and gap tests.

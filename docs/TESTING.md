@@ -327,10 +327,44 @@ Manual, in a headed browser, owner `house-a`, visitor `house-b` (or `?owner=hous
 - [ ] In a private window with storage blocked: "Not saved: changes will be lost when you close this tab."
 - [ ] Check at 1280x720, 1920x1080 and 390x844: the window fits; the Studio stacks its panels when narrow.
 - [ ] After closing, the player is where they were and WASD, E and the door work.
-## WebTown Paint (P3-12 to P3-15)
+## Sketchbook: WebTown Paint (`.kiro/specs/sketchbook-paint/`)
+
+Automated in Vitest: every drawing operation pixel by pixel (strokes without gaps, brush discs, clipping, rectangles
+and ellipses in all fill styles, an ellipse outline that Fill cannot leak through, flood fill on 1280 x 1024,
+airbrush, text masks), Shift snapping, pointer-to-pixel at several zooms, history limits, the paint session for every
+tool (preview, cancel, undo / redo, resize), artwork storage (contract on memory and IndexedDB, 50-drawing limit,
+house isolation, damaged records, full disk), the guard and visitor access, the Paint window with a test codec
+(tools, options, palette, menus by mouse and keyboard, dialogs, autosave, close and save failure, New / Open / Rename /
+Delete, export, Escape), the visitor's viewer and the import boundary.
+
+Automated in real browsers (`npm run test:e2e`, Chromium, Firefox and WebKit), with the real game: enter house-a, stand
+at the notebook, see `E: Open Sketchbook`, press E; held movement keys do not move the player and Phaser's keyboard
+is off; draw with every tool and check pixels; colours, sizes, undo / redo, clear, 200% and a small window; Export
+PNG; close (player in place, can walk); reopen; reload; as another house's owner the drawing is view only, that
+house starts blank, and house-a's drawing is unchanged.
+
+Manual, in a headed browser (1280x720, 1920x1080, 390x844):
+
+- [ ] At the notebook, E opens "Untitled - WebTown Paint" over the room: blue title bar, File Edit View Image Colors
+      Help, the toolbox on the left with its options box, the colour box and the status bar.
+- [ ] Each tool draws as its tooltip says; the pressed tool is obvious; the status bar shows the pointer position and
+      the size; right-click on a swatch sets the background colour and right-drag draws with it.
+- [ ] Fast scribbles have no gaps; a stroke that leaves the canvas and comes back continues; nothing is drawn outside.
+- [ ] Shift makes straight lines, squares and circles; Fill fills exactly the enclosed area.
+- [ ] Text: click, type several lines, click outside to place it; Escape cancels the box only.
+- [ ] Image > Attributes: 320 x 200 transparent shows the checkerboard; Eraser makes transparency; Undo restores.
+- [ ] View > Zoom 200% and 400% keep the pixels crisp and the pointer exact; Zoom to Fit fits a small window.
+- [ ] Wait two seconds after drawing: the status bar says "Saved on this device only". Close and reopen, and reload
+      the page: the drawing is still there.
+- [ ] File > New keeps the old drawing (File > Open shows both); Rename changes the title bar; Delete asks first.
+- [ ] Export PNG downloads the picture at its real size; a transparent canvas stays transparent in the file.
+- [ ] Escape mid-stroke cancels the stroke; Escape otherwise closes (after saving); menus close with Escape alone.
+- [ ] As a visitor (`?owner=house-b` in house-a), the Sketchbook is view only: Previous / Next, Export, nothing to edit.
+- [ ] With storage blocked (private window), the status bar says the drawing is kept until the tab closes.
+- [ ] After closing, the player is where they were and WASD, E and the door work.
 ## Persistence and limits (P3-05, P3-11, P3-14)
 
-Automated (Vitest, fake-indexeddb): website projects and images saved in one transaction, reload persistence,
+Automated (Vitest, fake-indexeddb): drawings per house with the 50 limit, website projects and images saved in one transaction, reload persistence,
 independence between houses, damaged records and images, full disk, blocked upgrade, closed connection, revision
 conflicts, owner guard, visitor access without a writer, and the version 1 to 2 upgrade keeping old data.
 

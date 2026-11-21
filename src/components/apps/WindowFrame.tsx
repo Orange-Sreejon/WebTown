@@ -5,6 +5,12 @@ interface WindowFrameProps {
   onClose: () => void
   /** 'compact' is a small dialog; 'wide' fills most of the screen, for apps with their own layout; 'full' nearly all of it. */
   size?: 'compact' | 'wide' | 'full'
+  /** Fills the whole viewport (an app's Maximise button). */
+  maximised?: boolean
+  /** The app draws its own title bar and window buttons; `title` is still its accessible name. */
+  bare?: boolean
+  /** False when the app handles Escape itself (for example to cancel a stroke first). */
+  closeOnEscape?: boolean
   children: ReactNode
 }
 
@@ -23,12 +29,17 @@ export function WindowFrame({
   title,
   onClose,
   size = 'compact',
+  maximised = false,
+  bare = false,
+  closeOnEscape = true,
   children,
 }: WindowFrameProps): React.ReactElement {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const closeOnEscapeRef = useRef(closeOnEscape)
+  closeOnEscapeRef.current = closeOnEscape
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -36,7 +47,7 @@ export function WindowFrame({
 
     // On the document, not the dialog, so Escape works wherever focus is.
     const onDocumentKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !event.defaultPrevented) {
+      if (event.key === 'Escape' && !event.defaultPrevented && closeOnEscapeRef.current) {
         event.preventDefault()
         onCloseRef.current()
       }
@@ -74,17 +85,20 @@ export function WindowFrame({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-labelledby={bare ? undefined : titleId}
+        aria-label={bare ? title : undefined}
         tabIndex={-1}
-        style={size === 'compact' ? styles.window : { ...styles.window, ...(size === 'full' ? styles.windowFull : styles.windowWide) }}
+        style={maximised
+          ? { ...styles.window, ...styles.windowMaximised }
+          : size === 'compact' ? styles.window : { ...styles.window, ...(size === 'full' ? styles.windowFull : styles.windowWide) }}
         onKeyDown={trapTab}
       >
-        <div style={styles.titleBar}>
+        {!bare && <div style={styles.titleBar}>
           <span id={titleId} style={styles.title}>{title}</span>
           <button type="button" style={styles.closeButton} onClick={onClose} aria-label="Close">
             <span aria-hidden="true">x</span>
           </button>
-        </div>
+        </div>}
         <div style={size === 'compact' ? styles.body : { ...styles.body, ...styles.bodyWide }}>{children}</div>
       </div>
     </div>
@@ -124,6 +138,12 @@ const styles = {
     width: 'min(1600px, 98vw)',
     height: '96vh',
     maxHeight: '96vh',
+  },
+  windowMaximised: {
+    width: '100vw',
+    height: '100vh',
+    maxHeight: '100vh',
+    border: 0,
   },
   titleBar: {
     display: 'flex',
