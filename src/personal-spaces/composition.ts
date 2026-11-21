@@ -11,6 +11,10 @@ import { MemoryProjectRepository } from './site-project-storage/memory-project-r
 import type { SiteProjectRepository, SiteProjectWriter } from './site-project-storage/project-repository'
 import { resolveWebsite, type LegacySiteSource, type WebsiteState } from './site-project-storage/resolve-website'
 import type { SiteRepository } from './website/site-repository'
+import type { ArtworkReader, ArtworkRepository, ArtworkWriter } from './artwork-storage/artwork-repository'
+import { guardArtworkWriter } from './artwork-storage/guarded-artwork-writer'
+import { IndexedDbArtworkRepository } from './artwork-storage/indexeddb-artwork-repository'
+import { MemoryArtworkRepository } from './artwork-storage/memory-artwork-repository'
 
 /**
  * The one place that decides which storage the interface uses and what each
@@ -27,6 +31,8 @@ export interface SiteStorage {
   repository: SiteRepository & LegacySiteSource
   /** HTML/CSS websites. */
   projects: SiteProjectRepository
+  /** Sketchbook drawings. */
+  artworks: ArtworkRepository
   /** False when the browser's storage is unusable and nothing survives a reload. */
   persistent: boolean
   /** Why storage is not persistent, for a banner; null when it is. */
@@ -57,6 +63,7 @@ export async function createSiteStorage(options: SiteStorageOptions = {}): Promi
     return {
       repository: new MemorySiteRepository(repositoryOptions),
       projects: new MemoryProjectRepository({ now: repositoryOptions.now }),
+      artworks: new MemoryArtworkRepository({ now: repositoryOptions.now }),
       persistent: false,
       notice: NOT_SAVED_NOTICE,
       reason: error instanceof Error ? error : new Error(String(error)),
@@ -67,6 +74,7 @@ export async function createSiteStorage(options: SiteStorageOptions = {}): Promi
   return {
     repository: new IndexedDbSiteRepository(db, repositoryOptions),
     projects: new IndexedDbProjectRepository(db, { now: repositoryOptions.now }),
+    artworks: new IndexedDbArtworkRepository(db, { now: repositoryOptions.now }),
     persistent: true,
     notice: null,
     reason: null,
@@ -111,6 +119,39 @@ export function websiteAccessFor(
 
   const writer: SiteProjectWriter = { save: save => storage.projects.save(save) }
   return { mode: 'owner', houseId, open, writer: guardProjectWriter(writer, { houseId, mode: view.mode }) }
+}
+
+// ── Sketchbook drawings: who gets what ──────────────────────────────────────
+
+/** A visitor can look at the house's drawings and nothing else. */
+export interface VisitorPaintAccess {
+  mode: 'visitor'
+  houseId: string
+  reader: ArtworkReader
+}
+
+/** The owner can also save and delete, but only this house's drawings. */
+export interface OwnerPaintAccess {
+  mode: 'owner'
+  houseId: string
+  reader: ArtworkReader
+  writer: ArtworkWriter
+}
+
+export type PaintAccess = VisitorPaintAccess | OwnerPaintAccess
+
+/**
+ * What a Sketchbook window may do, from the app bridge's answer. Anything other
+ * than exactly owner is a visitor, and a visitor is given no writer at all:
+ * the reader is a plain object, not the repository. Phase 3a: client-side only.
+ */
+export function paintAccessFor(view: Pick<AppView, 'houseId' | 'mode'>, storage: Pick<SiteStorage, 'artworks'>): PaintAccess {
+  const houseId = view.houseId
+  const repo = storage.artworks
+  const reader: ArtworkReader = { list: id => repo.list(id), get: (id, artworkId) => repo.get(id, artworkId) }
+  if (view.mode !== 'owner') return { mode: 'visitor', houseId, reader }
+  const writer: ArtworkWriter = { save: input => repo.save(input), delete: (id, artworkId) => repo.delete(id, artworkId) }
+  return { mode: 'owner', houseId, reader, writer: guardArtworkWriter(writer, { houseId, mode: view.mode }) }
 }
 
 // ── The shared instance ─────────────────────────────────────────────────────

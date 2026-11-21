@@ -1,0 +1,620 @@
+/*
+ * WebTown Paint: a late-1990s desktop paint program. Grey surfaces, bevelled
+ * buttons, a navy title bar. Static CSS for WebTown's own chrome only; the
+ * picture itself is pixels on the canvas.
+ */
+
+.pt-window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #c0c0c0;
+  color: #000;
+  font: 12px Tahoma, Verdana, Geneva, sans-serif;
+  user-select: none;
+}
+
+/* ── Title bar ──────────────────────────────────────────────────────────── */
+
+.pt-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 3px;
+  color: #fff;
+  background: linear-gradient(90deg, #000080, #1084d0);
+  font-weight: bold;
+}
+.pt-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pt-winbtns {
+  display: flex;
+  gap: 2px;
+}
+.pt-winbtns .pt-winbtn--close {
+  margin-left: 2px;
+}
+.pt-winbtn {
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  font: bold 11px/1 Tahoma, Verdana, sans-serif;
+  color: #000;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  cursor: pointer;
+}
+.pt-winbtn[aria-disabled="true"] {
+  color: #808080;
+  cursor: default;
+}
+.pt-winbtn:active:not([aria-disabled="true"]) {
+  border-color: #404040 #fff #fff #404040;
+}
+
+/* ── Menus ──────────────────────────────────────────────────────────────── */
+
+.pt-menubar {
+  display: flex;
+  padding: 1px 2px;
+  border-bottom: 1px solid #808080;
+}
+.pt-menu {
+  position: relative;
+}
+.pt-menu-title {
+  padding: 2px 7px;
+  font: inherit;
+  color: #000;
+  background: none;
+  border: 1px solid transparent;
+  cursor: default;
+}
+.pt-menu-title:hover,
+.pt-menu-title:focus-visible {
+  border-color: #fff #808080 #808080 #fff;
+  outline: none;
+}
+.pt-menu-title--open,
+.pt-menu-title--open:hover {
+  border-color: #808080 #fff #fff #808080;
+}
+.pt-access {
+  text-decoration: underline;
+}
+.pt-menu-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  min-width: 190px;
+  padding: 2px;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  box-shadow: 1px 1px 0 #000;
+}
+.pt-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 3px 4px;
+  font: inherit;
+  text-align: left;
+  color: #000;
+  background: none;
+  border: 0;
+  cursor: default;
+}
+.pt-menu-item:hover,
+.pt-menu-item:focus {
+  color: #fff;
+  background: #000080;
+  outline: none;
+}
+.pt-menu-item--disabled,
+.pt-menu-item--disabled:hover,
+.pt-menu-item--disabled:focus {
+  color: #808080;
+  text-shadow: 1px 1px 0 #fff;
+}
+.pt-menu-item--disabled:hover,
+.pt-menu-item--disabled:focus {
+  background: #000080;
+  text-shadow: none;
+}
+.pt-menu-check {
+  width: 16px;
+  flex: 0 0 16px;
+}
+.pt-menu-label {
+  flex: 1 1 auto;
+}
+.pt-menu-key {
+  padding-left: 24px;
+}
+.pt-menu-sep {
+  height: 0;
+  margin: 3px 2px;
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #fff;
+}
+
+/* ── Tool box ───────────────────────────────────────────────────────────── */
+
+.pt-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pt-toolbox {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  padding: 3px;
+}
+.pt-tools {
+  display: grid;
+  grid-template-columns: 25px 25px;
+  gap: 0;
+}
+.pt-tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  cursor: pointer;
+}
+.pt-tool[aria-pressed="true"] {
+  background: repeating-conic-gradient(#c0c0c0 0% 25%, #fff 0% 50%) 0 0 / 2px 2px;
+  border-color: #404040 #fff #fff #404040;
+}
+.pt-tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pt-tool:focus-visible,
+.pt-option:focus-visible,
+.pt-swatch:focus-visible,
+.pt-current:focus-visible,
+.pt-button:focus-visible,
+.pt-winbtn:focus-visible,
+.pt-gallery-item:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+.pt-options-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 50px;
+  min-height: 70px;
+  padding: 2px;
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+}
+.pt-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pt-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  padding: 1px;
+  font: 10px Tahoma, Verdana, sans-serif;
+  color: #000;
+  background: #c0c0c0;
+  border: 0;
+  cursor: pointer;
+}
+.pt-option--on {
+  color: #fff;
+  background: #000080;
+}
+.pt-option--on .pt-dot,
+.pt-option--on .pt-bar,
+.pt-option--on .pt-square {
+  background: #fff;
+}
+.pt-option--on svg rect {
+  stroke: #fff;
+}
+.pt-dot,
+.pt-square {
+  display: block;
+  background: #000;
+}
+.pt-bar {
+  display: block;
+  width: 36px;
+  background: #000;
+}
+.pt-history {
+  display: grid;
+  grid-template-columns: 25px 25px;
+}
+
+/* ── Canvas ─────────────────────────────────────────────────────────────── */
+
+.pt-canvas-area {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px;
+  background: #808080;
+  border: 2px solid;
+  border-color: #404040 #fff #fff #404040;
+}
+.pt-sheet {
+  position: relative;
+  background: #fff;
+  box-shadow: 1px 1px 0 #404040;
+}
+/* Transparency shows as a checkerboard behind the canvas. It is never part of the picture. */
+.pt-sheet--transparent {
+  background: repeating-conic-gradient(#cfcfcf 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
+}
+.pt-canvas {
+  display: block;
+  touch-action: none;
+}
+.pt-textbox {
+  position: absolute;
+  margin: -1px 0 0 -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: pre;
+  resize: both;
+  background: transparent;
+  border: 1px dashed #000080;
+  outline: none;
+  user-select: text;
+}
+.pt-loading {
+  margin: 0;
+  padding: 16px;
+  color: #fff;
+}
+.pt-notice {
+  margin: 0;
+  padding: 3px 6px;
+  background: #ffffe1;
+  border-bottom: 1px solid #808080;
+}
+
+/* ── Colour box ─────────────────────────────────────────────────────────── */
+
+.pt-colorbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 3px;
+  border-top: 1px solid #fff;
+}
+.pt-current {
+  position: relative;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: repeating-conic-gradient(#c0c0c0 0% 25%, #fff 0% 50%) 0 0 / 2px 2px;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  cursor: pointer;
+}
+.pt-current-fg,
+.pt-current-bg {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+  box-shadow: inset 1px 1px 0 #404040;
+}
+.pt-current-fg {
+  top: 3px;
+  left: 3px;
+}
+.pt-current-bg {
+  right: 3px;
+  bottom: 3px;
+}
+.pt-swatches {
+  display: grid;
+  grid-template-columns: repeat(14, 16px);
+  grid-template-rows: 16px 16px;
+  gap: 0;
+}
+.pt-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  box-shadow: inset 1px 1px 0 #404040;
+  cursor: pointer;
+}
+
+/* ── Status bar ─────────────────────────────────────────────────────────── */
+
+.pt-status {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+}
+.pt-pane {
+  padding: 1px 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+}
+.pt-pane--hint {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pt-pane--small {
+  flex: 0 0 auto;
+  min-width: 72px;
+}
+.pt-pane--save {
+  flex: 0 1 auto;
+  min-width: 120px;
+  max-width: 260px;
+}
+
+/* ── Dialogs ────────────────────────────────────────────────────────────── */
+
+.pt-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.15);
+}
+.pt-dialog {
+  width: min(400px, 94%);
+  max-height: 94%;
+  overflow: auto;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  box-shadow: 1px 1px 0 #000;
+}
+.pt-dialog--wide {
+  width: min(640px, 96%);
+}
+.pt-dialog-body {
+  padding: 8px 10px;
+}
+.pt-dialog-message p {
+  margin: 0 0 8px;
+}
+.pt-dialog-hint {
+  margin: 6px 0;
+  font-size: 11px;
+}
+.pt-dialog-error {
+  min-height: 1.3em;
+  margin: 4px 0;
+  color: #800000;
+}
+.pt-dialog-label {
+  display: block;
+  margin-bottom: 4px;
+}
+.pt-dialog-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pt-button {
+  min-width: 75px;
+  padding: 3px 10px;
+  font: inherit;
+  color: #000;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  box-shadow: 1px 1px 0 #000;
+  cursor: pointer;
+}
+.pt-button:active:not(:disabled) {
+  border-color: #404040 #fff #fff #404040;
+}
+.pt-button:disabled {
+  color: #808080;
+  text-shadow: 1px 1px 0 #fff;
+  cursor: default;
+}
+.pt-input {
+  padding: 2px 3px;
+  font: inherit;
+  color: #000;
+  background: #fff;
+  border: 2px solid;
+  border-color: #404040 #fff #fff #404040;
+  user-select: text;
+}
+.pt-input--number {
+  width: 5em;
+}
+.pt-input--wide {
+  width: 100%;
+  box-sizing: border-box;
+}
+.pt-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pt-fieldset {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 0;
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+}
+.pt-color-input {
+  width: 44px;
+  height: 26px;
+  padding: 0;
+}
+.pt-color-preview {
+  width: 26px;
+  height: 22px;
+  border: 1px solid #000;
+}
+.pt-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 6px;
+  max-height: 50vh;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  background: #fff;
+  border: 2px solid;
+  border-color: #404040 #fff #fff #404040;
+}
+.pt-gallery-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 4px;
+  font: inherit;
+  color: #000;
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.pt-gallery-item--on {
+  color: #fff;
+  background: #000080;
+}
+.pt-thumb {
+  width: 120px;
+  height: 90px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: repeating-conic-gradient(#cfcfcf 0% 25%, #fff 0% 50%) 0 0 / 8px 8px;
+  border: 1px solid #808080;
+}
+.pt-gallery-title {
+  max-width: 120px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pt-gallery-date {
+  font-size: 10px;
+}
+
+/* ── Visitor's viewer ───────────────────────────────────────────────────── */
+
+.pt-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #c0c0c0;
+  font: 12px Tahoma, Verdana, Geneva, sans-serif;
+}
+.pt-viewer .pt-loading {
+  color: #000;
+}
+.pt-viewer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+}
+.pt-viewer-title {
+  flex: 1 1 auto;
+  font-weight: bold;
+  text-align: center;
+}
+.pt-viewer-stage {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  margin: 0 6px;
+  overflow: auto;
+  padding: 6px;
+  background: #808080;
+  border: 2px solid;
+  border-color: #404040 #fff #fff #404040;
+}
+.pt-viewer-image {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  width: auto;
+  height: auto;
+  image-rendering: pixelated;
+}
+.pt-viewer-meta {
+  margin: 4px 6px;
+}
+
+/* ── Small screens: the window is full-screen and the tools run along the top ── */
+
+@media (max-width: 700px) {
+  .pt-main {
+    flex-direction: column;
+  }
+  .pt-toolbox {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .pt-tools {
+    grid-template-columns: repeat(10, 25px);
+  }
+  .pt-options-box {
+    flex-direction: row;
+    width: auto;
+    min-height: 0;
+  }
+  .pt-options {
+    flex-direction: row;
+  }
+  .pt-swatches {
+    grid-template-columns: repeat(14, minmax(12px, 16px));
+  }
+  .pt-pane--small:nth-of-type(4) {
+    display: none;
+  }
+}

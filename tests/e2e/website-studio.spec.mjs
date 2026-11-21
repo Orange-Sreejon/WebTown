@@ -71,7 +71,19 @@ try { parent.parent.document.title = 'owned' } catch (e) {} top.location = '${BE
 /** Opens WebTown and the website window for `houseId`, exactly as the interior scene does. */
 async function openWebsite(page, houseId, mode) {
   if (!page.url().startsWith('http')) await page.goto('/')
-  await page.waitForFunction(() => document.querySelector('[role="application"]') !== null)
+  // Wait until the game is running (so the app is listening), not only until its container exists.
+  await page.waitForFunction(() => {
+    const el = document.querySelector('[role="application"]')
+    if (!el) return false
+    const key = Object.keys(el).find(k => k.startsWith('__reactFiber$'))
+    for (let f = el[key]; f; f = f.return) {
+      for (let h = f.memoizedState; h && typeof h === 'object'; h = h.next) {
+        const game = h.memoizedState?.current
+        if (game?.scene && typeof game.scene.isActive === 'function') return game.scene.isActive('TownScene')
+      }
+    }
+    return false
+  }, null, { timeout: 180_000 })
   await page.evaluate(async ([h, m]) => {
     const bridge = await import('/src/lib/app-bridge.ts')
     bridge.emitAppState({ open: null, houseId: '', mode: 'visitor' })
@@ -91,8 +103,10 @@ async function closeWebsite(page) {
 
 /** The resident's frame inside the host frame (there is one website frame on screen at a time). */
 async function residentFrame(page) {
-  await expect.poll(() => page.frames().filter(f => f.url().endsWith('/site-host.html')).length).toBeGreaterThan(0)
-  const host = page.frames().find(f => f.url().endsWith('/site-host.html'))
+  // The newest attached host frame: a closed window's frame can linger, detached, in WebKit's frame list.
+  const hosts = () => page.frames().filter(f => !f.isDetached() && f.url().endsWith('/site-host.html'))
+  await expect.poll(() => hosts().length).toBeGreaterThan(0)
+  const host = hosts()[hosts().length - 1]
   await expect.poll(() => host.childFrames().length).toBe(1)
   return host.childFrames()[0]
 }

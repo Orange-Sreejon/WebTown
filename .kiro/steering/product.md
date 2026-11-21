@@ -42,6 +42,12 @@ players as the **Sketchbook**; type key and role stay `notebook`) opens
 decides when they open, freezes the player and restores the room. See
 `.kiro/specs/personal-spaces-mvp/`.
 
+**Sketchbook: WebTown Paint** (`.kiro/specs/sketchbook-paint/`). A late-1990s desktop paint program, evoked with
+original artwork (title "<name> - WebTown Paint"; no Microsoft names, icons or fonts). White 640 x 480 canvas by
+default (Image > Attributes: up to 1280 x 1024, white or transparent), pencil, brush, eraser, airbrush, fill, pick
+colour, text, line, rectangle and ellipse, 28-colour palette, undo / redo, Export PNG. Several drawings per house
+(up to 50), saved automatically; only the owner draws, visitors see the drawings read-only.
+
 **Website: the HTML/CSS Site Studio.** A resident's website is files they write themselves: HTML pages, one
 shared `style.css` and uploaded images and GIFs, in the spirit of Neocities and the variety of old GeoCities home
 pages. There is no fixed page structure or theme. Two starting points are offered, **Blank website** and

@@ -8,13 +8,13 @@ import {
 } from '../../lib/app-bridge'
 import type { SiteStorage } from '../../personal-spaces/composition'
 import { AppErrorBoundary } from './AppErrorBoundary'
-import { PlaceholderApp } from './PlaceholderApp'
+import { PaintApp } from './PaintApp'
 import { WebsiteApp } from './WebsiteApp'
 
 interface AppHostProps {
   /** Where commands go; the event bus by default. Injectable for tests. */
   sendCommand?: (command: AppCommand) => void
-  /** Where website storage comes from; the shared storage by default. Injectable for tests. */
+  /** Where website and Sketchbook storage comes from; the shared storage by default. Injectable for tests. */
   getSiteStorage?: () => Promise<SiteStorage>
 }
 
@@ -40,7 +40,7 @@ export function AppHost({
       {view.open === 'website' ? (
         <WebsiteApp view={view} onClose={close} {...(getSiteStorage ? { getStorage: getSiteStorage } : {})} />
       ) : (
-        <PlaceholderApp view={view} onClose={close} />
+        <PaintApp view={view} onClose={close} {...(getSiteStorage ? { getStorage: getSiteStorage } : {})} />
       )}
     </AppErrorBoundary>
   )
