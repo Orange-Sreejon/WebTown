@@ -81,12 +81,7 @@ export class InMemoryHouseLayoutStore implements HouseLayoutStore {
     }
 
     const migrated = migrateLayout(stored)
-    const problems = [...migrated.problems]
-    if (migrated.layout) {
-      const template = getTemplate(migrated.layout.templateId)
-      if (template) problems.push(...validateLayout(template, migrated.layout).map(x => x.message))
-      else problems.push(`template "${migrated.layout.templateId}" is not in this build`)
-    }
+    const problems = storedLayoutProblems(migrated)
 
     if (!migrated.layout || problems.length > 0) {
       const recovered = this.setAside(houseId, stored, problems)
@@ -105,20 +100,8 @@ export class InMemoryHouseLayoutStore implements HouseLayoutStore {
   }
 
   async save(layout: HouseLayout): Promise<void> {
-    if (layout.houseId.length === 0) throw new Error('A layout must belong to a house')
-
-    const wanted = migrateLayout(layout)
-    if (!wanted.layout) throw new Error(`Layout rejected: ${wanted.problems.join('; ')}`)
-
-    const template = getTemplate(wanted.layout.templateId)
-    if (!template) throw new Error(`Unknown interior template "${wanted.layout.templateId}"`)
-
-    const violations = validateLayout(template, wanted.layout)
-    if (violations.length > 0) {
-      throw new Error(`Layout rejected: ${violations.map(x => x.message).join('; ')}`)
-    }
-
-    this.layouts.set(wanted.layout.houseId, cloneLayout(wanted.layout))
+    const wanted = checkLayoutForSave(layout)
+    this.layouts.set(wanted.houseId, cloneLayout(wanted))
   }
 
   /** Every copy set aside for a house, newest last. */
@@ -156,5 +139,61 @@ function copyOf(value: unknown): unknown {
   }
 }
 
-/** The one store the game uses for now. */
-export const houseLayouts = new InMemoryHouseLayoutStore()
+/**
+ * Why a stored layout (already upgraded by `migrateLayout`) cannot be used. Empty when it can. Shared by every
+ * store, so a layout from memory and one from the backend are judged by exactly the same rules.
+ */
+export function storedLayoutProblems(migrated: ReturnType<typeof migrateLayout>): string[] {
+  const problems = [...migrated.problems]
+  if (migrated.layout) {
+    const template = getTemplate(migrated.layout.templateId)
+    if (template) problems.push(...validateLayout(template, migrated.layout).map(x => x.message))
+    else problems.push(`template "${migrated.layout.templateId}" is not in this build`)
+  }
+  return problems
+}
+
+/** The layout as it may be stored: upgraded and obeying every rule. Throws, with the reasons, otherwise. */
+export function checkLayoutForSave(layout: HouseLayout): HouseLayout {
+  if (layout.houseId.length === 0) throw new Error('A layout must belong to a house')
+  const wanted = migrateLayout(layout)
+  if (!wanted.layout) throw new Error(`Layout rejected: ${wanted.problems.join('; ')}`)
+  const template = getTemplate(wanted.layout.templateId)
+  if (!template) throw new Error(`Unknown interior template "${wanted.layout.templateId}"`)
+  const violations = validateLayout(template, wanted.layout)
+  if (violations.length > 0) throw new Error(`Layout rejected: ${violations.map(x => x.message).join('; ')}`)
+  return wanted.layout
+}
+
+/** What the game needs from wherever layouts are kept. */
+export interface HouseLayoutBacking extends HouseLayoutStore {
+  loadWithRecovery(houseId: string): Promise<LoadedLayout>
+}
+
+/**
+ * The store the game uses. It forwards to the store for the current session: memory without an account (Phase
+ * 3a), the player's account with one (Phase 4, set by the app before the game starts). The game never knows which.
+ */
+export class HouseLayouts implements HouseLayoutBacking {
+  private backing: HouseLayoutBacking = new InMemoryHouseLayoutStore()
+
+  /** Switches stores. Called by the app when the player's identity changes; null goes back to memory. */
+  use(backing: HouseLayoutBacking | null): void {
+    this.backing = backing ?? new InMemoryHouseLayoutStore()
+  }
+
+  load(houseId: string): Promise<HouseLayout> {
+    return this.backing.load(houseId)
+  }
+
+  loadWithRecovery(houseId: string): Promise<LoadedLayout> {
+    return this.backing.loadWithRecovery(houseId)
+  }
+
+  save(layout: HouseLayout): Promise<void> {
+    return this.backing.save(layout)
+  }
+}
+
+/** The one store the game uses. */
+export const houseLayouts = new HouseLayouts()

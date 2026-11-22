@@ -1,3 +1,5 @@
+import { playerHouse } from '../../lib/player-identity'
+
 /**
  * Which house the local player owns.
  *
@@ -22,7 +24,13 @@ export function resolveOwnedHouseId(search: string, isDev: boolean): string {
   return requested && /^[a-z0-9-]{1,40}$/.test(requested) ? requested : LOCAL_PLAYER_HOUSE_ID
 }
 
+/**
+ * The owned house for this session. With an account (Phase 4) it is the house the database assigned; the URL
+ * cannot change it. Without one it is the Phase 3a local rule above.
+ */
 function currentOwnedHouseId(): string {
+  const account = playerHouse()
+  if (account) return account.ownedSlot ?? ''
   const isDev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true
   const search = typeof window === 'undefined' ? '' : window.location.search
   return resolveOwnedHouseId(search, isDev)

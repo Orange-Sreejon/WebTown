@@ -1,6 +1,6 @@
 import { useState, type ComponentType } from 'react'
 import type { OwnerWebsiteAccess } from '../../personal-spaces/composition'
-import { LOCAL_ONLY_LABEL, NOT_SAVED_NOTICE } from '../../personal-spaces/labels'
+import { NOT_SAVED_NOTICE, savedLabel } from '../../personal-spaces/labels'
 import { startStudio, type StudioState } from '../../personal-spaces/site-project/studio-state'
 import { blankProject, classicProject } from '../../personal-spaces/site-project/templates'
 import { WindowFrame } from '../apps/WindowFrame'
@@ -81,7 +81,7 @@ export function OwnerWebsiteWindow({ access, persistent, onClose, Editor, now = 
         houseId={access.houseId}
         load={load}
         onRetry={reload}
-        status={persistent ? `${LOCAL_ONLY_LABEL}.` : NOT_SAVED_NOTICE}
+        status={persistent ? `${savedLabel(true)}.` : NOT_SAVED_NOTICE}
         actions={<button type="button" className="wt-tool" onClick={openStudio}>Open Site Studio</button>}
         notice={website?.kind === 'migrated' && (
           <p className="wt-notice" role="status">

@@ -370,3 +370,112 @@
     border-right: 0;
   }
 }
+
+/* -- Dark mode ------------------------------------------------------------
+ * WebTown's own interface only. The website is drawn by its own document inside the preview frame; nothing
+ * here reaches it, and its HTML and CSS are never touched by the theme. The frame keeps a white backing, as a
+ * browser does, so pages that set no background look the same in both themes.
+ */
+.ws-studio--dark {
+  background: #1e1f24;
+  color: #e3e3e8;
+  color-scheme: dark;
+}
+.ws-studio--dark .wt-toolbar,
+.ws-studio--dark .ws-side,
+.ws-studio--dark .wt-status {
+  border-color: #3a3c44;
+}
+.ws-studio--dark .wt-tool,
+.ws-studio--dark .wt-retry,
+.ws-studio--dark .ws-tab {
+  color: #e3e3e8;
+  background: #2b2d34;
+  border-color: #4a4c55 #101114 #101114 #4a4c55;
+}
+.ws-studio--dark .wt-tool:active:not(:disabled),
+.ws-studio--dark .wt-tool[aria-pressed="true"] {
+  background: #3a3d47;
+  border-color: #101114 #4a4c55 #4a4c55 #101114;
+}
+.ws-studio--dark .wt-tool:disabled {
+  color: #7d7f88;
+  text-shadow: none;
+}
+.ws-studio--dark .ws-tab[aria-selected="true"] {
+  background: #282c34;
+}
+.ws-studio--dark .ws-input {
+  color: #e3e3e8;
+  background: #15161a;
+  border-color: #101114 #4a4c55 #4a4c55 #101114;
+}
+.ws-studio--dark .ws-panel {
+  border-color: #3a3c44 #15161a #15161a #3a3c44;
+}
+.ws-studio--dark .ws-item-name {
+  color: #e3e3e8;
+}
+.ws-studio--dark .ws-item--current > .ws-item-name,
+.ws-studio--dark .ws-item-name.ws-item--current {
+  color: #fff;
+  background: #3b5bdb;
+}
+.ws-studio--dark .ws-link {
+  color: #8ab4ff;
+}
+.ws-studio--dark .ws-link:disabled {
+  color: #7d7f88;
+}
+.ws-studio--dark .ws-hint {
+  color: #b0b2ba;
+}
+.ws-studio--dark .ws-thumb {
+  background: #fff;
+  border-color: #4a4c55;
+}
+.ws-studio--dark .ws-unsaved {
+  color: #ff8f8f;
+}
+.ws-studio--dark .ws-editor {
+  background: #282c34;
+  border-color: #101114 #3a3c44 #3a3c44 #101114;
+}
+.ws-studio--dark .ws-notes,
+.ws-studio--dark .wt-notice,
+.ws-studio--dark .wt-confirm {
+  color: #e3e3e8;
+  background: #2a2a1e;
+  border-color: #4a4c55;
+}
+.ws-studio--dark .wt-notice--problem {
+  background: #3a2222;
+}
+.ws-studio--dark .wt-notice--good {
+  background: #1f3324;
+}
+.ws-studio--dark .ws-preview {
+  border-color: #101114 #3a3c44 #3a3c44 #101114;
+}
+.ws-studio--dark .ws-preview--phone {
+  border-color: #3a3c44;
+}
+.ws-studio--dark .ws-dialog {
+  color: #e3e3e8;
+  background: #2b2d34;
+  border-color: #4a4c55 #101114 #101114 #4a4c55;
+}
+.ws-studio--dark .ws-dialog-title {
+  background: #3b5bdb;
+}
+.ws-studio--dark .ws-drop--on {
+  background: #2a2a1e;
+}
+.ws-studio--dark .ws-tool:focus-visible,
+.ws-studio--dark .ws-link:focus-visible,
+.ws-studio--dark .ws-item-name:focus-visible,
+.ws-studio--dark .ws-tab:focus-visible,
+.ws-studio--dark .wt-tool:focus-visible {
+  outline-color: #e3e3e8;
+}
+/* Lint markers in the gutter keep CodeMirror's colours in both themes. */

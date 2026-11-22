@@ -174,6 +174,9 @@ accessibility pass and manual checklist remain open.**
 
 ## Phase 3b - real sharing (GATED; not started)
 
+**Replaced by `.kiro/specs/phase4-accounts/` (Phase 4: accounts, guest identity, persistence; built). The items
+below are kept for the record.**
+
 Starts only after a separate `personal-spaces-sharing` spec is
 reviewed. Supabase is the preferred provider (architectural approval only). Planned shape (see `design.md` section 8):
 

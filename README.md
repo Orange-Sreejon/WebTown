@@ -72,14 +72,18 @@ npm run dev
 
 Vite will print the local development URL in the terminal.
 
+Without further setup WebTown saves to this browser only. To give players accounts (guests at once, email
+accounts later), connect a Supabase project: see [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
+
 ### Useful scripts
 
 ```bash
 npm run dev       # Start the development server
 npm run build     # Create a production build
+npm test          # Unit, component and database (RLS) tests
+npm run test:e2e  # Browser tests with the real game (Chromium, Firefox, WebKit)
+npm run test:live # Account tests against a real Supabase test project (see docs/ACCOUNTS.md)
 ```
-
-Run the test script configured in `package.json` to execute the project's test suite.
 
 ## Controls
 

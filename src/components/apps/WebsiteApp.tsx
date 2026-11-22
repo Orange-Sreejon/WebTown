@@ -6,7 +6,7 @@ import {
   type SiteStorage,
   type WebsiteAccess,
 } from '../../personal-spaces/composition'
-import { VISITOR_LOCAL_NOTICE, VISITOR_NOT_SAVED_NOTICE } from '../../personal-spaces/labels'
+import { visitorNotice } from '../../personal-spaces/labels'
 import { HouseWebsite } from '../website/HouseWebsite'
 import { useWebsiteState } from '../website/useWebsiteState'
 import { WindowFrame } from './WindowFrame'
@@ -50,7 +50,7 @@ function VisitorWebsiteWindow({ houseId, open, persistent, onClose }: { houseId:
         houseId={houseId}
         load={load}
         onRetry={reload}
-        status={persistent ? VISITOR_LOCAL_NOTICE : VISITOR_NOT_SAVED_NOTICE}
+        status={visitorNotice(persistent)}
         empty={<p className="wt-message">Nothing here yet. The owner of this house hasn't made a website.</p>}
         damaged={() => <p className="wt-message">This website can't be shown right now.</p>}
       />

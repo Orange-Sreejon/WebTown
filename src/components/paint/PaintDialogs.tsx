@@ -1,3 +1,4 @@
+import { storageWhere } from '../../personal-spaces/labels'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ARTWORK_LIMITS, cleanArtworkTitle, type Artwork } from '../../personal-spaces/artwork-storage/artwork'
 import { parseHex, toHex, type CanvasBase, type Rgba } from '../../personal-spaces/paint/color'
@@ -247,7 +248,11 @@ export function AboutDialog({ onClose, persistent }: { onClose: () => void; pers
         <p>Draw with the left mouse button in the foreground colour and the right button in the background colour.
           Shift keeps lines straight and shapes square. Ctrl+Z undoes, Ctrl+Y redoes, Ctrl+S saves.</p>
         <p>{persistent
-          ? 'Drawings are saved automatically, in this browser on this device only. Visitors on other devices cannot see them.'
+          ? storageWhere() === 'device'
+            ? 'Drawings are saved automatically, in this browser on this device only. Visitors on other devices cannot see them.'
+            : storageWhere() === 'guest'
+              ? 'Drawings are saved automatically to your guest account. Add an email (Account, top right) so you can keep them if this browser forgets you.'
+              : 'Drawings are saved automatically to your WebTown account.'
           : 'Browser storage is unavailable: drawings are kept only until you close this tab.'}</p>
       </div>
       <Buttons><button type="button" className="pt-button" onClick={onClose}>OK</button></Buttons>

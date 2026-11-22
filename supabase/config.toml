@@ -1,0 +1,24 @@
+# Supabase CLI settings for a local WebTown stack (`supabase start`, needs Docker) and the settings a hosted
+# project must have (set them in the dashboard; see docs/ACCOUNTS.md). Migrations are in supabase/migrations/.
+project_id = "webtown"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+# Guests: every first visit signs in anonymously.
+enable_anonymous_sign_ins = true
+# Lets a guest link an email (or an OAuth identity later) to their existing user.
+enable_manual_linking = true
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+# Guests confirm the email they link before choosing a password.
+enable_confirmations = true

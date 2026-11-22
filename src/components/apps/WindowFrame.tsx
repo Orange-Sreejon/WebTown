@@ -11,6 +11,8 @@ interface WindowFrameProps {
   bare?: boolean
   /** False when the app handles Escape itself (for example to cancel a stroke first). */
   closeOnEscape?: boolean
+  /** The window in dark colours (the Site Studio's dark mode). */
+  dark?: boolean
   children: ReactNode
 }
 
@@ -32,6 +34,7 @@ export function WindowFrame({
   maximised = false,
   bare = false,
   closeOnEscape = true,
+  dark = false,
   children,
 }: WindowFrameProps): React.ReactElement {
   const titleId = useId()
@@ -88,9 +91,12 @@ export function WindowFrame({
         aria-labelledby={bare ? undefined : titleId}
         aria-label={bare ? title : undefined}
         tabIndex={-1}
-        style={maximised
-          ? { ...styles.window, ...styles.windowMaximised }
-          : size === 'compact' ? styles.window : { ...styles.window, ...(size === 'full' ? styles.windowFull : styles.windowWide) }}
+        style={{
+          ...(maximised
+            ? { ...styles.window, ...styles.windowMaximised }
+            : size === 'compact' ? styles.window : { ...styles.window, ...(size === 'full' ? styles.windowFull : styles.windowWide) }),
+          ...(dark ? styles.windowDark : {}),
+        }}
         onKeyDown={trapTab}
       >
         {!bare && <div style={styles.titleBar}>
@@ -138,6 +144,11 @@ const styles = {
     width: 'min(1600px, 98vw)',
     height: '96vh',
     maxHeight: '96vh',
+  },
+  windowDark: {
+    background: '#1e1f24',
+    color: '#e3e3e8',
+    borderColor: '#4a4c55 #101114 #101114 #4a4c55',
   },
   windowMaximised: {
     width: '100vw',

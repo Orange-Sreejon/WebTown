@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { OwnerPaintAccess } from '../../personal-spaces/composition'
 import type { Artwork } from '../../personal-spaces/artwork-storage/artwork'
 import type { ArtworkList } from '../../personal-spaces/artwork-storage/artwork-repository'
-import { LOCAL_ONLY_LABEL } from '../../personal-spaces/labels'
+import { savedLabel } from '../../personal-spaces/labels'
 import { BLACK, PALETTE, WHITE, describeColor, type CanvasBase, type Rgba, type Swatch } from '../../personal-spaces/paint/color'
 import { PaintSession, type StrokeInput } from '../../personal-spaces/paint/paint-session'
 import type { Point } from '../../personal-spaces/paint/raster'
@@ -51,7 +51,7 @@ const saveLabel = (state: SaveState, persistent: boolean, error: string | null):
   if (state === 'failed') return `Save failed${error ? `: ${error}` : ''}`
   if (state === 'unsaved') return 'Unsaved changes'
   if (state === 'new') return 'New drawing'
-  return persistent ? LOCAL_ONLY_LABEL : 'Not saved: kept until you close this tab'
+  return persistent ? savedLabel(true) : 'Not saved: kept until you close this tab'
 }
 
 /** Re-renders only when what the window shows about the picture changes, not on every pixel. */

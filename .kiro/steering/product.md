@@ -75,25 +75,25 @@ P3-07 was removed (kept in commit `9837da3`). See `.kiro/specs/website-studio/`.
   interfaces (visitor components only receive reader interfaces). **This is
   client-side and can be bypassed with browser developer tools** (and, in dev
   builds, `?owner=`). It is not authorization.
-- Furniture layouts remain in memory and reset on reload; website and drawings
-  persist. This inconsistency is known and accepted.
-- No Supabase, authentication or backend code is written in 3a.
+- Furniture layouts remain in memory and reset on reload without an account (Phase 4 saves them to the account).
 
-### Phase 3b — Real sharing (planned, not started)
+### Phase 4 - Accounts, guest identity and persistence (built; `.kiro/specs/phase4-accounts/`)
 
-Needs its own spec and review before any code. Preferred provider: Supabase
-(architectural approval only). Security model: `.kiro/steering/security.md`.
+Guest first: a first visit plays at once as a guest (Supabase anonymous sign-in); a small "Guest" control at the
+bottom left offers to add an email later, which keeps everything (same user). Each player gets a personal world with
+the seven village houses, owns `house-a`, and their furniture, website and Sketchbook are saved to their account. A
+permanent account can log out and in on any device. Guests are told plainly that a guest account lives in one
+browser until they add an email. Shared worlds are prepared in the data model but not offered yet.
 
+Without a configured Supabase project, WebTown behaves as in Phase 3a (this device only, furniture in memory).
+With one, content is in the player's account: say "saved to your account" (or "guest account"), never "on this
+device", and never promise other players can see a house (worlds are personal for now).
 ## Out of Scope (until a later phase)
 
 - Multiplayer networking
-- Authentication / user accounts (Phase 3b)
-- Supabase or any backend service (Phase 3b, separate spec)
 - A real house ownership model (buying, renting, permissions)
-- Persistent furniture layouts (localStorage, IndexedDB or backend). Layouts stay
-  in memory in Phase 3.
 - Undo/redo, multi-select and rotation art in the furniture editor
-- Cross-device sharing of websites and drawings (Phase 3b)
+- Multiplayer: shared worlds, realtime, seeing other players' houses, chat, friends
 - Guestbooks
 - AI features
 - Inventory system

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ComponentType } from 'react'
 import { ConflictError, PersonalSpacesError, ValidationError } from '../../personal-spaces/errors'
-import { LOCAL_ONLY_LABEL, NOT_SAVED_NOTICE } from '../../personal-spaces/labels'
+import { NOT_SAVED_NOTICE, savedLabel, storageWhere } from '../../personal-spaces/labels'
 import { assetDataUrl, buildSitePage, findPage, type RenderableSite } from '../../personal-spaces/site-project/builder'
 import { checkCss, checkHtml, type CodeNote } from '../../personal-spaces/site-project/html-check'
 import {
@@ -39,7 +39,8 @@ import { SiteFrame } from '../website/SiteFrame'
 import { siteAppBase } from '../website/site-urls'
 import { AssetsPanel } from './AssetsPanel'
 import { CodeEditor } from './CodeEditor'
-import type { CodeEditorHandle, CodeEditorProps } from './editor-types'
+import type { CodeEditorHandle, CodeEditorProps, StudioTheme } from './editor-types'
+import { loadStudioTheme, rememberedStudioTheme, saveStudioTheme } from '../../personal-spaces/studio-preferences'
 import { PagesPanel } from './PagesPanel'
 import { ConfirmDialog, NameDialog } from './StudioDialog'
 import './website-studio.css'
@@ -115,6 +116,18 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
   const editorRef = useRef<CodeEditorHandle>(null)
 
   const [layout, setLayout] = useState<Layout>('split')
+  const [theme, setTheme] = useState<StudioTheme>(() => rememberedStudioTheme() ?? systemTheme())
+  // The saved choice for this device, once it has been read. It changes WebTown's interface only.
+  useEffect(() => {
+    let live = true
+    void loadStudioTheme().then(saved => { if (live && saved) setTheme(saved) })
+    return () => { live = false }
+  }, [])
+  const switchTheme = (): void => {
+    const next: StudioTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    void saveStudioTheme(next)
+  }
   const [viewport, setViewport] = useState<Viewport>('desktop')
   const [auto, setAuto] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -182,7 +195,7 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
     try {
       const project = await writer.save(request)
       dispatch({ type: 'saved', project })
-      setNotice({ tone: 'good', text: persistent ? 'Saved on this device only.' : 'Saved for this tab only: browser storage is unavailable.' })
+      setNotice({ tone: 'good', text: persistent ? `${savedLabel(true)}.` : 'Saved for this tab only: browser storage is unavailable.' })
     } catch (error) {
       if (error instanceof ConflictError) setDialog({ kind: 'conflict' })
       else if (error instanceof ValidationError) {
@@ -329,8 +342,8 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
   const finishDialog = (): void => setDialog(null)
 
   return (
-    <WindowFrame title={`Site Studio: ${state.draft.title || 'My website'}`} onClose={() => leave('close')} size="full">
-      <div className="ws-studio wt-window">
+    <WindowFrame title={`Site Studio: ${state.draft.title || 'My website'}`} onClose={() => leave('close')} size="full" dark={theme === 'dark'}>
+      <div className={theme === 'dark' ? 'ws-studio ws-studio--dark wt-window' : 'ws-studio wt-window'} data-theme={theme}>
         <div className="wt-toolbar ws-toolbar" role="toolbar" aria-label="Studio">
           <label className="ws-field">
             <span>Website name</span>
@@ -361,7 +374,9 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
             Auto
           </label>
           <span className="ws-sep" aria-hidden="true" />
+          <button type="button" className="wt-tool ws-small" onClick={() => editorRef.current?.format()} disabled={layout === 'preview'} title="Fix indentation and trailing spaces (Shift+Alt+F)">Format</button>
           <button type="button" className="wt-tool ws-small" onClick={() => setDialog({ kind: 'start-over' })}>Start over</button>
+          <button type="button" className="wt-tool ws-small" aria-pressed={theme === 'dark'} onClick={switchTheme} title="Light or dark Studio. Your website's own colours are not changed.">Dark mode</button>
           <button type="button" className="wt-tool" onClick={() => leave('exit')}>Exit</button>
         </div>
 
@@ -423,6 +438,7 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
               <div className="ws-editor">
                 <Editor
                   ref={editorRef}
+                  theme={theme}
                   docKey={state.tab === 'css' ? 'css' : `page:${state.page}`}
                   value={state.tab === 'css' ? state.draft.css : currentHtml}
                   language={state.tab}
@@ -464,7 +480,7 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
           </main>
         </div>
 
-        <p className="wt-status">{persistent ? `${LOCAL_ONLY_LABEL}. Visitors on this device see the saved version.` : NOT_SAVED_NOTICE}</p>
+        <p className="wt-status">{persistent ? `${savedLabel(true)}. ${storageWhere() === 'device' ? 'Visitors on this device see' : 'Visitors to your town see'} the saved version.` : NOT_SAVED_NOTICE}</p>
 
         {dialog?.kind === 'new-page' && (
           <NameDialog
@@ -577,4 +593,9 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
 /** A Studio state for a website that is not in storage yet (new, converted or over a damaged one). */
 export function unsavedStudio(project: SiteProject, assets: SiteAsset[] = [], baseRevision = 0): StudioState {
   return startStudio({ project, assets }, { stored: false, baseRevision })
+}
+
+/** The device's light or dark setting, for a first visit to the Studio. */
+function systemTheme(): StudioTheme {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }

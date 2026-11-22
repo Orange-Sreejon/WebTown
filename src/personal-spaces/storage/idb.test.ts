@@ -16,6 +16,7 @@ import {
   INDEX_SITE_ASSETS_BY_HOUSE,
   STORE_ARTWORKS,
   STORE_SITE_ASSETS,
+  STORE_META,
   STORE_SITE_PROJECTS,
   STORE_SITES,
   WEBTOWN_DB,
@@ -54,7 +55,7 @@ describe('the WebTown database', () => {
       request.onsuccess = (): void => resolve(request.result)
       request.onerror = (): void => reject(request.error)
     })
-    expect([...raw.objectStoreNames].sort()).toEqual([STORE_ARTWORKS, STORE_SITES, STORE_SITE_PROJECTS, STORE_SITE_ASSETS].sort())
+    expect([...raw.objectStoreNames].sort()).toEqual([STORE_ARTWORKS, STORE_SITES, STORE_SITE_PROJECTS, STORE_SITE_ASSETS, STORE_META].sort())
     const transaction = raw.transaction(STORE_ARTWORKS)
     expect([...transaction.objectStore(STORE_ARTWORKS).indexNames]).toEqual([INDEX_ARTWORKS_BY_HOUSE])
     expect(transaction.objectStore(STORE_ARTWORKS).keyPath).toBe('id')

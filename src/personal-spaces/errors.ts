@@ -92,7 +92,7 @@ export class StorageError extends PersonalSpacesError {
 
 /** Someone else (another tab) saved this since it was opened, so saving now would overwrite their work. */
 export class ConflictError extends PersonalSpacesError {
-  constructor() {
-    super('conflict', 'This website was saved somewhere else (another tab) since you opened it.')
+  constructor(message = 'This website was saved somewhere else (another tab) since you opened it.') {
+    super('conflict', message)
   }
 }

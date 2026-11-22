@@ -64,7 +64,7 @@ describe('shipped source', () => {
   it('does not ship test-only packages', () => {
     for (const { path, text } of sources) {
       for (const module of importsOf(text)) {
-        expect(module, `${path} imports ${module}`).not.toMatch(/fake-indexeddb|vitest|jsdom/)
+        expect(module, `${path} imports ${module}`).not.toMatch(/fake-indexeddb|vitest|jsdom|pglite/)
       }
     }
   })
@@ -104,6 +104,16 @@ describe('shipped source', () => {
       }
     }
   })
+  it('talks to Supabase from one module only, and holds no secret key', () => {
+    const users = sources.filter(s => importsOf(s.text).some(m => /^@supabase\//.test(m))).map(s => s.path)
+    expect(users).toEqual(['/src/cloud/supabase-backend.ts'])
+    for (const { path, text } of sources) {
+      const body = code(text)
+      expect(body, path).not.toMatch(/sb_secret_[A-Za-z0-9]|SUPABASE_SERVICE_ROLE|service_role_key|serviceRoleKey/i)
+      expect(body, path).not.toMatch(/eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\./) // no JWT-shaped keys in code
+    }
+  })
+
   it('imports the code editor in one file only, inside the owner-only Studio', () => {
     const users = sources.filter(s => importsOf(s.text).some(m => /^(codemirror|@codemirror\/)/.test(m))).map(s => s.path)
     expect(users).toEqual(['/src/components/website-studio/CodeEditor.tsx'])
