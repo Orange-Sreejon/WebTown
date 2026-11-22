@@ -75,11 +75,13 @@ All magic numbers belong in `src/game/config/GameConfig.ts`:
 - Do not add a dependency that can be replaced by 10 lines of code.
 - Audit new dependencies for active maintenance and known vulnerabilities.
 - No runtime dependencies beyond: React, ReactDOM, Phaser, and the CodeMirror 6 editor packages (`codemirror`,
-  `@codemirror/state`, `view`, `commands`, `lang-html`, `lang-css`; decision W-2, approved in the Site Studio brief).
+  `@codemirror/state`, `view`, `commands`, `lang-html`, `lang-css`, `lint`, `theme-one-dark`; decision W-2, approved in the Site Studio brief).
   CodeMirror may be imported only by `src/components/website-studio/CodeEditor.tsx`, which is reached only from the
   owner's lazily loaded Studio chunk; `source-safety.test.ts` enforces this.
+- `@supabase/supabase-js` (Phase 4, decision C-1): imported only by `src/cloud/supabase-backend.ts`, loaded on demand.
 - Dev dependencies: Vite, TypeScript, Vitest, @types/*, `fake-indexeddb` (D5, tests only) and
-  `@playwright/test` (SD-10, real-browser security tests in Chromium, Firefox and WebKit). Neither may be
+  `@playwright/test` (SD-10, real-browser security tests in Chromium, Firefox and WebKit) and `@electric-sql/pglite`
+  (C-9, real PostgreSQL for the RLS tests). None of them may be
   imported by anything under `src/` that ships, nor appear in `dist/`.
 - No other code-editor dependency (Monaco, Ace or similar) is approved.
 

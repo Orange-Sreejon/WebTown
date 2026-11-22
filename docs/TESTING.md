@@ -297,6 +297,13 @@ house is untouched; a hostile page (scripts, handlers, refresh, base, forms, fra
 prefetch) sends nothing to the beacon and cannot reach WebTown; a visitor never downloads the Studio or CodeMirror.
 Playwright's WebKit is not branded Safari; Safari and mobile browsers are untested.
 
+`tests/e2e/code-editor.spec.mjs` enters a house and opens the computer by the real route (door, E, computer, E),
+then uses the real keyboard in the editor: Tab and Shift+Tab on a line and on selected lines, Enter keeping the
+indentation, HTML tag and attribute suggestions accepted with Enter, `</` closing the open tag, CSS property and value
+suggestions with arrow keys, brackets and quotes closing themselves, bracket matching, Format and its undo, warnings
+in the gutter, and dark mode (Studio and editor colours, remembered after a reload, the website's computed styles
+and markup unchanged).
+
 Manual, in a headed browser, owner `house-a`, visitor `house-b` (or `?owner=house-b`):
 
 - [ ] At the computer, E opens "WebTown Browser". With nothing saved: "Nothing here yet" and, for the owner,
@@ -305,6 +312,10 @@ Manual, in a headed browser, owner `house-a`, visitor `house-b` (or `?owner=hous
       Refresh, Auto, Start over, Exit; Pages, `style.css` and Images on the left; HTML editor and preview.
 - [ ] The editor highlights HTML and CSS, shows line numbers and indents new lines; Tab indents; Escape then Tab
       leaves the editor; Ctrl+Z / Ctrl+Y undo and redo; Ctrl+F searches; Ctrl+S saves.
+- [ ] Typing `<di` or `backg` lists suggestions; arrows and Enter pick one; `</` closes the open tag. Format (or
+      Shift+Alt+F) fixes indentation and trailing spaces, and one Ctrl+Z undoes it. An unclosed tag shows a warning
+      in the gutter. Dark mode darkens the whole Studio and the editor, is remembered after a reload, and the preview
+      looks the same in both.
 - [ ] Typing updates the preview about half a second later; with Auto off, only Refresh does.
 - [ ] New page (type `about`: it becomes `about.html`), Rename, Set as homepage (star), Delete (asks; the last page
       cannot be deleted). Unsaved pages have a dot.
@@ -374,3 +385,40 @@ Manual, in a real browser:
 - [ ] Open the same page in a different browser or device: your website is not there (3a is local).
 - [ ] A website name of `<script>alert(1)</script>` shows as text in WebTown's window.
 ## Regression
+
+# Phase 4 - Accounts and persistence (`.kiro/specs/phase4-accounts/`, setup in `docs/ACCOUNTS.md`)
+
+Automated in Vitest:
+- The migrations on real PostgreSQL (PGlite with a shim of Supabase's `auth` and `storage`), with two permanent
+  users, guests, a player of another world, a resident of a shared world and the `anon` role: RLS on every table, no
+  client writes to worlds, memberships or house assignment, profile columns, every function (idempotent bootstrap,
+  compare-and-swap, validation, the 50-drawing limit, asset and drawing paths, import receipts), Storage policies
+  and cascades on account deletion. Two policies were weakened on purpose to check the tests catch it.
+- The cloud repositories against that database: furniture, website (pages, CSS, images in Storage) and drawings
+  persist across sessions; stale saves from another tab are refused; another player's house is refused; network
+  failures keep the work; damaged stored data is reported, not shown.
+- The one-time copy of this device's work: copied once, never duplicated (also after a failure or a forgotten
+  marker), the account's website wins, a second account on the device gets nothing, the drawing limit is reported.
+- The session (guest at once, same guest after reload, upgrade keeps the id, existing email not merged, log out and
+  in, confirmations, network failures) and the session gate and account panel in jsdom.
+
+Automated against a real Supabase test project: `npm run test:live` (see `docs/ACCOUNTS.md`).
+
+Manual, with a configured project (1280x720 and 390x844):
+
+- [ ] First visit: the game starts with no form; "Guest · Save your progress" at the bottom left.
+- [ ] Reload: the same guest (Supabase's `sb-...-auth-token` in local storage keeps the same user id), same house.
+- [ ] In house-a: Edit House works and the arrangement is back after a reload; other houses have no Edit House.
+- [ ] A website and a drawing made in house-a are back after a reload and after closing the tab.
+- [ ] Two tabs: save the same furniture or website in both; the second is refused with "changed somewhere else".
+- [ ] Guest panel: one plain sentence about losing a guest account; typing W A S D in its fields does not move the player.
+- [ ] Add an email: "Confirm your email" until the link is opened; then "Choose a password"; afterwards the control shows
+      the name, and everything made as a guest is still there.
+- [ ] An email that already has an account: told it is not merged; logging in to it needs the box ticked, and the guest's
+      work is not in that account.
+- [ ] Log out: the start screen (no new guest is made); Log in brings the same town back, on another browser too.
+- [ ] Device with Phase 3a data (a website and drawings saved before accounts): after the first start with an account they
+      are in the account, a note says so, and a reload does not copy them again.
+- [ ] Offline at start: "Couldn't reach WebTown" with Try again and Play on this device only; offline while editing: the
+      save fails with a message and the work stays in the editor.
+- [ ] Without `VITE_SUPABASE_*`: everything works as in Phase 3a and nothing mentions accounts.

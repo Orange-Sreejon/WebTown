@@ -31,3 +31,32 @@ export const SAVED_LOCAL_NOTICE = 'Your changes were saved on this device only.'
 /** Shown after a save when browser storage is unavailable and the change is only in memory. */
 export const SAVED_MEMORY_NOTICE =
   'Your changes are kept only until you close this tab. Browser storage is unavailable, so nothing was saved to this device.'
+
+// -- Where things are saved (Phase 4) -----------------------------------------
+
+/** `device`: this browser only (no account). `guest` and `account`: the player's WebTown account. */
+export type StorageWhere = 'device' | 'guest' | 'account'
+
+let where: StorageWhere = 'device'
+
+/** Set by the app when the player signs in, upgrades or signs out. */
+export function setStorageWhere(next: StorageWhere): void {
+  where = next
+}
+
+export const storageWhere = (): StorageWhere => where
+
+export const GUEST_SAVED_LABEL = 'Saved to your guest account'
+export const ACCOUNT_SAVED_LABEL = 'Saved to your WebTown account'
+
+/** What the owner is told about where their work is kept. `persistent` false: memory only. */
+export function savedLabel(persistent: boolean): string {
+  if (!persistent) return NOT_SAVED_NOTICE
+  return where === 'device' ? LOCAL_ONLY_LABEL : where === 'guest' ? GUEST_SAVED_LABEL : ACCOUNT_SAVED_LABEL
+}
+
+/** What a visitor is told. Never claims anyone on another device can see device-only content. */
+export function visitorNotice(persistent: boolean): string {
+  if (!persistent) return VISITOR_NOT_SAVED_NOTICE
+  return where === 'device' ? VISITOR_LOCAL_NOTICE : 'Stored in this WebTown world.'
+}

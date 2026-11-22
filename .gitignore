@@ -70,3 +70,9 @@ public/assets/interior/*
 
 # Browser test output (npm run test:e2e)
 /tests/e2e/test-results/
+
+# Live account tests output (npm run test:live)
+/tests/live/test-results/
+# Supabase CLI local state
+/supabase/.temp/
+/supabase/.branches/

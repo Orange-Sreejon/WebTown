@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Artwork } from '../../personal-spaces/artwork-storage/artwork'
 import type { ArtworkReader } from '../../personal-spaces/artwork-storage/artwork-repository'
 import { PersonalSpacesError } from '../../personal-spaces/errors'
-import { VISITOR_LOCAL_NOTICE, VISITOR_NOT_SAVED_NOTICE } from '../../personal-spaces/labels'
+import { visitorNotice } from '../../personal-spaces/labels'
 import { WindowFrame } from '../apps/WindowFrame'
 import { downloadPng, pngFileName } from './export'
 import { ArtworkThumb } from './PaintDialogs'
@@ -74,7 +74,7 @@ export function SketchbookViewer({ houseId, reader, persistent, onClose, downloa
           </>
         )}
         {load.status === 'ready' && load.skipped > 0 && <p className="pt-viewer-meta">Some drawings could not be shown.</p>}
-        <p className="wt-status">{persistent ? VISITOR_LOCAL_NOTICE : VISITOR_NOT_SAVED_NOTICE}</p>
+        <p className="wt-status">{visitorNotice(persistent)}</p>
       </div>
     </WindowFrame>
   )

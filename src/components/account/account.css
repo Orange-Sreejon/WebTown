@@ -1,0 +1,164 @@
+/* Accounts: the start screen, the account control and its panel. The dark-wood look of the in-game prompt. */
+
+.ac-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #1a2f1a;
+  color: #fff4d6;
+  font: 14px monospace;
+  overflow: auto;
+}
+.ac-card {
+  width: min(420px, 100%);
+  padding: 20px;
+  background: #2b1d14;
+  border: 2px solid #5a3d28;
+  border-radius: 6px;
+}
+.ac-title {
+  margin: 0 0 4px;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #7ec850;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+.ac-lead {
+  margin: 0 0 16px;
+  color: #d8c7a4;
+  text-align: center;
+}
+.ac-section + .ac-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #5a3d28;
+}
+.ac-heading {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.ac-text {
+  margin: 0 0 10px;
+  color: #d8c7a4;
+  line-height: 1.45;
+}
+.ac-field {
+  display: block;
+  margin-bottom: 8px;
+}
+.ac-field span {
+  display: block;
+  margin-bottom: 3px;
+}
+.ac-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  color: #2b1d14;
+  background: #fff4d6;
+  border: 2px solid #5a3d28;
+  border-radius: 3px;
+}
+.ac-check {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 8px 0;
+  color: #d8c7a4;
+}
+.ac-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ac-button {
+  padding: 7px 12px;
+  font: inherit;
+  color: #fff4d6;
+  background: #4a3020;
+  border: 2px solid #5a3d28;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.ac-button:hover:not(:disabled) {
+  background: #5e3d29;
+}
+.ac-button--primary {
+  background: #2f6b3a;
+}
+.ac-button:disabled {
+  color: #9c8b70;
+  cursor: default;
+}
+.ac-link {
+  padding: 0;
+  font: inherit;
+  color: #8fe39a;
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.ac-error {
+  margin: 6px 0;
+  color: #ffaaa0;
+}
+.ac-good {
+  margin: 6px 0;
+  color: #8fe39a;
+}
+.ac-button:focus-visible,
+.ac-link:focus-visible,
+.ac-input:focus-visible,
+.ac-corner:focus-visible {
+  outline: 2px solid #8fe39a;
+  outline-offset: 2px;
+}
+
+/* The account control: bottom left, out of the way of Edit House (top right). */
+.ac-corner {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  pointer-events: auto;
+  max-width: calc(100vw - 24px);
+  padding: 6px 12px;
+  font: 13px monospace;
+  color: #fff4d6;
+  background: #2b1d14;
+  border: 2px solid #5a3d28;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ac-corner-hint {
+  color: #8fe39a;
+}
+.ac-toast {
+  position: absolute;
+  left: 12px;
+  bottom: 52px;
+  max-width: min(420px, calc(100vw - 24px));
+  padding: 8px 12px;
+  font: 13px monospace;
+  color: #fff4d6;
+  background: #2b1d14;
+  border: 2px solid #2f6b3a;
+  border-radius: 4px;
+  pointer-events: auto;
+}
+.ac-panel {
+  font: 14px monospace;
+  color: #fff4d6;
+  background: #2b1d14;
+  margin: -12px;
+  padding: 16px;
+}

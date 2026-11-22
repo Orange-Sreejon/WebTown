@@ -169,25 +169,47 @@ measured results take precedence over anything written here.
   Firefox; WebKit blocks them as a navigation and the page is put back. No request is made either way.
 - The page builder (`site-project/builder.ts`) is the only shipped code that serialises HTML, and only from an
   inert `DOMParser` document into the sandbox. Preview and visitors use the same builder.
-## Phase 3b — planned security model (not implemented)
+## Phase 4 - Accounts and the database (implemented; `.kiro/specs/phase4-accounts/`)
 
-Needs its own spec and review before any code. Supabase is the preferred provider
-(architectural approval only; the `@supabase/supabase-js` runtime-dependency
-exception is decided in that spec).
+Supabase Auth, PostgreSQL with Row Level Security, and Storage. When a project is configured
+(`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`), the database is the authority; without one, the Phase 3a
+rules above still apply (this device only, client-side restrictions).
 
-- **Authentication:** real accounts (Supabase Auth). Reads are anonymous.
-  `canEditHouse` is replaced by "session user owns this house".
-- **Authorization:** Row Level Security derives ownership from `auth.uid()`.
-  Insert / update / delete only on rows whose house the user owns; Storage
-  policies check the path's house segment. The client never supplies `ownerId`.
-- **Claiming a house** is a server-side operation with a uniqueness constraint.
-- **Server-side validation:** check constraints (lengths, dimensions, byte size),
-  50-per-house limit, bucket size and MIME limits, PNG signature check,
-  JSON-schema check of website content.
-- **Secrets:** only the anon key ships to the browser. The service-role key is
-  never in the repo, bundle or logs. `.env*` stays ignored.
-- **Abuse:** per-user rate and quota limits, a Content-Security-Policy limiting
-  `img-src` and `connect-src`, and a moderation and reporting plan **before any
-  public launch**. Support deletion of a user's data.
-- **Concurrency:** compare-and-swap on `updated_at` so one device cannot silently
-  overwrite another.
+### Identity
+
+- Every player is an authenticated Supabase user. A first visit signs in anonymously (a **guest**); guests use the
+  `authenticated` role and get exactly the protections of permanent users. Nothing is granted to `anon`.
+- A guest upgrades by linking an email to the same user (`updateUser({ email })`, confirm, then a password), so the
+  user id and everything it owns stay. An email that already has an account is **never merged**; the guest is told.
+- Never trust client-provided user ids or user metadata for any decision. Ownership comes from `auth.uid()` and the
+  `houses.owner_id` assignment, made only by `bootstrap_player` (security definer, for `auth.uid()` only).
+
+### Rules the database enforces (tested in `src/cloud/database/schema.test.ts`)
+
+- RLS on every table with user or world data. Members read their world; only a house's owner writes its layout,
+  website, pages, assets and drawings; users change only their own profile (columns `display_name`, `avatar`,
+  `settings`). Worlds, memberships and house assignment cannot be written by clients at all.
+- Storage: two private buckets with size and MIME limits; paths are `{world}/{house}/{file}` and the policies check
+  that the house is in that world and that the caller owns it (write) or is a member (read). Files are never
+  overwritten; a new version is a new file.
+- Every save is compare-and-swap on a `revision` inside one transaction (SQLSTATE `WTCON` on conflict); a stale save
+  is refused, never applied. Website saves check pages, homepage, totals and that every asset was uploaded into the
+  house's own folder.
+- Database functions are `security invoker` (RLS applies) except `bootstrap_player`; all have `search_path = ''`
+  and are executable by `authenticated` only. Helpers live in schema `private`, not exposed by the API.
+- Any change to these rules is a new migration in `supabase/migrations/` plus a test that tries to break it.
+  Never edit the schema in the dashboard.
+
+### Secrets
+
+- Only the publishable key ships. The secret / service-role key is never in the repository, a `VITE_` variable, the
+  bundle or logs; `readCloudConfig` refuses one and `source-safety.test.ts` scans for it. `.env*` stays ignored.
+- `@supabase/supabase-js` is imported only by `src/cloud/supabase-backend.ts` and loaded only when configured.
+
+### Not done yet (before any public launch)
+
+- Abuse controls: CAPTCHA or Turnstile on sign-ins (anonymous sign-ins can be scripted), rate and quota limits per
+  user, cleanup of abandoned guests and their Storage files.
+- Server-side content checks beyond types and sizes: image signatures are checked by the client only (the bucket
+  checks the declared MIME type), and website HTML is only sanitised when shown (in the sandbox).
+- A Content-Security-Policy for WebTown itself, moderation and reporting, and deleting one's own account from the UI.

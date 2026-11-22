@@ -15,6 +15,9 @@ import type { ArtworkReader, ArtworkRepository, ArtworkWriter } from './artwork-
 import { guardArtworkWriter } from './artwork-storage/guarded-artwork-writer'
 import { IndexedDbArtworkRepository } from './artwork-storage/indexeddb-artwork-repository'
 import { MemoryArtworkRepository } from './artwork-storage/memory-artwork-repository'
+import { activeCloud, type ActiveCloud } from '../cloud/cloud-session'
+import { CloudArtworkRepository } from '../cloud/cloud-artworks'
+import { CloudWebsiteRepository } from '../cloud/cloud-websites'
 
 /**
  * The one place that decides which storage the interface uses and what each
@@ -82,6 +85,22 @@ export async function createSiteStorage(options: SiteStorageOptions = {}): Promi
   }
 }
 
+/**
+ * Storage for a player with an account (Phase 4): websites and drawings in their account, checked by the
+ * database. The old structured websites stay on the device (they are only read, to show an earlier site
+ * converted), so `local` supplies them.
+ */
+export function createCloudStorage(cloud: ActiveCloud, local: SiteStorage): SiteStorage {
+  return {
+    repository: local.repository,
+    projects: new CloudWebsiteRepository(cloud.backend, cloud.player),
+    artworks: new CloudArtworkRepository(cloud.backend, cloud.player),
+    persistent: true,
+    notice: null,
+    reason: null,
+    close: () => local.close(),
+  }
+}
 // ── HTML/CSS websites: who gets what ────────────────────────────────────────
 
 /** A visitor can look at the website and do nothing else. There is no writer to find. */
@@ -173,9 +192,13 @@ export function onSiteLoad(handler: (report: SiteLoadReport) => void): () => voi
 
 /** The storage the game uses: opened once, on first use. */
 export function getSiteStorage(): Promise<SiteStorage> {
-  shared ??= createSiteStorage({
-    onLoad: report => [...loadListeners].forEach(listener => listener(report)),
-  })
+  if (!shared) {
+    const cloud = activeCloud()
+    const local = createSiteStorage({
+      onLoad: report => [...loadListeners].forEach(listener => listener(report)),
+    })
+    shared = cloud ? local.then(l => createCloudStorage(cloud, l)) : local
+  }
   return shared
 }
 
