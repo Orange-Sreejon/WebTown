@@ -464,3 +464,43 @@ Slice rectangles for each sprite are in `src/game/maps/interior-slices.ts`.
 
 Run `npm run dev` and open `/interior-test.html`. The page is a separate Vite
 entry and is not part of the production build.
+
+---
+
+## Asset Pack 8 — PLAYER CHARACTER SHEETS (Phase 5)
+
+**Provenance is unverified.** These six sheets were supplied by the project owner as chat attachments
+(November 2026); nothing in the files states a creator or licence. Treat them like Pack 1: local/private use
+only until the owner confirms terms, and do not assume they may be redistributed with a public repository.
+
+| File | Look (id) | Notes |
+|------|-----------|-------|
+| `red-cap.png` | Red cap (`red-cap`) | — |
+| `green-hair.png` | Green hair (`green-hair`) | — |
+| `green-beanie.png` | Green beanie (`green-beanie`) | — |
+| `pink-cap.png` | Pink cap (`pink-cap`) | — |
+| `brown-hair.png` | Brown hair (`brown-hair`) | — |
+| `violet-hair.png` | Violet hair (`violet-hair`) | Source sheet is 512×512 (2× cells) and its rows are up/left/right/down |
+
+Location: `public/assets/characters/tiny-cast/`. Each file is the same **144×256, 3 columns × 4 rows of
+48×64 frames** grid as the traveller (rows down/left/right/up, columns left-step/stand/right-step), because
+`BootScene` and the animation keys assume that grid.
+
+### How they were made
+
+The attachments arrived as 4 columns × 4 rows on an opaque white background (the chat re-encode dropped the
+alpha). They were converted once with Pillow, not at runtime:
+
+- background keyed from the cell edges, with one ring of near-white edge pixels removed to avoid a halo;
+- columns 0, 1 and 3 kept (column 0 and 2 are the same standing pose, 1 and 3 are the two steps);
+- artwork scaled to 47 px tall — the traveller's height — and bottom-aligned 2 px above the cell bottom;
+- `violet-hair`'s rows remapped, since its sheet runs up/left/right/down instead of down/left/right/up.
+
+The originals were lossy WebP, so the converted sprites are slightly softer than the hand-drawn traveller.
+Re-run the conversion from higher-quality PNG originals if the owner has them.
+
+### How the game uses them
+
+They are the account picker's looks (`SHEET_LOOKS` in `src/game/systems/avatars.ts`). A look whose file is
+missing is not offered, and players drawn with it fall back to the traveller; the six recoloured traveller
+looks stay as that fallback. Adding a character is one registry entry plus its PNG.

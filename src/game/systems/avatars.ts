@@ -1,37 +1,93 @@
 /**
- * How players look (Phase 5, design 7a): the traveller sprite in six colours. Variant 0 is the original art;
- * the others shift the hue of the hat and shirt (the saturated yellow pixels) so skin, hair and the backpack
- * stay as drawn. Every variant has the same frames and animations. Pure: the recolouring works on plain RGBA.
+ * How players look (Phase 5, design 7a). A look is either one of six recolours of the traveller sheet, or a
+ * character with a 48 x 64 sheet of its own. Variant 0 is the original art; the others shift the hue of the hat
+ * and shirt (the saturated yellow pixels) so skin, hair and the backpack stay as drawn. A character sheet is an
+ * optional file: when it is absent the look is not offered, and anything drawn with it falls back to the
+ * traveller, so a missing image never breaks the town. Pure: the recolouring works on plain RGBA.
  */
 
 import { AssetKeys } from '../config/AssetKeys'
 
-export const AVATARS = ['traveller', 'traveller-1', 'traveller-2', 'traveller-3', 'traveller-4', 'traveller-5'] as const
-export type AvatarId = (typeof AVATARS)[number]
+/** Every character sheet is this grid: 3 columns (left step, stand, right step) x 4 rows (down, left, right, up). */
+export const AVATAR_FRAME_WIDTH = 48
+export const AVATAR_FRAME_HEIGHT = 64
+/** The standing frame of the down row, used for the picker's still previews. */
+export const IDLE_DOWN_FRAME = 1
 
-/** Hue shift in degrees per variant (index = variant number). */
-const HUE_SHIFT = [0, 190, 100, 285, -40, 225] as const
-
-export const AVATAR_LABELS: Record<AvatarId, string> = {
-  'traveller': 'Sunflower',
-  'traveller-1': 'Sky',
-  'traveller-2': 'Leaf',
-  'traveller-3': 'Plum',
-  'traveller-4': 'Berry',
-  'traveller-5': 'Ocean',
-}
-
-export const isAvatar = (v: unknown): v is AvatarId => typeof v === 'string' && (AVATARS as readonly string[]).includes(v)
+/** Always available: the traveller sheet, recoloured at boot. Variant 0 is the original art. */
+export const RECOLOURED_LOOKS = [
+  'traveller',
+  'traveller-1',
+  'traveller-2',
+  'traveller-3',
+  'traveller-4',
+  'traveller-5',
+] as const
+export type RecolouredLook = (typeof RECOLOURED_LOOKS)[number]
 
 /**
- * The look to draw for a player: their chosen one, or (for the Phase 4 default `villager` and anything unknown)
- * one picked from their user id, so players who never chose still look different from each other.
+ * The characters with a sheet of their own, each a drop-in 48 x 64 sheet and a look in the picker. Adding an
+ * entry (and its PNG under public/assets/characters/tiny-cast/) offers a new look; a missing PNG is not an
+ * error, it is simply a look that is not offered yet. See docs/ASSETS.md.
+ */
+export const SHEET_LOOKS = [
+  { id: 'red-cap', label: 'Red cap' },
+  { id: 'green-hair', label: 'Green hair' },
+  { id: 'green-beanie', label: 'Green beanie' },
+  { id: 'pink-cap', label: 'Pink cap' },
+  { id: 'brown-hair', label: 'Brown hair' },
+  { id: 'violet-hair', label: 'Violet hair' },
+] as const
+
+export type SheetLook = (typeof SHEET_LOOKS)[number]
+export type SheetLookId = SheetLook['id']
+
+/** Where a character's sheet lives. */
+export const sheetUrl = (id: SheetLookId): string => `/assets/characters/tiny-cast/${id}.png`
+
+export type AvatarId = RecolouredLook | SheetLookId
+
+/** The looks a player can choose: one per shipped character. Recolours are only drawn as a fallback. */
+export const AVATARS: readonly SheetLookId[] = SHEET_LOOKS.map(sheet => sheet.id)
+
+/** Hue shift in degrees per recolour (index = variant number). */
+const HUE_SHIFT = [0, 190, 100, 285, -40, 225] as const
+
+export const isAvatar = (v: unknown): v is SheetLookId =>
+  typeof v === 'string' && SHEET_LOOKS.some(sheet => sheet.id === v)
+
+let available: readonly SheetLook[] = []
+let probe: Promise<readonly SheetLook[]> | null = null
+
+/**
+ * Which optional character sheets this build actually has. Probed once, before the game boots (and reused by
+ * the account picker), so Phaser never queues a sheet that is not there.
+ */
+export function findAvailableSheets(): Promise<readonly SheetLook[]> {
+  probe ??= typeof Image === 'undefined'
+    ? Promise.resolve(available)
+    : Promise.all(SHEET_LOOKS.map(sheet => new Promise<SheetLook | null>(resolve => {
+        const image = new Image()
+        image.onload = () => resolve(sheet)
+        image.onerror = () => resolve(null)
+        image.src = sheetUrl(sheet.id)
+      }))).then(sheets => (available = sheets.filter((sheet): sheet is SheetLook => sheet !== null)))
+  return probe
+}
+
+/** The sheets found so far; empty until `findAvailableSheets` resolves. */
+export const availableSheetLooks = (): readonly SheetLook[] => available
+
+/**
+ * The look to draw for a player: their chosen character, or (for the Phase 4 default `villager`, an old colour
+ * choice, and anything unknown) one picked from their user id, so players who never chose still look different
+ * from each other. The pick is among the shipped characters; the traveller stands in if the list is empty.
  */
 export function avatarFor(chosen: string | null | undefined, userId: string): AvatarId {
   if (isAvatar(chosen)) return chosen
   let h = 0
   for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0
-  return AVATARS[h % AVATARS.length]!
+  return AVATARS[h % AVATARS.length] ?? 'traveller'
 }
 
 /** The texture of a look: the loaded sheet for the original, a generated canvas (BootScene) for the others. */
@@ -80,8 +136,8 @@ export function isClothing(r: number, g: number, b: number, a: number): boolean 
 }
 
 /** Recolours `data` (straight RGBA) in place for `look`. The original look is left untouched. */
-export function recolour(data: Uint8ClampedArray, look: AvatarId): void {
-  const shift = HUE_SHIFT[AVATARS.indexOf(look)] ?? 0
+export function recolour(data: Uint8ClampedArray, look: RecolouredLook): void {
+  const shift = HUE_SHIFT[RECOLOURED_LOOKS.indexOf(look)] ?? 0
   if (shift === 0) return
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i]!

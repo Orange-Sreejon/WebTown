@@ -63,5 +63,9 @@ Everything in `docs/ACCOUNTS.md`, then:
   drawings show on the next visit.
 - **Files are left behind:** when a resident leaves, their old house's files in Storage (website images, drawings)
   can no longer be reached, but they are not deleted.
-- **No new player art yet:** the six looks are recolours. `public/assets/WaterNPCs.zip` was not used; its licence
-  is unknown (see docs/ASSETS.md).
+- **Looks are whole character sheets, with recolours as the fallback:** six characters ship in
+  `public/assets/characters/tiny-cast/` and are the account picker's options (`SHEET_LOOKS` in
+  `src/game/systems/avatars.ts`). Another 48×64 sheet dropped into that folder and added to the list is picked up
+  automatically; an absent sheet is skipped rather than shown as a broken look, and the six traveller recolours
+  remain the fallback for anyone without a valid look. `public/assets/WaterNPCs.zip` was not used; its licence is
+  unknown (see docs/ASSETS.md).
