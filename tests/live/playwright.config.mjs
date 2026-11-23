@@ -1,12 +1,16 @@
 import { defineConfig } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import './live-env.mjs'
 
-// The account tests against a REAL Supabase project (Phase 4). Nothing runs unless WEBTOWN_LIVE=1 and the
-// project's URL and publishable key are given; see docs/ACCOUNTS.md for the project settings they expect.
+// The account (Phase 4) and multiplayer (Phase 5) tests against a REAL Supabase project. Nothing runs unless
+// WEBTOWN_LIVE=1 and the project's URL and publishable key are given, either as environment variables or in the
+// git-ignored file .env.live.local at the repository root (see live-env.mjs and .env.live.example):
 //
 //   WEBTOWN_LIVE=1 WEBTOWN_LIVE_SUPABASE_URL=https://<ref>.supabase.co \
 //   WEBTOWN_LIVE_SUPABASE_KEY=sb_publishable_... npm run test:live
+//
+// See docs/ACCOUNTS.md and docs/MULTIPLAYER.md for the project settings they expect.
 //
 // Use a test project, never production: the tests create guests and accounts. "Confirm email" must be OFF in
 // that project so the upgrade can finish without an inbox.
@@ -22,7 +26,9 @@ export default defineConfig({
   timeout: 300_000,
   expect: { timeout: 30_000 },
   reporter: [['list']],
-  use: { baseURL: 'http://127.0.0.1:5190', trace: 'retain-on-failure' },
+  // No traces: a trace would store auth responses (access and refresh tokens), request headers and typed passwords
+  // on disk. Turn on for a single debugging run only, then delete tests/live/test-results/.
+  use: { baseURL: 'http://127.0.0.1:5190', trace: 'off' },
   webServer: process.env.WEBTOWN_LIVE === '1' ? {
     command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5190 --strictPort',
     cwd: root,
