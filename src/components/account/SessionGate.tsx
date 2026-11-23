@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { SessionController, type AuthPort, type AuthUser, type SessionState } from '../../cloud/auth'
 import type { CloudBackend } from '../../cloud/backend'
+import type { RealtimeTransport } from '../../multiplayer/transport'
 import { CloudArtworkRepository } from '../../cloud/cloud-artworks'
 import { CloudLayoutStore } from '../../cloud/cloud-layouts'
 import { setActiveCloud } from '../../cloud/cloud-session'
@@ -9,10 +10,16 @@ import { importLocalData, type ImportReport, type LocalSources } from '../../clo
 import { bootstrapPlayer, updateProfile, type PlayerContext, type Profile } from '../../cloud/player'
 import { houseLayouts } from '../../game/maps/house/house-layout-store'
 import { onAppState } from '../../lib/app-bridge'
-import { setPlayerHouse } from '../../lib/player-identity'
+import { setPlayerHouse, setPlayerLook } from '../../lib/player-identity'
+import { avatarFor } from '../../game/systems/avatars'
 import { resetSiteStorage } from '../../personal-spaces/composition'
 import { PersonalSpacesError } from '../../personal-spaces/errors'
 import { setStorageWhere } from '../../personal-spaces/labels'
+import { clearInviteFromAddress, enterWorld, inviteFromAddress } from '../../cloud/worlds'
+import { rememberWorld, rememberedWorld } from '../../personal-spaces/storage/world-choice'
+import { InviteScreen } from '../multiplayer/InviteScreen'
+import { WorldPanel } from '../multiplayer/WorldPanel'
+import { MultiplayerHost } from '../multiplayer/MultiplayerHost'
 import { AccountPanel, type AccountActions } from './AccountPanel'
 import { StartScreen } from './StartScreen'
 import './account.css'
@@ -20,6 +27,8 @@ import './account.css'
 export interface Connection {
   auth: AuthPort
   backend: CloudBackend
+  /** Realtime for shared worlds (Phase 5); without it, the game is single-player. */
+  realtime?: RealtimeTransport
 }
 
 export interface SessionGateProps {
@@ -38,12 +47,15 @@ type Phase =
   | { kind: 'signed-out'; notice: string | null }
   | { kind: 'failed'; message: string }
   | { kind: 'local'; chosen: boolean }
-  | { kind: 'ready'; user: AuthUser; player: PlayerContext }
+  | { kind: 'invite'; user: AuthUser; personal: PlayerContext; code: string }
+  /** `player` is the world being played; `personal` the player's own world (they are always in it). */
+  | { kind: 'ready'; user: AuthUser; player: PlayerContext; personal: PlayerContext }
 
 /** Back to "no account": every module the game reads goes back to its Phase 3a default. */
 async function clearAccount(): Promise<void> {
   setActiveCloud(null)
   setPlayerHouse(null)
+  setPlayerLook(null)
   houseLayouts.use(null)
   setStorageWhere('device')
   await resetSiteStorage()
@@ -58,6 +70,9 @@ async function clearAccount(): Promise<void> {
 export function SessionGate({ children, connect, deviceSources, redirectTo }: SessionGateProps): React.ReactElement {
   const [phase, setPhase] = useState<Phase>({ kind: 'connecting', step: 'Connecting to WebTown...' })
   const [panel, setPanel] = useState(false)
+  const [worldPanel, setWorldPanel] = useState(false)
+  // An invitation in the address (`?invite=`) is offered once, after sign-in.
+  const pendingInvite = useRef<string | null>(typeof window === 'undefined' ? null : inviteFromAddress(window.location.search))
   const [toast, setToast] = useState<string | null>(null)
   const [appOpen, setAppOpen] = useState(false)
   const connection = useRef<Connection | null | undefined>(undefined)
@@ -77,6 +92,7 @@ export function SessionGate({ children, connect, deviceSources, redirectTo }: Se
     }
     const mine = ++run.current
     setPanel(false)
+    setWorldPanel(false)
     setPhase({ kind: 'connecting', step: 'Opening your town...' })
     await clearAccount()
     let player: PlayerContext
@@ -88,11 +104,8 @@ export function SessionGate({ children, connect, deviceSources, redirectTo }: Se
       return
     }
     if (mine !== run.current) return
-    setActiveCloud({ backend: conn.backend, player })
-    setPlayerHouse({ ownedSlot: player.ownedSlot })
-    houseLayouts.use(new CloudLayoutStore(conn.backend, player))
-    setStorageWhere(user.isAnonymous ? 'guest' : 'account')
 
+    // This device's earlier work belongs in the player's own house, in their own world.
     if (deviceSources) {
       setPhase({ kind: 'connecting', step: 'Bringing in your work from this device...' })
       const sources = await deviceSources().catch(() => null)
@@ -109,8 +122,63 @@ export function SessionGate({ children, connect, deviceSources, redirectTo }: Se
       }
     }
     if (mine !== run.current) return
-    setPhase({ kind: 'ready', user, player })
+
+    const code = pendingInvite.current
+    if (code) {
+      pendingInvite.current = null
+      clearInviteFromAddress()
+      setPhase({ kind: 'invite', user, personal: player, code })
+      return
+    }
+    await openWorld(user, player, rememberedWorld(user.id), mine)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceSources])
+
+  /**
+   * Starts the game in a world: the player's own (`worldId` null or theirs) or one they joined. A world they are
+   * no longer in (they left or were removed) falls back to their own, with a note. The choice is remembered on
+   * this device for this account.
+   */
+  const openWorld = async (user: AuthUser, personal: PlayerContext, worldId: string | null, mine: number): Promise<void> => {
+    const conn = connection.current!
+    let player = personal
+    if (worldId && worldId !== personal.world.id) {
+      setPhase({ kind: 'connecting', step: 'Joining the town...' })
+      try {
+        player = await enterWorld(conn.backend, user.id, worldId)
+      } catch (error) {
+        if (mine !== run.current) return
+        if (!(error instanceof PersonalSpacesError && error.code === 'permission')) {
+          setPhase({ kind: 'failed', message: error instanceof PersonalSpacesError ? error.message : "Couldn't open that town. Please try again." })
+          return
+        }
+        rememberWorld(user.id, null)
+        setToast("You're no longer in that town, so your own town opened.")
+        player = personal
+      }
+    }
+    if (mine !== run.current) return
+    rememberWorld(user.id, player.world.id === personal.world.id ? null : player.world.id)
+    setActiveCloud({ backend: conn.backend, player })
+    setPlayerHouse({ ownedSlot: player.ownedSlot })
+    setPlayerLook(avatarFor(player.profile.avatar, user.id))
+    houseLayouts.use(new CloudLayoutStore(conn.backend, player))
+    setStorageWhere(user.isAnonymous ? 'guest' : 'account')
+    setPhase({ kind: 'ready', user, player, personal })
+  }
+
+  /** Leaves the current game and starts it again in another world (remounting it, as for a new identity). */
+  const switchWorld = async (worldId: string | null): Promise<void> => {
+    const current = phaseRef.current
+    if (current.kind !== 'ready' && current.kind !== 'invite') return
+    const mine = ++run.current
+    setPanel(false)
+    setWorldPanel(false)
+    setPhase({ kind: 'connecting', step: 'Opening the town...' })
+    await clearAccount()
+    if (mine !== run.current) return
+    await openWorld(current.user, current.personal, worldId, mine)
+  }
 
   const onState = useCallback((state: SessionState): void => {
     if (state.status === 'starting') {
@@ -189,6 +257,16 @@ export function SessionGate({ children, connect, deviceSources, redirectTo }: Se
       </Splash>
     )
   }
+  if (phase.kind === 'invite') {
+    return (
+      <InviteScreen
+        backend={connection.current!.backend}
+        code={phase.code}
+        onOpen={worldId => void switchWorld(worldId)}
+        onSkip={() => void switchWorld(rememberedWorld(phase.user.id))}
+      />
+    )
+  }
   if (phase.kind === 'signed-out') {
     const c = controller.current!
     return (
@@ -215,7 +293,7 @@ export function SessionGate({ children, connect, deviceSources, redirectTo }: Se
 
   const c = controller.current!
   const conn = connection.current!
-  const { user, player } = phase
+  const { user, player, personal } = phase
   const actions: AccountActions = {
     linkEmail: email => c.linkEmail(email),
     refresh: () => c.refresh(),
@@ -235,18 +313,36 @@ export function SessionGate({ children, connect, deviceSources, redirectTo }: Se
   }
   const reminder = user.isAnonymous && player.profile.settings['upgradeHintDismissed'] !== true
   return (
-    <div key={user.id} style={{ position: 'fixed', inset: 0 }}>
+    <div key={`${user.id}:${player.world.id}`} style={{ position: 'fixed', inset: 0 }}>
       {children}
+      {conn.realtime && <MultiplayerHost transport={conn.realtime} backend={conn.backend} player={player} />}
       {toast && (
         <div className="ac-toast" role="status">
           {toast}{' '}
           <button type="button" className="ac-link" onClick={() => setToast(null)}>OK</button>
         </div>
       )}
-      {!appOpen && <button type="button" className="ac-corner" onClick={() => setPanel(true)} aria-haspopup="dialog">
-        {user.isAnonymous ? <>Guest{reminder && <span className="ac-corner-hint"> · Save your progress</span>}</> : player.profile.displayName}
-      </button>}
+      {!appOpen && (
+        <div className="ac-corner-bar">
+          <button type="button" className="ac-corner" onClick={() => setPanel(true)} aria-haspopup="dialog">
+            {user.isAnonymous ? <>Guest{reminder && <span className="ac-corner-hint"> · Save your progress</span>}</> : player.profile.displayName}
+          </button>
+          <button type="button" className="ac-corner" onClick={() => setWorldPanel(true)} aria-haspopup="dialog" title="Players, invitations and your towns">
+            Town: {player.world.name}
+          </button>
+        </div>
+      )}
       {panel && <AccountPanel user={user} profile={player.profile} actions={actions} onClose={() => setPanel(false)} />}
+      {worldPanel && (
+        <WorldPanel
+          backend={conn.backend}
+          player={player}
+          personalWorldId={personal.world.id}
+          inviteBase={redirectTo}
+          onOpenWorld={worldId => void switchWorld(worldId === personal.world.id ? null : worldId)}
+          onClose={() => setWorldPanel(false)}
+        />
+      )}
     </div>
   )
 }

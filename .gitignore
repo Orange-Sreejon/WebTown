@@ -73,6 +73,7 @@ public/assets/interior/*
 
 # Live account tests output (npm run test:live)
 /tests/live/test-results/
+/tests/multiplayer/test-results/
 # Supabase CLI local state
 /supabase/.temp/
 /supabase/.branches/

@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient, type User } from '@supabase/supabase
 import { AuthError, type AuthErrorCode, type AuthPort, type AuthUser } from './auth'
 import { CloudError, type Bucket, type CloudBackend } from './backend'
 import type { CloudConfig } from './config'
+import type { RealtimeTransport } from '../multiplayer/transport'
 
 /**
  * WebTown on Supabase: the one module that talks to it. Auth (sessions are kept by supabase-js in this
@@ -11,13 +12,16 @@ import type { CloudConfig } from './config'
 export interface SupabaseConnection {
   auth: AuthPort
   backend: CloudBackend
+  realtime: RealtimeTransport
 }
 
 export function connectSupabase(config: CloudConfig): SupabaseConnection {
   const client = createClient(config.url, config.publishableKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    // A dropped connection is noticed within about 15 s instead of 25 s.
+    realtime: { heartbeatIntervalMs: 15_000 },
   })
-  return { auth: supabaseAuth(client), backend: supabaseBackend(client) }
+  return { auth: supabaseAuth(client), backend: supabaseBackend(client), realtime: supabaseRealtime(client) }
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -148,6 +152,61 @@ function supabaseBackend(client: SupabaseClient): CloudBackend {
       if (paths.length === 0) return
       const { error } = await client.storage.from(bucket).remove(paths)
       if (error) throw storageError(error)
+    },
+  }
+}
+
+// ── Realtime (Phase 5) ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A world's channel on Supabase Realtime: private (authorised by RLS on `realtime.messages` with the user's
+ * JWT, which supabase-js keeps up to date), presence keyed by the game session, broadcast to the others only.
+ * supabase-js reconnects and rejoins by itself; the session re-tracks presence on every join. Nothing is sent
+ * while the channel is not joined, so movement never falls back to Realtime's REST endpoint.
+ */
+function supabaseRealtime(client: SupabaseClient): RealtimeTransport {
+  return {
+    open(topic, presenceKey, events, handlers) {
+      let left = false
+      let joined = false
+      const channel = client.channel(topic, {
+        config: { private: true, broadcast: { self: false, ack: false }, presence: { key: presenceKey } },
+      })
+      channel.on('presence', { event: 'sync' }, () => {
+        if (left) return
+        const state = channel.presenceState() as Record<string, Array<Record<string, unknown>>>
+        handlers.onPresence(new Map(Object.entries(state).map(([key, metas]) => [
+          key, metas.map(({ presence_ref: _ref, ...meta }) => meta),
+        ])))
+      })
+      for (const event of events) {
+        channel.on('broadcast', { event }, message => { if (!left) handlers.onBroadcast(event, (message as { payload?: unknown }).payload) })
+      }
+      channel.subscribe((status, error) => {
+        if (left) return
+        joined = status === 'SUBSCRIBED'
+        if (joined) {
+          handlers.onStatus('joined')
+          return
+        }
+        const message = error?.message ?? ''
+        // Refused by the channel policy: retrying won't help.
+        const fatal = status === 'CHANNEL_ERROR' && /unauthori[sz]ed|permission|not allowed|forbidden/i.test(message)
+        handlers.onStatus(status === 'TIMED_OUT' ? 'timed_out' : status === 'CLOSED' ? 'closed' : 'error', { fatal, message })
+      })
+      return {
+        track(meta) {
+          if (!left && joined) void channel.track(meta).catch(() => undefined)
+        },
+        send(event, payload) {
+          if (!left && joined) void channel.send({ type: 'broadcast', event, payload }).catch(() => undefined)
+        },
+        leave() {
+          if (left) return
+          left = true
+          void client.removeChannel(channel).catch(() => undefined)
+        },
+      }
     },
   }
 }

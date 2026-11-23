@@ -11,6 +11,7 @@ import {
   depthForFeetY,
 } from '../config/GameConfig'
 import { computeVelocity, inputToDirection, type Direction, type InputState } from '../systems/movement'
+import { animKey, avatarTexture, type AvatarId } from '../systems/avatars'
 
 type WasdKeys = {
   W: Phaser.Input.Keyboard.Key
@@ -27,13 +28,15 @@ type WasdKeys = {
  */
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private lastDirection: Direction = 'down'
+  private moving = false
 
-  constructor(scene: Phaser.Scene, tileX: number, tileY: number) {
+  /** @param look How the player looks (Phase 5); the original traveller unless chosen. */
+  constructor(scene: Phaser.Scene, tileX: number, tileY: number, private readonly look: AvatarId = 'traveller') {
     // Position at centre of starting tile
     const px = tileX * TILE_SIZE + TILE_SIZE / 2
     const py = tileY * TILE_SIZE + TILE_SIZE / 2
 
-    super(scene, px, py, AssetKeys.TRAVELLER)
+    super(scene, px, py, scene.textures.exists(avatarTexture(look)) ? avatarTexture(look) : AssetKeys.TRAVELLER)
 
     scene.add.existing(this)
     scene.physics.add.existing(this)
@@ -51,7 +54,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setCollideWorldBounds(true)
 
     this.setDepth(depthForFeetY(this.y + this.displayHeight / 2))
-    this.play('idle-down')
+    this.play(this.anim('idle', 'down'))
+  }
+
+  /** The animation for this player's look; the original look if its variant could not be made. */
+  private anim(kind: 'walk' | 'idle', dir: Direction): string {
+    const key = animKey(kind, dir, this.look)
+    return this.scene.anims.exists(key) ? key : animKey(kind, dir, 'traveller')
+  }
+
+  /** True while the player is walking (this frame's input). */
+  get walking(): boolean {
+    return this.moving
   }
 
   /** The direction the player last moved in (and so faces when idle). */
@@ -62,7 +76,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Turns the player to face a direction and shows the matching idle frame. */
   setFacing(direction: Direction): void {
     this.lastDirection = direction
-    this.play(`idle-${direction}`)
+    this.play(this.anim('idle', direction))
   }
 
   /**
@@ -114,7 +128,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   halt(): void {
     const body = this.body as Phaser.Physics.Arcade.Body
     body.setVelocity(0, 0)
-    const idleKey = `idle-${this.lastDirection}`
+    this.moving = false
+    const idleKey = this.anim('idle', this.lastDirection)
     if (this.anims.currentAnim?.key !== idleKey) this.play(idleKey)
   }
 
@@ -142,16 +157,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(depthForFeetY(body.bottom))
 
     const isMoving = vx !== 0 || vy !== 0
+    this.moving = isMoving
 
     if (isMoving) {
       const dir = inputToDirection(input, this.lastDirection)
       this.lastDirection = dir
-      const animKey = `walk-${dir}`
-      if (this.anims.currentAnim?.key !== animKey) {
-        this.play(animKey)
+      const walkKey = this.anim('walk', dir)
+      if (this.anims.currentAnim?.key !== walkKey) {
+        this.play(walkKey)
       }
     } else {
-      const idleKey = `idle-${this.lastDirection}`
+      const idleKey = this.anim('idle', this.lastDirection)
       if (this.anims.currentAnim?.key !== idleKey) {
         this.play(idleKey)
       }

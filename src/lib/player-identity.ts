@@ -19,3 +19,17 @@ export function setPlayerHouse(house: PlayerHouse | null): void {
 export function playerHouse(): PlayerHouse | null {
   return current ? { ownedSlot: current.ownedSlot } : null
 }
+
+/**
+ * How the local player looks (Phase 5): an avatar id from their profile (`traveller`, `traveller-1`...), set by
+ * the app before the game starts. Null without an account: the original look.
+ */
+let look: string | null = null
+
+export function setPlayerLook(next: string | null): void {
+  look = next
+}
+
+export function playerLook(): string | null {
+  return look
+}

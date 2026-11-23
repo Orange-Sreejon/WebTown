@@ -24,6 +24,9 @@ import { SceneKeys } from '../config/SceneKeys'
 import { EditorOverlay } from '../entities/EditorOverlay'
 import { InteractionPrompt } from '../entities/InteractionPrompt'
 import { Player } from '../entities/Player'
+import { RemotePlayers } from '../entities/RemotePlayers'
+import { isAvatar } from '../systems/avatars'
+import { playerLook } from '../../lib/player-identity'
 import { addStaticRects } from '../maps/collision-objects'
 import { getTemplate } from '../maps/house/default-interior'
 import { EditorSession, type EditorMode } from '../maps/house/editor-session'
@@ -96,6 +99,8 @@ type PlacedPiece = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
  */
 export class InteriorScene extends Phaser.Scene {
   private houseId = ''
+  /** Other players in this house (Phase 5); idle in single player. */
+  private remotes: RemotePlayers | undefined
   private interiorId = ''
   private template: InteriorTemplate | undefined
   private layout: HouseLayout | undefined
@@ -244,7 +249,9 @@ export class InteriorScene extends Phaser.Scene {
     addStaticRects(this, this.walls, getInteriorCollisionRects(def))
 
     const spawn = spawnFeet(def)
-    this.player = new Player(this, 0, 0)
+    const look = playerLook()
+    this.player = new Player(this, 0, 0, isAvatar(look) ? look : 'traveller')
+    this.remotes = new RemotePlayers(this, `house:${this.houseId}`)
     this.player.placeFeet(spawn.x, spawn.y)
     this.player.setFacing(def.spawn.facing)
     this.physics.add.collider(this.player, this.walls)
@@ -315,6 +322,7 @@ export class InteriorScene extends Phaser.Scene {
 
   update(): void {
     if (!this.player) return
+    this.remotes?.update(this.player, Date.now())
 
     if (isPlayerFrozen(this.busyState())) {
       this.player.halt()
@@ -743,6 +751,8 @@ export class InteriorScene extends Phaser.Scene {
   }
 
   private teardown(): void {
+    this.remotes?.clear()
+    this.remotes = undefined
     this.removeLoadErrorListener()
 
     if (this.onInteractKey) this.input.keyboard?.off('keydown-E', this.onInteractKey)

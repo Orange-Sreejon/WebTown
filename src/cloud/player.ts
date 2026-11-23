@@ -87,12 +87,12 @@ export function houseIdForSlot(player: Pick<PlayerContext, 'houses'>, slot: stri
 }
 
 /** Saves the profile fields the player may change. Returns the profile as stored. */
-export async function updateProfile(backend: CloudBackend, userId: string, change: { displayName?: string; settings?: Record<string, unknown> }): Promise<Profile> {
+export async function updateProfile(backend: CloudBackend, userId: string, change: { displayName?: string; avatar?: string; settings?: Record<string, unknown> }): Promise<Profile> {
   let raw: unknown
   try {
     raw = await backend.rpc('update_profile', {
       p_display_name: change.displayName ?? null,
-      p_avatar: null,
+      p_avatar: change.avatar ?? null,
       p_settings: change.settings ?? null,
     })
   } catch (error) {
