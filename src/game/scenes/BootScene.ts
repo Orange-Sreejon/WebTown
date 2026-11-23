@@ -2,7 +2,17 @@ import Phaser from 'phaser'
 import { AssetKeys, AssetPaths, MARKET_IMAGE_KEYS } from '../config/AssetKeys'
 import { WALK_FRAME_RATE } from '../config/GameConfig'
 import { emit } from '../../lib/event-bus'
-import { AVATARS, animKey, avatarTexture, recolour } from '../systems/avatars'
+import {
+  AVATAR_FRAME_HEIGHT,
+  AVATAR_FRAME_WIDTH,
+  AVATARS,
+  RECOLOURED_LOOKS,
+  animKey,
+  availableSheetLooks,
+  avatarTexture,
+  recolour,
+  sheetUrl,
+} from '../systems/avatars'
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -18,9 +28,19 @@ export class BootScene extends Phaser.Scene {
     })
 
     this.load.spritesheet(AssetKeys.TRAVELLER, AssetPaths[AssetKeys.TRAVELLER], {
-      frameWidth: 48,
-      frameHeight: 64,
+      frameWidth: AVATAR_FRAME_WIDTH,
+      frameHeight: AVATAR_FRAME_HEIGHT,
     })
+
+    // ── Distinct character sheets (optional — see docs/ASSETS.md) ──────
+    // Only those this build actually has (checked before boot), so a missing file is never queued.
+    // Same 48 x 64 grid as the traveller, so they share the animation layout below.
+    for (const look of availableSheetLooks()) {
+      this.load.spritesheet(look.id, sheetUrl(look.id), {
+        frameWidth: AVATAR_FRAME_WIDTH,
+        frameHeight: AVATAR_FRAME_HEIGHT,
+      })
+    }
 
     this.load.image(AssetKeys.GRASS_TILE,  AssetPaths[AssetKeys.GRASS_TILE])
     this.load.image(AssetKeys.GROUND_TILE, AssetPaths[AssetKeys.GROUND_TILE])
@@ -116,7 +136,8 @@ export class BootScene extends Phaser.Scene {
       { dir: 'up',    rowStart: 9 },
     ]
 
-    for (const look of AVATARS) {
+    // The traveller recolours stay animated as the fallback, then every shipped character.
+    for (const look of [...RECOLOURED_LOOKS, ...AVATARS]) {
       const texture = avatarTexture(look)
       if (!this.textures.exists(texture)) continue
       for (const { dir, rowStart } of dirs) {
@@ -148,12 +169,13 @@ export class BootScene extends Phaser.Scene {
   /**
    * The coloured variants of the traveller (Phase 5), drawn once from the loaded sheet into canvas textures
    * with the same 48 x 64 frames. If the canvas can't be read, the variants are skipped and everyone falls
-   * back to the original look.
+   * back to the original look. Character sheets are loaded as they are, so only the recolours are made here.
    */
   private createAvatarTextures(): void {
+    if (!this.textures.exists(AssetKeys.TRAVELLER)) return
     const source = this.textures.get(AssetKeys.TRAVELLER).getSourceImage() as HTMLImageElement | HTMLCanvasElement
     const { width, height } = source
-    for (const look of AVATARS) {
+    for (const look of RECOLOURED_LOOKS) {
       if (look === 'traveller' || this.textures.exists(look)) continue
       const canvas = this.textures.createCanvas(look, width, height)
       if (!canvas) continue
@@ -170,8 +192,10 @@ export class BootScene extends Phaser.Scene {
       }
       canvas.refresh()
       let frame = 0
-      for (let y = 0; y + 64 <= height; y += 64) {
-        for (let x = 0; x + 48 <= width; x += 48) canvas.add(frame++, 0, x, y, 48, 64)
+      for (let y = 0; y + AVATAR_FRAME_HEIGHT <= height; y += AVATAR_FRAME_HEIGHT) {
+        for (let x = 0; x + AVATAR_FRAME_WIDTH <= width; x += AVATAR_FRAME_WIDTH) {
+          canvas.add(frame++, 0, x, y, AVATAR_FRAME_WIDTH, AVATAR_FRAME_HEIGHT)
+        }
       }
     }
   }

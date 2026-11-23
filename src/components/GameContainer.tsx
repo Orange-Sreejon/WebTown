@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type Phaser from 'phaser'
 import { createPhaserGame } from '../game/create-game'
+import { findAvailableSheets } from '../game/systems/avatars'
 import { on, off } from '../lib/event-bus'
 import { LoadingScreen } from './LoadingScreen'
 import { HouseEditorOverlay } from './house-editor/HouseEditorOverlay'
@@ -46,9 +47,13 @@ export function GameContainer(): React.ReactElement {
     on('READY', handleReady)
     on('ERROR', handleError as (e: CustomEvent<unknown>) => void)
 
-    console.log('[GameContainer] calling createPhaserGame')
-    gameRef.current = createPhaserGame(el)
-    console.log('[GameContainer] createPhaserGame returned:', gameRef.current)
+    // Optional character sheets are checked first, so the loader only queues files that exist.
+    void findAvailableSheets().then(() => {
+      if (!mounted) return
+      console.log('[GameContainer] calling createPhaserGame')
+      gameRef.current = createPhaserGame(el)
+      console.log('[GameContainer] createPhaserGame returned:', gameRef.current)
+    })
 
     return () => {
       mounted = false

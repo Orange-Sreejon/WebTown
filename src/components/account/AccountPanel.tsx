@@ -1,10 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AuthError, emailProblem, passwordProblem, type AuthUser } from '../../cloud/auth'
 import type { Profile } from '../../cloud/player'
 import { WindowFrame } from '../apps/WindowFrame'
 import { Field, FormError, LoginForm, useAction } from './AuthForms'
 import { KeyboardShield } from './KeyboardShield'
-import { AVATARS, AVATAR_LABELS, avatarFor, type AvatarId } from '../../game/systems/avatars'
+import {
+  AVATAR_FRAME_HEIGHT,
+  AVATAR_FRAME_WIDTH,
+  IDLE_DOWN_FRAME,
+  availableSheetLooks,
+  avatarFor,
+  findAvailableSheets,
+  sheetUrl,
+  type AvatarId,
+  type SheetLook,
+} from '../../game/systems/avatars'
+import { AssetKeys, AssetPaths } from '../../game/config/AssetKeys'
 import './account.css'
 
 /** What the panel may do. Supplied by the session gate; nothing here talks to a backend directly. */
@@ -106,19 +117,66 @@ function DisplayName({ profile, actions }: { profile: Profile; actions: AccountA
   )
 }
 
-/** The colour of the player's character; others see it too. Applies the next time the town opens. */
+/** The character sheets that exist in this build, so the picker offers only looks that will draw. */
+function useAvailableSheets(): readonly SheetLook[] {
+  const [available, setAvailable] = useState<readonly SheetLook[]>(availableSheetLooks)
+  useEffect(() => {
+    let cancelled = false
+    void findAvailableSheets().then(sheets => { if (!cancelled) setAvailable(sheets) })
+    return () => { cancelled = true }
+  }, [])
+  return available
+}
+
+/** The standing, facing-down frame of a character as a small pixel preview. */
+function LookPreview({ sheet }: { sheet: SheetLook }): React.ReactElement {
+  const ref = useRef<HTMLCanvasElement | null>(null)
+  useEffect(() => {
+    const canvas = ref.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
+    const draw = (image: HTMLImageElement): void => {
+      ctx.clearRect(0, 0, AVATAR_FRAME_WIDTH, AVATAR_FRAME_HEIGHT)
+      ctx.drawImage(
+        image,
+        IDLE_DOWN_FRAME * AVATAR_FRAME_WIDTH, 0, AVATAR_FRAME_WIDTH, AVATAR_FRAME_HEIGHT,
+        0, 0, AVATAR_FRAME_WIDTH, AVATAR_FRAME_HEIGHT,
+      )
+    }
+    const image = new Image()
+    image.onload = () => draw(image)
+    // A chosen sheet whose file was removed still shows *something*: the traveller, as the game draws it.
+    image.onerror = () => {
+      image.onerror = null
+      image.src = AssetPaths[AssetKeys.TRAVELLER]
+    }
+    image.src = sheetUrl(sheet.id)
+    return () => { image.onload = null; image.onerror = null }
+  }, [sheet.id])
+  return <canvas ref={ref} width={AVATAR_FRAME_WIDTH} height={AVATAR_FRAME_HEIGHT} aria-hidden="true" />
+}
+
+/** The player's character; others see it too. Applies the next time the town opens. */
 function Look({ userId, profile, actions }: { userId: string; profile: Profile; actions: AccountActions }): React.ReactElement {
   const current = avatarFor(profile.avatar, userId)
   const [saved, setSaved] = useState<AvatarId | null>(null)
+  const sheets = useAvailableSheets()
   const { busy, error, run } = useAction()
   return (
     <section className="ac-section" aria-labelledby="ac-look">
       <h2 className="ac-heading" id="ac-look">Your look</h2>
-      <div className="ac-buttons" role="group" aria-label="Character colour">
-        {AVATARS.map(look => (
-          <button key={look} type="button" className="ac-button" aria-pressed={look === current} disabled={busy}
-            onClick={() => void run(async () => { await actions.updateProfile({ avatar: look }); setSaved(look) })}>
-            {AVATAR_LABELS[look]}
+      <div className="ac-looks" role="group" aria-label="Character look">
+        {sheets.map(sheet => (
+          <button
+            key={sheet.id}
+            type="button"
+            className="ac-look"
+            aria-pressed={sheet.id === current}
+            disabled={busy}
+            onClick={() => void run(async () => { await actions.updateProfile({ avatar: sheet.id }); setSaved(sheet.id) })}
+          >
+            <LookPreview sheet={sheet} />
+            <span>{sheet.label}</span>
           </button>
         ))}
       </div>
