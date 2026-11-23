@@ -4,6 +4,7 @@ import type { Profile } from '../../cloud/player'
 import { WindowFrame } from '../apps/WindowFrame'
 import { Field, FormError, LoginForm, useAction } from './AuthForms'
 import { KeyboardShield } from './KeyboardShield'
+import { AVATARS, AVATAR_LABELS, avatarFor, type AvatarId } from '../../game/systems/avatars'
 import './account.css'
 
 /** What the panel may do. Supplied by the session gate; nothing here talks to a backend directly. */
@@ -13,7 +14,7 @@ export interface AccountActions {
   setPassword(password: string): Promise<AuthUser>
   signIn(email: string, password: string): Promise<unknown>
   signOut(): Promise<unknown>
-  updateProfile(change: { displayName?: string; settings?: Record<string, unknown> }): Promise<Profile>
+  updateProfile(change: { displayName?: string; avatar?: string; settings?: Record<string, unknown> }): Promise<Profile>
 }
 
 export interface AccountPanelProps {
@@ -55,6 +56,7 @@ export function AccountPanel({ user, profile, actions, onClose }: AccountPanelPr
           ) : (
             <>
               <DisplayName profile={profile} actions={actions} />
+              <Look userId={user.id} profile={profile} actions={actions} />
               {user.pendingEmail !== null ? (
                 <PendingEmail email={user.pendingEmail} actions={actions} />
               ) : user.isAnonymous ? (
@@ -100,6 +102,28 @@ function DisplayName({ profile, actions }: { profile: Profile; actions: AccountA
         {saved && <p className="ac-good" role="status">Saved.</p>}
         <button type="submit" className="ac-button" disabled={busy || name.trim() === profile.displayName}>Save name</button>
       </form>
+    </section>
+  )
+}
+
+/** The colour of the player's character; others see it too. Applies the next time the town opens. */
+function Look({ userId, profile, actions }: { userId: string; profile: Profile; actions: AccountActions }): React.ReactElement {
+  const current = avatarFor(profile.avatar, userId)
+  const [saved, setSaved] = useState<AvatarId | null>(null)
+  const { busy, error, run } = useAction()
+  return (
+    <section className="ac-section" aria-labelledby="ac-look">
+      <h2 className="ac-heading" id="ac-look">Your look</h2>
+      <div className="ac-buttons" role="group" aria-label="Character colour">
+        {AVATARS.map(look => (
+          <button key={look} type="button" className="ac-button" aria-pressed={look === current} disabled={busy}
+            onClick={() => void run(async () => { await actions.updateProfile({ avatar: look }); setSaved(look) })}>
+            {AVATAR_LABELS[look]}
+          </button>
+        ))}
+      </div>
+      <FormError message={error} />
+      {saved && <p className="ac-good" role="status">Saved. Your new look shows the next time the town opens.</p>}
     </section>
   )
 }

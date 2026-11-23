@@ -73,7 +73,8 @@ npm run dev
 Vite will print the local development URL in the terminal.
 
 Without further setup WebTown saves to this browser only. To give players accounts (guests at once, email
-accounts later), connect a Supabase project: see [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
+accounts later), connect a Supabase project: see [docs/ACCOUNTS.md](docs/ACCOUNTS.md). With a project, players can also invite
+each other into their town and play together: see [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md).
 
 ### Useful scripts
 
@@ -83,11 +84,14 @@ npm run build     # Create a production build
 npm test          # Unit, component and database (RLS) tests
 npm run test:e2e  # Browser tests with the real game (Chromium, Firefox, WebKit)
 npm run test:live # Account tests against a real Supabase test project (see docs/ACCOUNTS.md)
+npm run test:multiplayer # Two players in two browsers, against a local Supabase stand-in
 ```
 
 ## Controls
 
 - **W / A / S / D** or **Arrow keys** — move your character.
+- **E**: enter a house, use the computer or the Sketchbook.
+- **Q**: wave to the player next to you (in a shared town).
 - Use the in-game interaction prompt/key when approaching an interactive entrance or object, where available.
 
 ## Roadmap

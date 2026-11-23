@@ -29,6 +29,9 @@ import { InteractionPrompt } from '../entities/InteractionPrompt'
 import { houseLayouts, type LoadedLayout } from '../maps/house/house-layout-store'
 import type { InteriorSceneData } from './InteriorScene'
 import { Player } from '../entities/Player'
+import { RemotePlayers } from '../entities/RemotePlayers'
+import { isAvatar } from '../systems/avatars'
+import { playerLook } from '../../lib/player-identity'
 import { emit } from '../../lib/event-bus'
 import type { Rect } from '../../lib/geometry'
 
@@ -37,6 +40,8 @@ const ENTRANCES: readonly Entrance[] = buildEntrances(HOUSES, STRUCTURES)
 
 export class TownScene extends Phaser.Scene {
   private player!: Player
+  /** Other players in the town (Phase 5); idle in single player. */
+  private remotes: RemotePlayers | undefined
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private wasd!: {
     W: Phaser.Input.Keyboard.Key
@@ -83,7 +88,9 @@ export class TownScene extends Phaser.Scene {
       this.obstacles = createCollisionObjects(this)
       console.log('[TownScene] collision objects created')
 
-      this.player = new Player(this, PLAYER_START_TILE_X, PLAYER_START_TILE_Y)
+      const look = playerLook()
+      this.player = new Player(this, PLAYER_START_TILE_X, PLAYER_START_TILE_Y, isAvatar(look) ? look : 'traveller')
+      this.remotes = new RemotePlayers(this, 'town')
       console.log('[TownScene] player created')
 
       this.physics.add.collider(this.player, this.obstacles)
@@ -148,6 +155,7 @@ export class TownScene extends Phaser.Scene {
       this.player?.update(this.cursors, this.wasd)
     }
 
+    this.remotes?.update(this.player, Date.now())
     this.updateEntrancePrompt()
 
     // The clock stops from the moment a door is used, not only once the town
@@ -353,5 +361,6 @@ export class TownScene extends Phaser.Scene {
     this.prompt?.destroy()
 
     this.halloween?.destroy()
+    this.remotes?.clear()
   }
 }

@@ -61,3 +61,24 @@ alter default privileges in schema public grant all on tables to anon, authentic
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
+
+-- Realtime (Phase 5): private channels are authorised by RLS on realtime.messages, read with the channel's topic
+-- in `realtime.topic`, as Supabase Realtime does when a user joins a private channel.
+create schema realtime;
+create table realtime.messages (
+  id bigserial primary key,
+  topic text not null,
+  extension text not null,
+  payload jsonb,
+  event text,
+  private boolean default true,
+  inserted_at timestamptz not null default now()
+);
+alter table realtime.messages enable row level security;
+create function realtime.topic() returns text language sql stable as $$
+  select nullif(current_setting('realtime.topic', true), '')::text
+$$;
+grant usage on schema realtime to anon, authenticated, service_role;
+grant select, insert on realtime.messages to anon, authenticated, service_role;
+grant usage on sequence realtime.messages_id_seq to anon, authenticated, service_role;
+grant execute on function realtime.topic() to anon, authenticated, service_role;

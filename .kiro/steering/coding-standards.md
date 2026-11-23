@@ -81,7 +81,8 @@ All magic numbers belong in `src/game/config/GameConfig.ts`:
 - `@supabase/supabase-js` (Phase 4, decision C-1): imported only by `src/cloud/supabase-backend.ts`, loaded on demand.
 - Dev dependencies: Vite, TypeScript, Vitest, @types/*, `fake-indexeddb` (D5, tests only) and
   `@playwright/test` (SD-10, real-browser security tests in Chromium, Firefox and WebKit) and `@electric-sql/pglite`
-  (C-9, real PostgreSQL for the RLS tests). None of them may be
+  (C-9, real PostgreSQL for the RLS tests) and `ws` (Phase 5, the WebSocket server of the test-only Supabase stand-in in
+  `tests/multiplayer/`). None of them may be
   imported by anything under `src/` that ships, nor appear in `dist/`.
 - No other code-editor dependency (Monaco, Ace or similar) is approved.
 

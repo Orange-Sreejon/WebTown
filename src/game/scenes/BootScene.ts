@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { AssetKeys, AssetPaths, MARKET_IMAGE_KEYS } from '../config/AssetKeys'
 import { WALK_FRAME_RATE } from '../config/GameConfig'
 import { emit } from '../../lib/event-bus'
+import { AVATARS, animKey, avatarTexture, recolour } from '../systems/avatars'
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -106,6 +107,8 @@ export class BootScene extends Phaser.Scene {
   }
 
   private createAnimations(): void {
+    this.createAvatarTextures()
+
     const dirs: Array<{ dir: string; rowStart: number }> = [
       { dir: 'down',  rowStart: 0 },
       { dir: 'left',  rowStart: 3 },
@@ -113,28 +116,63 @@ export class BootScene extends Phaser.Scene {
       { dir: 'up',    rowStart: 9 },
     ]
 
-    for (const { dir, rowStart } of dirs) {
-      const f0 = rowStart
-      const f1 = rowStart + 1
-      const f2 = rowStart + 2
+    for (const look of AVATARS) {
+      const texture = avatarTexture(look)
+      if (!this.textures.exists(texture)) continue
+      for (const { dir, rowStart } of dirs) {
+        const f0 = rowStart
+        const f1 = rowStart + 1
+        const f2 = rowStart + 2
 
-      this.anims.create({
-        key: `walk-${dir}`,
-        frames: this.anims.generateFrameNumbers(AssetKeys.TRAVELLER, {
-          frames: [f0, f1, f2, f1],
-        }),
-        frameRate: WALK_FRAME_RATE,
-        repeat: -1,
-      })
+        this.anims.create({
+          key: animKey('walk', dir, look),
+          frames: this.anims.generateFrameNumbers(texture, {
+            frames: [f0, f1, f2, f1],
+          }),
+          frameRate: WALK_FRAME_RATE,
+          repeat: -1,
+        })
 
-      this.anims.create({
-        key: `idle-${dir}`,
-        frames: this.anims.generateFrameNumbers(AssetKeys.TRAVELLER, {
-          frames: [f1],
-        }),
-        frameRate: 1,
-        repeat: 0,
-      })
+        this.anims.create({
+          key: animKey('idle', dir, look),
+          frames: this.anims.generateFrameNumbers(texture, {
+            frames: [f1],
+          }),
+          frameRate: 1,
+          repeat: 0,
+        })
+      }
+    }
+  }
+
+  /**
+   * The coloured variants of the traveller (Phase 5), drawn once from the loaded sheet into canvas textures
+   * with the same 48 x 64 frames. If the canvas can't be read, the variants are skipped and everyone falls
+   * back to the original look.
+   */
+  private createAvatarTextures(): void {
+    const source = this.textures.get(AssetKeys.TRAVELLER).getSourceImage() as HTMLImageElement | HTMLCanvasElement
+    const { width, height } = source
+    for (const look of AVATARS) {
+      if (look === 'traveller' || this.textures.exists(look)) continue
+      const canvas = this.textures.createCanvas(look, width, height)
+      if (!canvas) continue
+      const ctx = canvas.getContext()
+      ctx.drawImage(source, 0, 0)
+      try {
+        const image = ctx.getImageData(0, 0, width, height)
+        recolour(image.data, look)
+        ctx.putImageData(image, 0, 0)
+      } catch (error) {
+        console.warn(`[BootScene] could not recolour ${look}`, error)
+        this.textures.remove(look)
+        continue
+      }
+      canvas.refresh()
+      let frame = 0
+      for (let y = 0; y + 64 <= height; y += 64) {
+        for (let x = 0; x + 48 <= width; x += 48) canvas.add(frame++, 0, x, y, 48, 64)
+      }
     }
   }
 }

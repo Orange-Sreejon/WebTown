@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test -c tests/e2e/playwright.config.mjs",
     "test:live": "playwright test -c tests/live/playwright.config.mjs",
+    "test:multiplayer": "playwright test -c tests/multiplayer/playwright.config.mjs",
     "spike:sandbox": "playwright test -c spikes/site-sandbox/playwright.config.mjs"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
     "jsdom": "25.0.1",
     "typescript": "7.0.2",
     "vite": "8.3.7",
-    "vitest": "5.1.0"
+    "vitest": "5.1.0",
+    "ws": "8.22.2"
   }
 }

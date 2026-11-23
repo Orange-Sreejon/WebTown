@@ -28,6 +28,20 @@ const toDatabaseError = (error: unknown): DatabaseError => {
   return new DatabaseError(e?.code ?? 'unknown', e?.message ?? String(error))
 }
 
+/** Sets the role and JWT claims of `caller` for the rest of the transaction, as PostgREST does. */
+async function actAs(tx: Transaction, caller: Caller): Promise<void> {
+  if (caller.kind === 'user') {
+    const claims = { sub: caller.id, role: 'authenticated', is_anonymous: caller.anonymous, aud: 'authenticated' }
+    await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)])
+    await tx.exec('set local role authenticated')
+  } else if (caller.kind === 'anon') {
+    await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: 'anon' })])
+    await tx.exec('set local role anon')
+  } else {
+    await tx.exec('set local role service_role')
+  }
+}
+
 export class TestDatabase {
   private constructor(readonly pg: PGlite) {}
 
@@ -58,21 +72,50 @@ export class TestDatabase {
   async as<T>(caller: Caller, body: (tx: Transaction) => Promise<T>): Promise<T> {
     try {
       return await this.pg.transaction(async tx => {
-        if (caller.kind === 'user') {
-          const claims = { sub: caller.id, role: 'authenticated', is_anonymous: caller.anonymous, aud: 'authenticated' }
-          await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)])
-          await tx.exec('set local role authenticated')
-        } else if (caller.kind === 'anon') {
-          await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: 'anon' })])
-          await tx.exec('set local role anon')
-        } else {
-          await tx.exec('set local role service_role')
-        }
+        await actAs(tx, caller)
         return await body(tx)
       })
     } catch (error) {
       throw toDatabaseError(error)
     }
+  }
+
+  /**
+   * Whether `caller` may receive and send on a private Realtime channel, decided the way Supabase Realtime
+   * decides it: a probe row for the topic is written, then, as the caller with `realtime.topic` set, the row
+   * must be visible (receive) and a row must be insertable (send). Everything is rolled back.
+   */
+  async realtimeAccess(caller: Caller, topic: string, extension: 'broadcast' | 'presence' = 'broadcast'): Promise<{ read: boolean; write: boolean }> {
+    const ROLLBACK = Symbol('rollback')
+    const probe = async (body: (tx: Transaction) => Promise<boolean>): Promise<boolean> => {
+      let result = false
+      try {
+        await this.pg.transaction(async tx => {
+          result = await body(tx)
+          throw ROLLBACK
+        })
+      } catch (error) {
+        if (error !== ROLLBACK) throw error
+      }
+      return result
+    }
+    const read = await probe(async tx => {
+      const { rows } = await tx.query<{ id: number }>('insert into realtime.messages (topic, extension) values ($1, $2) returning id', [topic, extension])
+      await actAs(tx, caller)
+      await tx.query("select set_config('realtime.topic', $1, true)", [topic])
+      return (await tx.query('select 1 from realtime.messages where id = $1', [rows[0]!.id])).rows.length === 1
+    })
+    const write = await probe(async tx => {
+      await actAs(tx, caller)
+      await tx.query("select set_config('realtime.topic', $1, true)", [topic])
+      try {
+        await tx.query('insert into realtime.messages (topic, extension) values ($1, $2)', [topic, extension])
+        return true
+      } catch {
+        return false
+      }
+    })
+    return { read, write }
   }
 
   /** A query as `caller`; the rows. */

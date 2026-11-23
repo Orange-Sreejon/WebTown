@@ -422,3 +422,50 @@ Manual, with a configured project (1280x720 and 390x844):
 - [ ] Offline at start: "Couldn't reach WebTown" with Try again and Play on this device only; offline while editing: the
       save fails with a message and the work stays in the editor.
 - [ ] Without `VITE_SUPABASE_*`: everything works as in Phase 3a and nothing mentions accounts.
+
+# Phase 5 - Multiplayer (`.kiro/specs/multiplayer/`, setup and limits in `docs/MULTIPLAYER.md`)
+
+Automated in Vitest:
+- The schema on PGlite with several users, strangers and `anon`. It covers:
+  - invitations: the code is shown once and only its hash is stored, owner only, 1 to 30 days, 20 open at most;
+  - preview, join (idempotent, first free house, the 8th player refused), and invalid, revoked and expired codes;
+  - leaving and removing (the house is emptied), and strangers refused everything;
+  - the `realtime.messages` policies, for members only, by topic, closed after leaving.
+- The protocol: malformed, oversized, out-of-bounds and wrongly typed messages are dropped.
+- Interpolation: smooth at 10 Hz with jittery arrival, a slow uneven sender drawn without stepping back, the
+  render delay changed without turning the clock back, jumps not tweened.
+- World sessions over an in-memory realtime hub. It covers:
+  - presence: names from the member list only, one character per player (newest tab), leaves after a grace,
+    flicker-free reconnects, refusal, "connection lost" and Retry, worlds kept apart;
+  - movement: at most 10 a second, none while standing, smooth, stops where they stopped; stale, reordered,
+    too fast and spammed moves dropped; delayed bunches, scene changes, reconnects, no leaks between worlds;
+  - waving and emotes: range checked by sender and receiver, cooldowns, spam.
+- The town window and the invitation screen through the real session gate on the real database: invite, join from
+  the link, play in that town with house B, remembered after a reload, go home, revoke, leave, be removed.
+
+Automated with two real players: `npm run test:multiplayer`. Chromium and Firefox run as two separate guests, on
+the production app and supabase-js, against the local Supabase stand-in (`tests/multiplayer/emulator.mjs`: the
+real migrations and policies on PGlite). It is not Supabase; see `npm run test:live`. It checks:
+- invitation, presence with names, the six looks, a dropped connection and reconnect, leaving;
+- walking with the real keyboard: drawn every frame always forward and never jumping; the send rate measured at the
+  server; the position right after a reconnect; into a house and back; a third guest in another world sees and is
+  seen by nobody;
+- Q waves (notice, bubbles), the button waves back, out of range it is refused, a forged wave from afar is
+  relayed by the server but ignored, emotes;
+- a made-up code, a stranger opening the town by id (database refuses) or the channel directly (policy refuses),
+  leaving from the town window.
+
+Manual, with two browsers (or a normal and a private window) on a configured project:
+
+- [ ] Player A: "Town: My WebTown" > Create invitation > Copy link. Player B opens the link: "Join My WebTown?",
+      who invited them, "1 of 7 players". Join: B is in A's town; both status lines say "Online · 2 players".
+- [ ] Each sees the other's character and name; walking looks smooth both ways; names stay readable at night.
+- [ ] B goes into house B: A no longer sees B in the town. A goes in too: B is there and moves.
+- [ ] Next to each other: "Q: Wave to <name>". Q waves; the other sees "<name> waved at you". Far apart, Q says
+      "No one is close enough to wave to."
+- [ ] Turn B's network off for 10 s: B shows "Reconnecting...", A sees B leave; network on: B is back, once.
+- [ ] Close B's tab: A sees "<name> left". Reopen: B is back in A's town.
+- [ ] A revokes the invitation: the link now says "This invitation doesn't work". A removes B: B's next start
+      opens B's own town with a note.
+- [ ] The furniture editor, the website and the Sketchbook still work in both towns; the emote bar steps aside
+      while they are open.
