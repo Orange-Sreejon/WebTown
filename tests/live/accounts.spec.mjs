@@ -5,6 +5,7 @@
 // Sketchbook and website repositories set up by the session gate), so every request is the app's real request
 // with the player's real session. Isolation is checked with raw HTTP calls carrying another user's token.
 import { test, expect } from '@playwright/test'
+import './live-env.mjs'
 
 const LIVE = process.env.WEBTOWN_LIVE === '1'
 const URL_ = process.env.WEBTOWN_LIVE_SUPABASE_URL ?? ''
