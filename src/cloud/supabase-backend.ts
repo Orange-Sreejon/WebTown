@@ -64,18 +64,18 @@ export function toAuthError(error: unknown): AuthError {
   return new AuthError(ours, message, error)
 }
 
-/** Errors that mean the saved session is gone on the server and cannot be refreshed. */
-const DEAD_SESSION = new Set([
-  'bad_jwt',
-  'invalid_jwt',
-  'session_not_found',
-  'session_expired',
-  'refresh_token_not_found',
-  'refresh_token_already_used',
-])
-
-const isDeadSession = (error: { code?: string; status?: number } | null): boolean =>
-  !!error && (DEAD_SESSION.has(error.code ?? '') || error.status === 401 || error.status === 403)
+/**
+ * Whether the server refused the saved session rather than failing to answer. Only the server can say whether a
+ * session is still usable: the stand-in forgets every guest when it restarts, and a session can also be signed
+ * out or revoked elsewhere, expire, or belong to a deleted user. Every refusal (4xx) means "forget it and start
+ * over"; a network failure or server error (status 0 or 5xx) leaves it alone, and rate limiting (429) says
+ * nothing about it. The status decides because `session_not_found` arrives as an `AuthSessionMissingError` with
+ * no code, and the stand-in sends no codes at all.
+ */
+const isRefused = (error: { status?: number } | null): boolean => {
+  const status = error?.status ?? 0
+  return status >= 400 && status < 500 && status !== 429
+}
 
 /** Forgets a session the server no longer accepts, locally only, so the player can start over. */
 async function forgetSession(client: SupabaseClient): Promise<null> {
@@ -92,16 +92,15 @@ function supabaseAuth(client: SupabaseClient): AuthPort {
     async restore() {
       const { data, error } = await client.auth.getSession()
       if (error) {
-        // A session that cannot be refreshed is gone for good: start over instead of dead-ending.
-        if (isDeadSession(error)) return forgetSession(client)
+        // A session whose refresh the server refuses is gone for good: start over instead of dead-ending.
+        if (isRefused(error)) return forgetSession(client)
         throw toAuthError(error)
       }
       if (!data.session?.user) return null
-      // The token is still signed, so only the server can say whether its user is still there: the local
-      // stand-in forgets every guest when it restarts, and a deleted account looks the same. A refusal means
-      // there is nothing left to restore; a network failure leaves the saved user alone.
-      const { data: live, error: check } = await client.auth.getUser()
-      if (isDeadSession(check)) return forgetSession(client)
+      // The saved token is still signed, so only the server can confirm it: a refusal means there is nothing
+      // left to restore, while a network failure keeps the saved user, so an offline start still opens their town.
+      const { data: live, error: refused } = await client.auth.getUser()
+      if (isRefused(refused)) return forgetSession(client)
       return toAuthUser(live.user ?? data.session.user)
     },
     async signInAnonymously() {

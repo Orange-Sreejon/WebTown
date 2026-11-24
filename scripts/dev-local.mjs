@@ -24,6 +24,8 @@ function start(name, args, env) {
   const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, ...env }, stdio: 'inherit' })
   children.set(name, child)
   child.on('error', error => {
+    // The process never started, so there is nothing to wait for.
+    children.delete(name)
     console.error(`[dev:local] could not start ${name}: ${error.message}`)
     stop(1)
   })
@@ -42,7 +44,6 @@ async function stop(code) {
   const exited = [...children.values()].map(
     child =>
       new Promise(resolve => {
-        if (child.exitCode !== null || child.signalCode) return resolve()
         child.once('exit', resolve)
         child.kill()
       }),
