@@ -239,3 +239,34 @@ describe('realtime channel of a world', () => {
     expect(await db.realtimeAccess(guest, topic(boot.world.id))).toEqual({ read: false, write: false })
   })
 })
+
+describe('private functions (stabilization S4)', () => {
+  it('lets signed-in users execute only what RLS policies and invoker functions need', async () => {
+    const rows = await db.superuser<{ proname: string }>(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'private' and has_function_privilege('authenticated', p.oid, 'execute') order by 1`)
+    expect(rows.map(r => r.proname)).toEqual([
+      'can_view_house', 'house_folder', 'house_path_allows', 'is_world_member', 'iso', 'owns_house',
+      'realtime_world_member', 'shares_world', 'touch_updated_at',
+    ])
+    const anon = await db.superuser<{ proname: string }>(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'private' and has_function_privilege('anon', p.oid, 'execute')`)
+    expect(anon).toEqual([])
+  })
+
+  it('refuses a direct call to the functions that act on any world or user', async () => {
+    const { me: owner, boot } = await player()
+    const { me: guest } = await player()
+    await join(guest, (await invite(owner, boot.world.id)).code)
+    for (const sql of [
+      `select private.drop_member('${boot.world.id}', '${guest.id}')`,
+      `select private.player_context('${owner.id}', '${boot.world.id}')`,
+      `select private.new_invite_code()`,
+    ]) {
+      expect((await rejection(db.query(guest, sql))).code, sql).toBe('42501')
+    }
+    expect(await members(owner, boot.world.id)).toHaveLength(2)
+    // ...while the functions built on them still work for the people allowed to use them.
+    await db.rpc(owner, 'remove_world_member', { p_world: boot.world.id, p_user: guest.id })
+    expect(await members(owner, boot.world.id)).toHaveLength(1)
+  })
+})

@@ -7,6 +7,7 @@ import {
   type CreatedInvite, type InviteSummary, type WorldMember, type WorldSummary,
 } from '../../cloud/worlds'
 import { WindowFrame } from '../apps/WindowFrame'
+import { multiplayerLink } from '../../lib/multiplayer-link'
 import { KeyboardShield } from '../account/KeyboardShield'
 import { useAction } from '../account/AuthForms'
 import '../account/account.css'
@@ -39,9 +40,11 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
   const [invites, setInvites] = useState<InviteSummary[] | null>(null)
   const [worlds, setWorlds] = useState<WorldSummary[] | null>(null)
   const [created, setCreated] = useState<CreatedInvite | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'no' | 'yes' | 'failed'>('no')
   const [code, setCode] = useState('')
   const [confirmLeave, setConfirmLeave] = useState(false)
+  /** The resident the owner asked to remove, waiting for confirmation (it deletes their house). */
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
   const load = useAction()
   const act = useAction()
 
@@ -62,9 +65,10 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(link)
-      setCopied(true)
+      setCopied('yes')
     } catch {
-      setCopied(false)
+      // No clipboard here (a plain-http address, or permission refused): the link is selectable instead.
+      setCopied('failed')
     }
   }
 
@@ -88,9 +92,8 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
                       {m.role === 'owner' ? ' · owner' : ''}
                       {m.slot ? ` · ${m.slot.replace('house-', 'house ').toUpperCase()}` : ''}
                     </span>
-                    {isOwner && m.role !== 'owner' && (
-                      <button type="button" className="ac-link" disabled={act.busy}
-                        onClick={() => void act.run(async () => { await removeMember(backend, worldId, m.userId); await reload() })}>
+                    {isOwner && m.role !== 'owner' && confirmRemove !== m.userId && (
+                      <button type="button" className="ac-link" disabled={act.busy} onClick={() => setConfirmRemove(m.userId)}>
                         Remove {m.displayName}
                       </button>
                     )}
@@ -98,6 +101,23 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
                 ))}
               </ul>
             )}
+            {members?.filter(m => m.userId === confirmRemove).map(m => (
+              <div key={m.userId} className="mp-confirm" role="group" aria-label={`Remove ${m.displayName}`}>
+                <p className="ac-text">Remove {m.displayName} from {player.world.name}? Their house here and everything in it (furniture, website, drawings) will be deleted.</p>
+                <div className="ac-buttons">
+                  <button type="button" className="ac-button" disabled={act.busy}
+                    onClick={() => void act.run(async () => {
+                      await removeMember(backend, worldId, m.userId)
+                      setConfirmRemove(null)
+                      multiplayerLink()?.membersChanged()
+                      await reload()
+                    })}>
+                    Remove and delete their house
+                  </button>
+                  <button type="button" className="ac-button" onClick={() => setConfirmRemove(null)}>Keep {m.displayName}</button>
+                </div>
+              </div>
+            ))}
             {members && <p className="ac-text">{members.length} of {MAX_WORLD_MEMBERS} players.</p>}
           </section>
 
@@ -107,7 +127,7 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
               <p className="ac-text">Anyone with the link can join until it expires (7 days) or you revoke it.</p>
               <div className="ac-buttons">
                 <button type="button" className="ac-button ac-button--primary" disabled={act.busy}
-                  onClick={() => void act.run(async () => { setCopied(false); setCreated(await createInvite(backend, worldId)); await reload() })}>
+                  onClick={() => void act.run(async () => { setCopied('no'); setCreated(await createInvite(backend, worldId)); await reload() })}>
                   Create invitation
                 </button>
               </div>
@@ -116,8 +136,9 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
                   <p className="ac-text">Code <strong data-testid="invite-code">{created.code}</strong>. Shown only now.</p>
                   <input className="ac-input" readOnly value={link} aria-label="Invitation link" onFocus={e => e.currentTarget.select()} />
                   <div className="ac-buttons">
-                    <button type="button" className="ac-button" onClick={() => void copy()}>{copied ? 'Copied' : 'Copy link'}</button>
+                    <button type="button" className="ac-button" onClick={() => void copy()}>{copied === 'yes' ? 'Copied' : 'Copy link'}</button>
                   </div>
+                  {copied === 'failed' && <p className="ac-error" role="alert">Couldn't copy here. Select the link above and copy it.</p>}
                 </div>
               )}
               {invites && invites.length > 0 && (

@@ -235,3 +235,9 @@
 .mp-join {
   margin-top: 10px;
 }
+.mp-confirm {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border: 1px solid #5a3d28;
+  border-radius: 4px;
+}

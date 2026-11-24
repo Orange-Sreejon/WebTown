@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
+import { createClient, type RealtimeChannel, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { AuthError, type AuthErrorCode, type AuthPort, type AuthUser } from './auth'
 import { CloudError, type Bucket, type CloudBackend } from './backend'
 import type { CloudConfig } from './config'
@@ -78,12 +78,15 @@ const isRefused = (error: { status?: number } | null): boolean => {
 }
 
 /** Forgets a session the server no longer accepts, locally only, so the player can start over. */
-async function forgetSession(client: SupabaseClient): Promise<null> {
+async function forgetSession(client: AuthClientLike): Promise<null> {
   await client.auth.signOut({ scope: 'local' }).catch(() => undefined)
   return null
 }
 
-function supabaseAuth(client: SupabaseClient): AuthPort {
+/** What the auth port uses of the Supabase client (tests pass a stand-in). */
+export type AuthClientLike = Pick<SupabaseClient, 'auth'>
+
+export function supabaseAuth(client: AuthClientLike): AuthPort {
   const need = (user: User | null | undefined): AuthUser => {
     if (!user) throw new AuthError('unknown', MESSAGES.unknown)
     return toAuthUser(user)
@@ -97,11 +100,16 @@ function supabaseAuth(client: SupabaseClient): AuthPort {
         throw toAuthError(error)
       }
       if (!data.session?.user) return null
-      // The saved token is still signed, so only the server can confirm it: a refusal means there is nothing
-      // left to restore, while a network failure keeps the saved user, so an offline start still opens their town.
+      // The saved token is still signed, so only the server can confirm it. A refusal of the ACCESS token alone is
+      // not proof the session is gone: a device clock running behind sees an expired token as valid, and the server
+      // then answers 401/403. So refresh once; only a refused refresh (an unknown, revoked or deleted session) means
+      // there is nothing left to restore. Forgetting a guest's session loses their town for good, so be sure.
+      // A network failure (status 0) or server error keeps the saved user, so an offline start still opens their town.
       const { data: live, error: refused } = await client.auth.getUser()
-      if (isRefused(refused)) return forgetSession(client)
-      return toAuthUser(live.user ?? data.session.user)
+      if (!isRefused(refused)) return toAuthUser(live.user ?? data.session.user)
+      const { data: renewed, error: refreshError } = await client.auth.refreshSession()
+      if (isRefused(refreshError)) return forgetSession(client)
+      return toAuthUser(renewed.user ?? data.session.user)
     },
     async signInAnonymously() {
       const { data, error } = await client.auth.signInAnonymously()
@@ -191,48 +199,72 @@ function supabaseBackend(client: SupabaseClient): CloudBackend {
  * JWT, which supabase-js keeps up to date), presence keyed by the game session, broadcast to the others only.
  * supabase-js reconnects and rejoins by itself; the session re-tracks presence on every join. Nothing is sent
  * while the channel is not joined, so movement never falls back to Realtime's REST endpoint.
+ *
+ * Opening a topic that is still being left (Retry, or a new session for the same world) waits for the old channel
+ * to close first: supabase-js hands back the existing channel object for a topic until the server has answered the
+ * leave, and a channel that is leaving never joins again, so the new session would wait forever.
  */
-function supabaseRealtime(client: SupabaseClient): RealtimeTransport {
+export type RealtimeClientLike = Pick<SupabaseClient, 'channel' | 'removeChannel' | 'getChannels'>
+
+export function supabaseRealtime(client: RealtimeClientLike): RealtimeTransport {
+  /** Topics being left, and when they are gone. */
+  const leaving = new Map<string, Promise<unknown>>()
   return {
     open(topic, presenceKey, events, handlers) {
       let left = false
       let joined = false
-      const channel = client.channel(topic, {
-        config: { private: true, broadcast: { self: false, ack: false }, presence: { key: presenceKey } },
-      })
-      channel.on('presence', { event: 'sync' }, () => {
+      let channel: RealtimeChannel | null = null
+
+      const start = (): void => {
         if (left) return
-        const state = channel.presenceState() as Record<string, Array<Record<string, unknown>>>
-        handlers.onPresence(new Map(Object.entries(state).map(([key, metas]) => [
-          key, metas.map(({ presence_ref: _ref, ...meta }) => meta),
-        ])))
-      })
-      for (const event of events) {
-        channel.on('broadcast', { event }, message => { if (!left) handlers.onBroadcast(event, (message as { payload?: unknown }).payload) })
-      }
-      channel.subscribe((status, error) => {
-        if (left) return
-        joined = status === 'SUBSCRIBED'
-        if (joined) {
-          handlers.onStatus('joined')
-          return
+        const ch = client.channel(topic, {
+          config: { private: true, broadcast: { self: false, ack: false }, presence: { key: presenceKey } },
+        })
+        channel = ch
+        ch.on('presence', { event: 'sync' }, () => {
+          if (left) return
+          const state = ch.presenceState() as Record<string, Array<Record<string, unknown>>>
+          handlers.onPresence(new Map(Object.entries(state).map(([key, metas]) => [
+            key, metas.map(({ presence_ref: _ref, ...meta }) => meta),
+          ])))
+        })
+        for (const event of events) {
+          ch.on('broadcast', { event }, message => { if (!left) handlers.onBroadcast(event, (message as { payload?: unknown }).payload) })
         }
-        const message = error?.message ?? ''
-        // Refused by the channel policy: retrying won't help.
-        const fatal = status === 'CHANNEL_ERROR' && /unauthori[sz]ed|permission|not allowed|forbidden/i.test(message)
-        handlers.onStatus(status === 'TIMED_OUT' ? 'timed_out' : status === 'CLOSED' ? 'closed' : 'error', { fatal, message })
-      })
+        ch.subscribe((status, error) => {
+          if (left) return
+          joined = status === 'SUBSCRIBED'
+          if (joined) {
+            handlers.onStatus('joined')
+            return
+          }
+          const message = error?.message ?? ''
+          // Refused by the channel policy: retrying won't help.
+          const fatal = status === 'CHANNEL_ERROR' && /unauthori[sz]ed|permission|not allowed|forbidden/i.test(message)
+          handlers.onStatus(status === 'TIMED_OUT' ? 'timed_out' : status === 'CLOSED' ? 'closed' : 'error', { fatal, message })
+        })
+      }
+
+      const prior = leaving.get(topic)
+      if (prior) void prior.then(start)
+      else start()
+
       return {
         track(meta) {
-          if (!left && joined) void channel.track(meta).catch(() => undefined)
+          if (!left && joined) void channel?.track(meta).catch(() => undefined)
         },
         send(event, payload) {
-          if (!left && joined) void channel.send({ type: 'broadcast', event, payload }).catch(() => undefined)
+          if (!left && joined) void channel?.send({ type: 'broadcast', event, payload }).catch(() => undefined)
         },
         leave() {
           if (left) return
           left = true
-          void client.removeChannel(channel).catch(() => undefined)
+          const ch = channel
+          if (!ch) return
+          const gone = client.removeChannel(ch).catch(() => undefined).finally(() => {
+            if (leaving.get(topic) === gone) leaving.delete(topic)
+          })
+          leaving.set(topic, gone)
         },
       }
     },
