@@ -47,7 +47,9 @@ export function SketchbookViewer({ houseId, reader, persistent, onClose, downloa
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  })
+    // Only the number of drawings changes what an arrow key does; re-registering every render leaks listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length])
 
   return (
     <WindowFrame title="Sketchbook (view only)" onClose={onClose} size="wide">

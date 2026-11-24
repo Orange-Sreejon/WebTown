@@ -75,23 +75,17 @@ export class TownScene extends Phaser.Scene {
   }
 
   create(): void {
-    console.log('[TownScene] create start')
-
     try {
       this.physics.world.setBounds(0, 0, MAP_WIDTH_PX, MAP_HEIGHT_PX)
-      console.log('[TownScene] world bounds set')
 
       this.map = new TownMap(this)
       this.map.build()
-      console.log('[TownScene] map built')
 
       this.obstacles = createCollisionObjects(this)
-      console.log('[TownScene] collision objects created')
 
       const look = playerLook()
       this.player = new Player(this, PLAYER_START_TILE_X, PLAYER_START_TILE_Y, isAvatar(look) ? look : 'traveller')
       this.remotes = new RemotePlayers(this, 'town')
-      console.log('[TownScene] player created')
 
       this.physics.add.collider(this.player, this.obstacles)
 
@@ -134,8 +128,6 @@ export class TownScene extends Phaser.Scene {
       this.events.once('shutdown', () => this.teardown())
 
       this.applySky(skyAtHour(this.clock.hour))
-
-      console.log('[TownScene] create complete')
     } catch (e) {
       console.error('[TownScene] create failed:', e)
       emit('ERROR', `Scene creation failed: ${String(e)}`)

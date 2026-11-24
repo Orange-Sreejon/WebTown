@@ -64,6 +64,25 @@ export function toAuthError(error: unknown): AuthError {
   return new AuthError(ours, message, error)
 }
 
+/** Errors that mean the saved session is gone on the server and cannot be refreshed. */
+const DEAD_SESSION = new Set([
+  'bad_jwt',
+  'invalid_jwt',
+  'session_not_found',
+  'session_expired',
+  'refresh_token_not_found',
+  'refresh_token_already_used',
+])
+
+const isDeadSession = (error: { code?: string; status?: number } | null): boolean =>
+  !!error && (DEAD_SESSION.has(error.code ?? '') || error.status === 401 || error.status === 403)
+
+/** Forgets a session the server no longer accepts, locally only, so the player can start over. */
+async function forgetSession(client: SupabaseClient): Promise<null> {
+  await client.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  return null
+}
+
 function supabaseAuth(client: SupabaseClient): AuthPort {
   const need = (user: User | null | undefined): AuthUser => {
     if (!user) throw new AuthError('unknown', MESSAGES.unknown)
@@ -72,8 +91,18 @@ function supabaseAuth(client: SupabaseClient): AuthPort {
   return {
     async restore() {
       const { data, error } = await client.auth.getSession()
-      if (error) throw toAuthError(error)
-      return data.session?.user ? toAuthUser(data.session.user) : null
+      if (error) {
+        // A session that cannot be refreshed is gone for good: start over instead of dead-ending.
+        if (isDeadSession(error)) return forgetSession(client)
+        throw toAuthError(error)
+      }
+      if (!data.session?.user) return null
+      // The token is still signed, so only the server can say whether its user is still there: the local
+      // stand-in forgets every guest when it restarts, and a deleted account looks the same. A refusal means
+      // there is nothing left to restore; a network failure leaves the saved user alone.
+      const { data: live, error: check } = await client.auth.getUser()
+      if (isDeadSession(check)) return forgetSession(client)
+      return toAuthUser(live.user ?? data.session.user)
     },
     async signInAnonymously() {
       const { data, error } = await client.auth.signInAnonymously()

@@ -113,7 +113,6 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    console.log('[BootScene] create — defining animations')
     try {
       this.createAnimations()
     } catch (e) {
@@ -121,7 +120,6 @@ export class BootScene extends Phaser.Scene {
       emit('ERROR', `Animation setup failed: ${String(e)}`)
       return
     }
-    console.log('[BootScene] emitting READY')
     emit('READY')
     this.scene.start('TownScene')
   }
