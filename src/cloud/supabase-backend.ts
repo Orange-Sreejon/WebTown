@@ -64,6 +64,25 @@ export function toAuthError(error: unknown): AuthError {
   return new AuthError(ours, message, error)
 }
 
+/**
+ * Whether the server refused the saved session rather than failing to answer. Only the server can say whether a
+ * session is still usable: the stand-in forgets every guest when it restarts, and a session can also be signed
+ * out or revoked elsewhere, expire, or belong to a deleted user. Every refusal (4xx) means "forget it and start
+ * over"; a network failure or server error (status 0 or 5xx) leaves it alone, and rate limiting (429) says
+ * nothing about it. The status decides because `session_not_found` arrives as an `AuthSessionMissingError` with
+ * no code, and the stand-in sends no codes at all.
+ */
+const isRefused = (error: { status?: number } | null): boolean => {
+  const status = error?.status ?? 0
+  return status >= 400 && status < 500 && status !== 429
+}
+
+/** Forgets a session the server no longer accepts, locally only, so the player can start over. */
+async function forgetSession(client: SupabaseClient): Promise<null> {
+  await client.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  return null
+}
+
 function supabaseAuth(client: SupabaseClient): AuthPort {
   const need = (user: User | null | undefined): AuthUser => {
     if (!user) throw new AuthError('unknown', MESSAGES.unknown)
@@ -72,8 +91,17 @@ function supabaseAuth(client: SupabaseClient): AuthPort {
   return {
     async restore() {
       const { data, error } = await client.auth.getSession()
-      if (error) throw toAuthError(error)
-      return data.session?.user ? toAuthUser(data.session.user) : null
+      if (error) {
+        // A session whose refresh the server refuses is gone for good: start over instead of dead-ending.
+        if (isRefused(error)) return forgetSession(client)
+        throw toAuthError(error)
+      }
+      if (!data.session?.user) return null
+      // The saved token is still signed, so only the server can confirm it: a refusal means there is nothing
+      // left to restore, while a network failure keeps the saved user, so an offline start still opens their town.
+      const { data: live, error: refused } = await client.auth.getUser()
+      if (isRefused(refused)) return forgetSession(client)
+      return toAuthUser(live.user ?? data.session.user)
     },
     async signInAnonymously() {
       const { data, error } = await client.auth.signInAnonymously()

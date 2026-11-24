@@ -23,13 +23,8 @@ export function GameContainer(): React.ReactElement {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    console.log('[GameContainer] useEffect fired')
     const el = containerRef.current
-    console.log('[GameContainer] container el:', el)
-    if (!el || gameRef.current) {
-      console.log('[GameContainer] skipping — el:', !!el, 'gameRef:', !!gameRef.current)
-      return
-    }
+    if (!el || gameRef.current) return
 
     let mounted = true
 
@@ -50,9 +45,7 @@ export function GameContainer(): React.ReactElement {
     // Optional character sheets are checked first, so the loader only queues files that exist.
     void findAvailableSheets().then(() => {
       if (!mounted) return
-      console.log('[GameContainer] calling createPhaserGame')
       gameRef.current = createPhaserGame(el)
-      console.log('[GameContainer] createPhaserGame returned:', gameRef.current)
     })
 
     return () => {

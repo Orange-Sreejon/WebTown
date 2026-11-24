@@ -60,6 +60,10 @@ export class History {
   private trim(): void {
     while (this.undoStack.length > this.steps) this.undoStack.shift()
     let total = [...this.undoStack, ...this.redoStack].reduce((sum, s) => sum + bytes(s), 0)
-    while (total > this.budget && this.undoStack.length > 0) total -= bytes(this.undoStack.shift()!)
+    // The budget covers both stacks: undoing moves states to redo, so trimming undo alone can leave it over.
+    while (total > this.budget && (this.undoStack.length > 0 || this.redoStack.length > 0)) {
+      const dropped = this.undoStack.length > 0 ? this.undoStack.shift()! : this.redoStack.shift()!
+      total -= bytes(dropped)
+    }
   }
 }

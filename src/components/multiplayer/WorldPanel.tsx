@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CloudBackend } from '../../cloud/backend'
 import type { PlayerContext } from '../../cloud/player'
 import {
-  InviteError, createInvite, inviteLink, joinWorld, leaveWorld, listInvites, listMembers, listMyWorlds,
+  InviteError, MAX_WORLD_MEMBERS, createInvite, inviteLink, joinWorld, leaveWorld, listInvites, listMembers, listMyWorlds,
   normaliseInviteCode, removeMember, revokeInvite,
   type CreatedInvite, type InviteSummary, type WorldMember, type WorldSummary,
 } from '../../cloud/worlds'
@@ -98,7 +98,7 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
                 ))}
               </ul>
             )}
-            {members && <p className="ac-text">{members.length} of 7 players.</p>}
+            {members && <p className="ac-text">{members.length} of {MAX_WORLD_MEMBERS} players.</p>}
           </section>
 
           {isOwner && (
@@ -146,7 +146,7 @@ export function WorldPanel({ backend, player, personalWorldId, inviteBase, onOpe
               <ul className="mp-list">
                 {worlds.map(w => (
                   <li key={w.id}>
-                    <span>{w.id === personalWorldId ? `${w.name} (yours)` : `${w.name} · ${w.ownerName}'s`} · {w.members} of 7</span>
+                    <span>{w.id === personalWorldId ? `${w.name} (yours)` : `${w.name} · ${w.ownerName}'s`} · {w.members} of {MAX_WORLD_MEMBERS}</span>
                     {w.id === worldId ? <span className="ac-good">Here now</span> : (
                       <button type="button" className="ac-link" onClick={() => onOpenWorld(w.id)}>Go to {w.name}</button>
                     )}
