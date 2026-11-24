@@ -24,6 +24,7 @@
 }
 .mp-status--joined::before { background: #5fbf5f; }
 .mp-status--lost::before,
+.mp-status--removed::before,
 .mp-status--failed::before { background: #d9534f; }
 .mp-retry {
   pointer-events: auto;

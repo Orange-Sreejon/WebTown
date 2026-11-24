@@ -91,3 +91,40 @@ test('a resident leaves from the town window, and the owner sees them go', async
     await b.browser.close()
   }
 })
+
+test('the owner removes an online resident: gone for the owner at once, and told within the member reload', async () => {
+  const a = await launchPlayer('chromium')
+  const b = await launchPlayer('firefox')
+  try {
+    await startGuest(a)
+    const ia = await me(a.page)
+    await joinWithLink(b, await createInvite(a.page), [a])
+    const ib = await me(b.page)
+    await expect.poll(() => drawn(a.page)).toEqual([expect.objectContaining({ id: ib.userId })])
+    await expect.poll(() => drawn(b.page)).toEqual([expect.objectContaining({ id: ia.userId })])
+
+    // Stabilization B3: it asks first.
+    await a.page.getByRole('button', { name: /^Town: / }).click()
+    await a.page.getByRole('button', { name: `Remove ${ib.name}` }).click()
+    await expect(a.page.getByText('will be deleted')).toBeVisible()
+    await a.page.getByRole('button', { name: 'Remove and delete their house' }).click()
+    await expect(a.page.getByText('1 of 7 players.')).toBeVisible()
+
+    // Stabilization B1: the owner stops drawing B at once; B's own game finds out at its next member reload (30 s),
+    // leaves the channel and offers B's own town.
+    await expect.poll(() => drawn(a.page), { timeout: 10_000 }).toEqual([])
+    await expect(status(b.page)).toHaveAttribute('data-status', 'removed', { timeout: 45_000 })
+    await expect(status(b.page)).toContainText("You're no longer in this town.")
+    expect(await drawn(b.page)).toEqual([])
+    await quietly([a], async () => {
+      await b.page.getByRole('button', { name: 'Go to my town' }).click()
+      await expect.poll(async () => (await me(b.page))?.worldId, { timeout: 120_000 }).not.toBe(ia.worldId)
+      await waitForTown(b.page)
+    })
+    await expect(status(b.page)).toHaveAttribute('data-status', 'joined', { timeout: 60_000 })
+    await expect(status(a.page)).toHaveText('Online · only you here')
+  } finally {
+    await a.browser.close()
+    await b.browser.close()
+  }
+})

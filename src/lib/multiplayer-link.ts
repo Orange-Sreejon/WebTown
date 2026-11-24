@@ -50,6 +50,8 @@ export interface MultiplayerLink {
   emote(emote: EmoteName, to?: string): void
   /** Waves to the nearest player in range, or says nobody is close enough. */
   wave(): void
+  /** The world's members changed (this player invited, removed or left someone): reload them now. */
+  membersChanged(): void
   /** Listens for emotes and notices; returns the unsubscribe. */
   onEvent(listener: (event: GameEvent) => void): () => void
 }

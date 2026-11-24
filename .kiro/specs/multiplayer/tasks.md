@@ -24,3 +24,17 @@ Status: all done, uncommitted. The live run (`npm run test:live`) waits for a Su
   - [x] Nearby prompt, Q and the Wave button, emotes, bubbles, range checks at both ends, notices.
   - [x] Unit tests; two-browser test.
 - [x] **MP-99** Docs (`docs/MULTIPLAYER.md`, TESTING, steering), look picker, full regression, build, audit.
+## Stabilization (after the Phase 5 audit; checkpoint tag `phase5-stabilization-start`)
+
+- [x] **B1** (High) A removed member stayed visible to everyone and kept playing: member list reloaded every 30 s and
+      at once after a removal; the removed player's game leaves the channel and says so.
+- [x] **B2** (Medium) A new look restarted the live session, which could reopen the channel while it was still being
+      left and never join: no restart; the Supabase adapter waits for a leaving channel of the same topic.
+- [x] **B3** (Medium) "Remove" deleted a resident's house in one click: now asks first.
+- [x] **B4** (Low) Status line and notices covered the website and the Sketchbook: hidden there, except when urgent.
+- [x] **B5** (Low) A failed "Copy link" said nothing: now says so.
+- [x] **B6** (Low) Renames and new looks showed only after a reconnect: shown at the next member reload.
+- [x] **P1** (High, Phase 4) Restoring a session forgot a guest when the access token alone was refused: refresh first.
+- [x] **S4** (Low, hardening) `private` helpers callable by any signed-in user: migration
+      `20261205090000_phase5_private_function_grants.sql`.
+- [ ] **P2/P3/P4** Measure on the real test project (Realtime message use, dead-socket detection time, refusal wording).

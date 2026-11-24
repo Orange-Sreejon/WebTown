@@ -315,7 +315,7 @@ export function SessionGate({ children, connect, deviceSources, redirectTo }: Se
   return (
     <div key={`${user.id}:${player.world.id}`} style={{ position: 'fixed', inset: 0 }}>
       {children}
-      {conn.realtime && <MultiplayerHost transport={conn.realtime} backend={conn.backend} player={player} />}
+      {conn.realtime && <MultiplayerHost transport={conn.realtime} backend={conn.backend} player={player} onGoHome={() => void switchWorld(null)} />}
       {toast && (
         <div className="ac-toast" role="status">
           {toast}{' '}

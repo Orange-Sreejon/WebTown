@@ -19,7 +19,8 @@ export interface Member {
   avatar: string
 }
 
-export type SessionStatus = 'connecting' | 'joined' | 'reconnecting' | 'lost' | 'failed' | 'stopped'
+/** `removed`: the member list says this player is no longer in the world; the channel has been left. */
+export type SessionStatus = 'connecting' | 'joined' | 'reconnecting' | 'lost' | 'failed' | 'removed' | 'stopped'
 
 export type SessionEvent =
   | { kind: 'status'; status: SessionStatus }
@@ -39,8 +40,11 @@ export interface WorldSessionOptions {
   userId: string
   /** This game's session id (a fresh UUID per mount). */
   sessionId: string
-  /** The member list (database, RLS). Names and looks come only from here. */
-  loadMembers: () => Promise<Member[]>
+  /**
+   * The member list (database, RLS). Names and looks come only from here. Resolves to null when the database says
+   * this player is not a member (any more); rejects on any other failure (offline...), which changes nothing.
+   */
+  loadMembers: () => Promise<Member[] | null>
   selfAvatar: string
   now?: () => number
   /** Reconnecting for longer than this is "connection lost". */
@@ -53,6 +57,11 @@ export const PRESENCE_INTERVAL_MS = 1000
 export const LEAVE_GRACE_MS = 1500
 /** Unknown users in presence refresh the member list at most this often. */
 export const MEMBER_REFRESH_MS = 5000
+/**
+ * While joined, the member list is reloaded this often, so a removed member disappears for everyone (and learns it
+ * themselves), and new names and looks show, without waiting for a reconnect.
+ */
+export const MEMBER_POLL_MS = 30_000
 /** Movement is sent at most this often while walking (10 a second). */
 export const MOVE_INTERVAL_MS = 100
 /** The local walk speed (`PLAYER_SPEED`, px/s); a move implying more than 3 times this is refused. */
@@ -130,6 +139,9 @@ export class WorldSession implements MultiplayerLink {
   private trackTimer: ReturnType<typeof setTimeout> | null = null
   private lostTimer: ReturnType<typeof setTimeout> | null = null
   private leaveTimer: ReturnType<typeof setTimeout> | null = null
+  private pollTimer: ReturnType<typeof setInterval> | null = null
+  /** Users seen in presence who were not in the last member list loaded: no reload just for them. */
+  private readonly nonMembers = new Set<string>()
   private readonly startedAt: number
   private seq = 0
   private lastMoveSentAt = -Infinity
@@ -176,13 +188,22 @@ export class WorldSession implements MultiplayerLink {
   /** Loads the member list, then joins the channel. */
   async start(): Promise<void> {
     await this.refreshMembers(true)
-    if (this._status === 'stopped') return
+    if (this._status === 'stopped' || this._status === 'removed') return
     this.open()
+  }
+
+  /**
+   * Someone joined, left or was removed from the world (this player changed it, e.g. in the town window): reload the
+   * member list now rather than at the next poll.
+   */
+  membersChanged(): void {
+    if (this._status === 'stopped' || this._status === 'removed') return
+    void this.refreshMembers(true).then(loaded => { if (loaded) this.applyPresence() })
   }
 
   /** Leaves the channel and starts over (the Retry button). */
   retry(): void {
-    if (this._status === 'stopped') return
+    if (this._status === 'stopped' || this._status === 'removed') return
     this.channel?.leave()
     this.channel = null
     this.setStatus('connecting')
@@ -193,8 +214,7 @@ export class WorldSession implements MultiplayerLink {
     if (this._status === 'stopped') return
     this.channel?.leave()
     this.channel = null
-    for (const t of [this.trackTimer, this.lostTimer, this.leaveTimer]) if (t) clearTimeout(t)
-    this.trackTimer = this.lostTimer = this.leaveTimer = null
+    this.clearTimers()
     this.remotesByUser.clear()
     this.setStatus('stopped')
     this.listeners.clear()
@@ -351,11 +371,31 @@ export class WorldSession implements MultiplayerLink {
     this.channel = channel
   }
 
+  private clearTimers(): void {
+    for (const t of [this.trackTimer, this.lostTimer, this.leaveTimer]) if (t) clearTimeout(t)
+    if (this.pollTimer) clearInterval(this.pollTimer)
+    this.trackTimer = this.lostTimer = this.leaveTimer = this.pollTimer = null
+  }
+
+  /** The database says this player is not in the world (any more): leave, show nobody, and say so. */
+  private becomeRemoved(): void {
+    if (this._status === 'stopped' || this._status === 'removed') return
+    this.channel?.leave()
+    this.channel = null
+    this.clearTimers()
+    this.remotesByUser.clear()
+    this.missingSince.clear()
+    this.pending.clear()
+    this.emit({ kind: 'roster' })
+    this.setStatus('removed')
+  }
+
   private onChannelStatus(status: ChannelStatus, detail?: { fatal?: boolean }): void {
     if (status === 'joined') {
       if (this.lostTimer) clearTimeout(this.lostTimer)
       this.lostTimer = null
       this.setStatus('joined')
+      this.pollTimer ??= setInterval(() => this.membersChanged(), MEMBER_POLL_MS)
       // Presence does not survive a rejoin; publish it again.
       const meta = this.presenceMeta()
       if (meta) {
@@ -400,7 +440,8 @@ export class WorldSession implements MultiplayerLink {
       const meta = parsePresence(metas[metas.length - 1])
       if (!meta || meta.s !== key || meta.u === this.o.userId) continue
       if (!this.members.has(meta.u)) {
-        unknown = true
+        // Not a member as of the last list: shown nobody, and reloaded for only if never checked (or at the poll).
+        if (!this.nonMembers.has(meta.u)) unknown = true
         continue
       }
       const seen = newest.get(meta.u)
@@ -596,7 +637,7 @@ export class WorldSession implements MultiplayerLink {
     if (this.membersLoading) return this.membersLoading
     const wait = force ? 0 : Math.max(0, this.membersLoadedAt + MEMBER_REFRESH_MS - this.o.now())
     this.membersLoading = (wait > 0 ? new Promise<void>(r => setTimeout(r, wait)) : Promise.resolve()).then(() => {
-      if (this._status === 'stopped') return false
+      if (this._status === 'stopped' || this._status === 'removed') return false
       return this.loadMembersNow()
     }).finally(() => { this.membersLoading = null })
     return this.membersLoading
@@ -606,7 +647,16 @@ export class WorldSession implements MultiplayerLink {
     this.membersLoadedAt = this.o.now()
     return this.o.loadMembers().then(
       list => {
+        if (list === null) {
+          this.becomeRemoved()
+          return false
+        }
         this.members = new Map(list.map(m => [m.userId, m]))
+        this.nonMembers.clear()
+        for (const metas of this.lastPresence.values()) {
+          const u = parsePresence(metas[metas.length - 1])?.u
+          if (u && u !== this.o.userId && !this.members.has(u)) this.nonMembers.add(u)
+        }
         // Someone removed from the world disappears at once.
         let changed = false
         for (const [userId, r] of this.remotesByUser) {

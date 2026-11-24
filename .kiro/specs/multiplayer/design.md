@@ -121,8 +121,10 @@ Bubbles: Phaser text above the head for 2.5 s; one at a time per character.
   server-authoritative transport (e.g. an Edge Function relay that stamps the sender) can replace
   `RealtimeTransport` later without changing the game.
 - Removing a member stops their database access at once; their open realtime connection keeps receiving until
-  it rejoins or its token is refreshed (Supabase checks channel RLS at join and on token refresh). The roster
-  hides non-members immediately for everyone else (D9).
+  it rejoins or its token is refreshed (Supabase checks channel RLS at join and on token refresh). Players reload
+  the member list every 30 s while joined (the owner at once after a removal), so a removed member disappears for
+  everyone within that time, and the removed player's own game leaves the channel (stabilization B1; the first
+  version reloaded only for unknown players, so a removed member stayed visible).
 - No service-role key in the browser (Phase 4 `readCloudConfig` refuses one).
 
 ## 7. UX

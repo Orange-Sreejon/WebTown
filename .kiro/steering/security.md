@@ -197,6 +197,10 @@ rules above still apply (this device only, client-side restrictions).
   house's own folder.
 - Database functions are `security invoker` (RLS applies) except `bootstrap_player`; all have `search_path = ''`
   and are executable by `authenticated` only. Helpers live in schema `private`, not exposed by the API.
+- `authenticated` may execute a `private` helper only if an RLS policy or a security-invoker function needs it
+  (migration `20261205090000_phase5_private_function_grants.sql`). Never `grant execute on all functions in schema
+  private`; grant each new helper on its own, and extend the grant-list test in
+  `src/cloud/database/multiplayer-schema.test.ts`.
 - Any change to these rules is a new migration in `supabase/migrations/` plus a test that tries to break it.
   Never edit the schema in the dashboard.
 

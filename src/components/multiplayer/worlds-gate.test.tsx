@@ -153,6 +153,23 @@ describe('inviting and joining', () => {
     await until(() => text().includes("This invitation doesn't work"), 'the refusal')
   })
 
+  it('says when the link could not be copied (no clipboard), and confirms when it was', async () => {
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    try {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('NotAllowedError')) } })
+      await ownerInvites()
+      await click('Copy link')
+      expect(text()).toContain("Couldn't copy here. Select the link above and copy it.")
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.resolve() } })
+      await click('Copy link')
+      expect(button('Copied')).toBeDefined()
+      expect(text()).not.toContain("Couldn't copy here")
+    } finally {
+      if (clipboard) Object.defineProperty(navigator, 'clipboard', clipboard)
+      else delete (navigator as { clipboard?: unknown }).clipboard
+    }
+  })
+
   it('lets a resident leave, after a warning, and opens their own town', async () => {
     const { ownerWorld, code } = await ownerInvites()
     await open(null, `?invite=${code}`)
@@ -177,7 +194,14 @@ describe('inviting and joining', () => {
     await open(owner)
     await click(/^Town: /)
     await until(() => !!button(/^Remove /), 'the member list')
+    // B3: removing deletes their house, so it asks first; "Keep" changes nothing.
     await click(/^Remove /)
+    expect(text()).toContain('will be deleted')
+    await click(/^Keep /)
+    expect(text()).toContain('2 of 7 players')
+    expect(button('Remove and delete their house')).toBeUndefined()
+    await click(/^Remove /)
+    await click('Remove and delete their house')
     await until(() => text().includes('1 of 7 players'), 'the removal')
 
     await open(guest)
