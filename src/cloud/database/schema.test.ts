@@ -39,7 +39,7 @@ describe('migrations', () => {
     const rows = await db.superuser<{ relname: string; relrowsecurity: boolean }>(
       `select c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r'`)
-    expect(rows.length).toBe(11)
+    expect(rows.length).toBe(14) // + community_halls, world_moderators, community_moderation_log (Community Hall)
     for (const row of rows) expect(row.relrowsecurity, row.relname).toBe(true)
   })
 
