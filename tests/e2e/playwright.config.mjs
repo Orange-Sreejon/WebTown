@@ -27,6 +27,9 @@ export default defineConfig({
       url: 'http://127.0.0.1:5180/site-host.html',
       reuseExistingServer: false,
       timeout: 120_000,
+      // These tests are for WebTown on this device only (no accounts). Variables set here win over .env.local, so a
+      // developer's own Supabase settings never point the test run at their project.
+      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '' },
     },
     {
       command: 'node tests/e2e/beacon.mjs',

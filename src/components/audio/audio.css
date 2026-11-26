@@ -1,0 +1,52 @@
+/* The sound settings over the game, in the same style as the other overlay controls (account.css, multiplayer.css). */
+.au-control {
+  position: absolute;
+  right: 12px;
+  bottom: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.au-button,
+.au-panel {
+  pointer-events: auto;
+  color: #fff4d6;
+  background: #2b1d14e6;
+  border: 2px solid #5a3d28;
+  border-radius: 4px;
+  font: 13px monospace;
+}
+.au-button {
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  cursor: pointer;
+}
+.au-button:hover { border-color: #c9a227; }
+.au-button:focus-visible,
+.au-panel input:focus-visible { outline: 2px solid #fff4d6; outline-offset: 1px; }
+.au-panel {
+  min-width: 210px;
+  padding: 8px 10px;
+}
+.au-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 0;
+}
+.au-row input[type='range'] {
+  width: 110px;
+  accent-color: #c9a227;
+}
+.au-mute {
+  justify-content: flex-start;
+}
+.au-note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #d8c9a8;
+}

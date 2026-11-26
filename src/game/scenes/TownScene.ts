@@ -33,6 +33,8 @@ import { RemotePlayers } from '../entities/RemotePlayers'
 import { isAvatar } from '../systems/avatars'
 import { playerLook } from '../../lib/player-identity'
 import { emit } from '../../lib/event-bus'
+import { gameAudio } from '../../audio'
+import { stepSound, townSurfaceAt } from '../../audio/footsteps'
 import type { Rect } from '../../lib/geometry'
 
 /** One entrance per enterable house, derived once from the town layout. */
@@ -86,6 +88,8 @@ export class TownScene extends Phaser.Scene {
       const look = playerLook()
       this.player = new Player(this, PLAYER_START_TILE_X, PLAYER_START_TILE_Y, isAvatar(look) ? look : 'traveller')
       this.remotes = new RemotePlayers(this, 'town')
+      // Local only: footsteps are never sent to other players.
+      this.player.onStep = () => gameAudio.play(stepSound(townSurfaceAt(this.player.feet)))
 
       this.physics.add.collider(this.player, this.obstacles)
 
@@ -242,6 +246,7 @@ export class TownScene extends Phaser.Scene {
 
   /** Restores the player and the clock, then fades back in. */
   private onWake(): void {
+    gameAudio.setIndoors(false)
     this.clock?.freeze(this.frozenByOverride)
     this.input.keyboard?.resetKeys()
 
@@ -310,6 +315,7 @@ export class TownScene extends Phaser.Scene {
       .setFillStyle(frame.tint, 1)
 
     this.map.setLampLight(frame.lamp)
+    gameAudio.setAmbience({ night: frame.night })
     this.halloween?.setNightFactor(frame.halloween)
   }
 
@@ -353,6 +359,7 @@ export class TownScene extends Phaser.Scene {
     this.prompt?.destroy()
 
     this.halloween?.destroy()
+    gameAudio.setAmbience(null)
     this.remotes?.clear()
   }
 }

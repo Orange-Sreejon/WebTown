@@ -469,3 +469,32 @@ Manual, with two browsers (or a normal and a private window) on a configured pro
       opens B's own town with a note.
 - [ ] The furniture editor, the website and the Sketchbook still work in both towns; the emote bar steps aside
       while they are open.
+
+# Sound (`.kiro/specs/audio/design.md`)
+
+Automated: `src/audio/*.test.ts` and `src/components/audio/audio-ui.test.tsx` (every sound short, quiet, clean at
+both ends and repeatable; surfaces distinct; loops seamless; the engine silent until a gesture, one AudioContext,
+gaps and voice caps, no repeated variant, volumes without restarts, mute, hidden tab, day/night crossfade, indoor
+muffling; saved settings; computer, keys, Sketchbook and pencil only when they should). `tests/e2e/audio.spec.mjs`
+in a real browser: one AudioContext after the first click, footsteps in step with the walk (about one every 333 ms)
+on the right surface and stopping when the player stops, sound actually coming out, crickets at night, the door once
+in and once out, wooden floors inside, the computer and the Sketchbook once per opening and closing, mute and saved
+settings after a reload. Playwright's WebKit build for Windows has no Web Audio: there the test checks the game runs
+silently with no errors.
+
+Manual, with headphones at a normal listening level (nobody automated has listened):
+
+- [ ] Before any click: silence. After the first click: soft wind; by day, an occasional distant bird.
+- [ ] Walking: soft steps in time with the legs, a rustle on grass, a duller tap on the road; silence the moment you
+      stop. Never a continuous loop, never two steps at once.
+- [ ] Press 3 (dev build) for night: the birds stop and crickets come up slowly; press 1: morning again.
+- [ ] Enter a house: one gentle creak; inside, knock-like steps on the wooden floor and the town muffled through the
+      walls; leave: one soft thud. Nothing plays if a house fails to load.
+- [ ] Computer: a faint fan and two-note chime on opening; nothing while idle; a soft click per key typed in the
+      editor; a short falling tone on closing.
+- [ ] Sketchbook: a page turn on opening; a soft pencil only while drawing; a closing book on Close.
+- [ ] The speaker button (bottom right): Mute silences everything at once; the sliders change the level smoothly
+      without restarting anything; reload: the same settings.
+- [ ] Switch to another tab: silence; come back: the ambience carries on.
+- [ ] Two players: each hears only their own steps and doors.
+- [ ] Nothing is ever louder than conversation level, and nothing gets tiring after ten minutes.
