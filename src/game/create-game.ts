@@ -24,6 +24,8 @@ export function createPhaserGame(parent: HTMLElement): Phaser.Game {
       arcade: { debug: debugPhysics },
     },
     scene: [BootScene, TownScene, InteriorScene],
+    // WebTown has one audio system (src/audio); Phaser's own would open a second AudioContext.
+    audio: { noAudio: true },
   }
 
   let game: Phaser.Game

@@ -78,3 +78,7 @@ public/assets/interior/*
 # Supabase CLI local state
 /supabase/.temp/
 /supabase/.branches/
+
+# Recorded footstep pack (Bramble & Byte): its licence forbids redistributing the files. Local only; not used by the game.
+/public/assets/cozy-footsteps.zip
+/public/assets/cozy-footsteps/

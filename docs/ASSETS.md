@@ -504,3 +504,20 @@ Re-run the conversion from higher-quality PNG originals if the owner has them.
 They are the account picker's looks (`SHEET_LOOKS` in `src/game/systems/avatars.ts`). A look whose file is
 missing is not offered, and players drawn with it fall back to the traveller; the six recoloured traveller
 looks stay as that fallback. Adding a character is one registry entry plus its PNG.
+
+## Asset Pack 9 - SOUND (audio polish)
+
+Every sound in WebTown is **original work, synthesised in code** at runtime from filtered noise and simple tones
+(`src/audio/synth.ts`). No audio file was downloaded, recorded from elsewhere, or derived from anyone else's work.
+
+| Sound | Made by | Source | Licence | Attribution |
+|---|---|---|---|---|
+| Footsteps on grass, the road and wooden floors (4 variants each) | WebTown project (code) | `footstep()` | Project-owned original; free to use and redistribute with WebTown | None required |
+| Door opening (latch and creak), door closing (thud and latch) | WebTown project (code) | `doorOpen()`, `doorClose()` | Project-owned original | None |
+| Computer on (fan and two-note chime), computer off, key clicks (4 variants) | WebTown project (code) | `computerOn()`, `computerOff()`, `keyClick()` | Project-owned original | None |
+| Page turn, pencil strokes (3 variants), book closing | WebTown project (code) | `pageTurn()`, `pencil()`, `bookClose()` | Project-owned original | None |
+| Ambience: wind loop, cricket loop, bird chirps (3 variants) | WebTown project (code) | `windLoop()`, `cricketLoop()`, `birdChirp()` | Project-owned original | None |
+
+Nothing is shipped as a file: the sounds are generated in the browser after the first click or key press, so the
+repository and `dist/` contain no audio assets. Adding recorded sounds later needs an entry here with a verified
+licence (CC0 preferred), as for every other asset.

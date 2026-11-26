@@ -27,6 +27,7 @@ import { Player } from '../entities/Player'
 import { RemotePlayers } from '../entities/RemotePlayers'
 import { isAvatar } from '../systems/avatars'
 import { playerLook } from '../../lib/player-identity'
+import { gameAudio } from '../../audio'
 import { addStaticRects } from '../maps/collision-objects'
 import { getTemplate } from '../maps/house/default-interior'
 import { EditorSession, type EditorMode } from '../maps/house/editor-session'
@@ -252,6 +253,7 @@ export class InteriorScene extends Phaser.Scene {
     const look = playerLook()
     this.player = new Player(this, 0, 0, isAvatar(look) ? look : 'traveller')
     this.remotes = new RemotePlayers(this, `house:${this.houseId}`)
+    this.player.onStep = () => gameAudio.play('step-wood')
     this.player.placeFeet(spawn.x, spawn.y)
     this.player.setFacing(def.spawn.facing)
     this.physics.add.collider(this.player, this.walls)
@@ -284,6 +286,11 @@ export class InteriorScene extends Phaser.Scene {
     this.input.keyboard!.on('keydown-E', this.onInteractKey)
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardown())
+
+    // The room is open: the door opened (a failed load returns above, silently), and the town is now heard through
+    // the walls.
+    gameAudio.play('door-open')
+    gameAudio.setIndoors(true)
 
     // The E that opened the door must not also close it.
     this.lock.release(performance.now())
@@ -729,6 +736,7 @@ export class InteriorScene extends Phaser.Scene {
   // ── Leaving ──────────────────────────────────────────────────────────────
 
   private leave(): void {
+    gameAudio.play('door-close')
     this.hideEditorUi()
     this.prompt.hide()
     this.player.halt()

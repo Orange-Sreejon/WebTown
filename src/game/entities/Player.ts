@@ -12,6 +12,7 @@ import {
 } from '../config/GameConfig'
 import { computeVelocity, inputToDirection, type Direction, type InputState } from '../systems/movement'
 import { animKey, avatarTexture, type AvatarId } from '../systems/avatars'
+import { isStepFrame } from '../../audio/footsteps'
 
 type WasdKeys = {
   W: Phaser.Input.Keyboard.Key
@@ -29,6 +30,8 @@ type WasdKeys = {
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private lastDirection: Direction = 'down'
   private moving = false
+  /** Called when a foot lands (the walk animation's step frames). Set by the scene; sound only, no movement. */
+  onStep: (() => void) | null = null
 
   /** @param look How the player looks (Phase 5); the original traveller unless chosen. */
   constructor(scene: Phaser.Scene, tileX: number, tileY: number, private readonly look: AvatarId = 'traveller') {
@@ -55,6 +58,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setDepth(depthForFeetY(this.y + this.displayHeight / 2))
     this.play(this.anim('idle', 'down'))
+
+    // Footsteps (audio only): a step on each foot-down frame of a walk, including the first frame of a new walk.
+    const step = (anim: Phaser.Animations.Animation, frame: Phaser.Animations.AnimationFrame): void => {
+      if (this.moving && isStepFrame(anim.key.replace(/@.*$/, ''), frame.index)) this.onStep?.()
+    }
+    this.on(Phaser.Animations.Events.ANIMATION_START, step)
+    this.on(Phaser.Animations.Events.ANIMATION_UPDATE, step)
+    this.once(Phaser.GameObjects.Events.DESTROY, () => { this.onStep = null })
   }
 
   /** The animation for this player's look; the original look if its variant could not be made. */

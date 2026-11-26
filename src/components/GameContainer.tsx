@@ -6,6 +6,9 @@ import { on, off } from '../lib/event-bus'
 import { LoadingScreen } from './LoadingScreen'
 import { HouseEditorOverlay } from './house-editor/HouseEditorOverlay'
 import { AppHost } from './apps/AppHost'
+import { AppSounds } from './audio/AppSounds'
+import { SoundControl } from './audio/SoundControl'
+import { gameAudio } from '../audio'
 
 /**
  * Mounts the Phaser canvas and owns the game instance lifecycle.
@@ -21,6 +24,9 @@ export function GameContainer(): React.ReactElement {
   const gameRef = useRef<Phaser.Game | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Audio starts on the first click or key press (browsers allow nothing sooner) and pauses while the tab is hidden.
+  useEffect(() => gameAudio.install(window, document), [])
 
   useEffect(() => {
     const el = containerRef.current
@@ -80,6 +86,8 @@ export function GameContainer(): React.ReactElement {
       />
       {loading && <LoadingScreen />}
       <HouseEditorOverlay />
+      <SoundControl />
+      <AppSounds />
       <AppHost />
     </div>
   )
