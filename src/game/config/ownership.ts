@@ -21,7 +21,8 @@ export function resolveOwnedHouseId(search: string, isDev: boolean): string {
   const query = search.startsWith('?') ? search.slice(1) : search
   const requested = new URLSearchParams(query).get('owner')?.trim()
   // House ids are simple slugs; anything else is ignored rather than trusted.
-  return requested && /^[a-z0-9-]{1,40}$/.test(requested) ? requested : LOCAL_PLAYER_HOUSE_ID
+  // The Community Hall is nobody's house.
+  return requested && /^[a-z0-9-]{1,40}$/.test(requested) && requested !== 'community-hall' ? requested : LOCAL_PLAYER_HOUSE_ID
 }
 
 /**

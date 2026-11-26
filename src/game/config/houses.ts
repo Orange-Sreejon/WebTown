@@ -21,6 +21,17 @@ export interface HouseConfig {
 
 export const DEFAULT_INTERIOR_ID = 'cozy-room'
 
+/**
+ * The church's door: the town's Community Hall (CH-02). Deliberately NOT in `HOUSES`: it is no player's house, so
+ * the seven house slots, ownership and the seven-member limit are unchanged.
+ */
+export const COMMUNITY_HALL: HouseConfig = {
+  id: 'community-hall',
+  structureLabel: 'church',
+  interiorId: DEFAULT_INTERIOR_ID,
+  title: 'Community Hall',
+}
+
 export const HOUSES: readonly HouseConfig[] = [
   { id: 'house-a', structureLabel: 'house-a', interiorId: DEFAULT_INTERIOR_ID, title: 'House A' },
   { id: 'house-b', structureLabel: 'house-b', interiorId: DEFAULT_INTERIOR_ID, title: 'House B' },

@@ -28,6 +28,7 @@ import { RemotePlayers } from '../entities/RemotePlayers'
 import { isAvatar } from '../systems/avatars'
 import { playerLook } from '../../lib/player-identity'
 import { gameAudio } from '../../audio'
+import { HALL_SCENE, HALL_WELCOME, hallObjectPrompt, hallObjectSoon } from '../systems/community-hall'
 import { addStaticRects } from '../maps/collision-objects'
 import { getTemplate } from '../maps/house/default-interior'
 import { EditorSession, type EditorMode } from '../maps/house/editor-session'
@@ -75,6 +76,11 @@ export interface InteriorSceneData {
   layout?: HouseLayout
   /** The store had to replace an unusable stored layout. Open the standard room and say so. */
   recovered?: boolean
+  /**
+   * `'hall'`: the Community Hall (CH-02), shared by the town: the standard room, no furniture editing, the kiosk and
+   * the easel instead of the computer and the notebook. Absent: a house, exactly as before.
+   */
+  place?: 'hall'
 }
 
 type PointerEvent = 'pointerdown' | 'pointermove' | 'pointerup' | 'pointerupoutside'
@@ -100,6 +106,10 @@ type PlacedPiece = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
  */
 export class InteriorScene extends Phaser.Scene {
   private houseId = ''
+  /** True inside the Community Hall (see `InteriorSceneData.place`). */
+  private isHall = false
+  /** The notice on screen, if any; a new one replaces it. */
+  private noticeLabel: Phaser.GameObjects.Text | null = null
   /** Other players in this house (Phase 5); idle in single player. */
   private remotes: RemotePlayers | undefined
   private interiorId = ''
@@ -151,13 +161,15 @@ export class InteriorScene extends Phaser.Scene {
 
   init(data: InteriorSceneData): void {
     this.houseId = data.houseId
+    this.isHall = data.place === 'hall'
+    this.noticeLabel = null
     this.interiorId = data.interiorId
     this.template = getTemplate(data.interiorId)
     this.layout = data.layout
     this.definition = this.buildDefinition(data)
     this.loadFailed = false
     this.artAvailable = true
-    this.notice = null
+    // (`notice` was set by buildDefinition just above; clearing it here hid the welcome and the 'room restored' message.)
     this.nearExit = false
     this.nearObject = null
     this.objectTargetsFor = undefined
@@ -192,7 +204,9 @@ export class InteriorScene extends Phaser.Scene {
         opening.violations,
       )
     }
-    if (opening.restored) this.notice = ROOM_RESTORED_NOTICE
+    // The Hall has no stored furniture by design: its standard room is not a "restored" one.
+    if (this.isHall) this.notice = HALL_WELCOME
+    else if (opening.restored) this.notice = ROOM_RESTORED_NOTICE
 
     this.layout = opening.layout
     return opening.definition
@@ -252,7 +266,7 @@ export class InteriorScene extends Phaser.Scene {
     const spawn = spawnFeet(def)
     const look = playerLook()
     this.player = new Player(this, 0, 0, isAvatar(look) ? look : 'traveller')
-    this.remotes = new RemotePlayers(this, `house:${this.houseId}`)
+    this.remotes = new RemotePlayers(this, this.isHall ? HALL_SCENE : `house:${this.houseId}`)
     this.player.onStep = () => gameAudio.play('step-wood')
     this.player.placeFeet(spawn.x, spawn.y)
     this.player.setFacing(def.spawn.facing)
@@ -305,6 +319,10 @@ export class InteriorScene extends Phaser.Scene {
     const def = this.definition
     if (!def) return
 
+    if (this.noticeLabel) {
+      this.tweens.killTweensOf(this.noticeLabel)
+      this.noticeLabel.destroy()
+    }
     const label = this.add
       .text(def.widthPx / 2, 8, text, {
         fontFamily: 'monospace',
@@ -317,13 +335,17 @@ export class InteriorScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0)
       .setDepth(DEPTH_PROMPT)
+    this.noticeLabel = label
 
     this.tweens.add({
       targets: label,
       alpha: 0,
       delay: 6000,
       duration: 800,
-      onComplete: () => label.destroy(),
+      onComplete: () => {
+        if (this.noticeLabel === label) this.noticeLabel = null
+        label.destroy()
+      },
     })
   }
 
@@ -498,7 +520,8 @@ export class InteriorScene extends Phaser.Scene {
       layout: this.layout!,
       store: houseLayouts,
       // Editing needs the real furniture art (the catalogue shows those sheets).
-      canEdit: this.artAvailable && canEditHouse(this.houseId),
+      // Nobody edits the Hall's furniture.
+      canEdit: !this.isHall && this.artAvailable && canEditHouse(this.houseId),
     })
     this.renderedVersion = this.session.version
     this.overlay = new EditorOverlay(this, def)
@@ -691,7 +714,9 @@ export class InteriorScene extends Phaser.Scene {
     const def = this.definition
     if (!def) return []
     if (this.objectTargetsFor !== def) {
-      this.objectTargets = buildObjectTargets(def)
+      const targets = buildObjectTargets(def)
+      // In the Hall the computer desk is the kiosk and the notebook table the easel.
+      this.objectTargets = this.isHall ? targets.map(t => ({ ...t, promptText: hallObjectPrompt(t.app) })) : targets
       this.objectTargetsFor = def
     }
     return this.objectTargets
@@ -727,6 +752,12 @@ export class InteriorScene extends Phaser.Scene {
 
   /** Opens the website or Paint for the object the player stands at. */
   private openApp(target: ObjectTarget): void {
+    if (this.isHall) {
+      // Placeholders until the Community Website (CH-06) and the canvas (CH-04) exist: say so, open nothing.
+      this.showNotice(hallObjectSoon(target.app))
+      this.lock.release(performance.now())
+      return
+    }
     if (!this.appSession?.open(target.app, this.houseId)) {
       // Nothing opened (already open): give the lock back instead of staying frozen.
       this.lock.release(performance.now())
