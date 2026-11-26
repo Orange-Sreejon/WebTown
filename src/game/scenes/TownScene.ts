@@ -10,7 +10,9 @@ import {
   TRANSITION_FADE_MS,
 } from '../config/GameConfig'
 import { DEFAULT_START_HOUR } from '../config/halloween'
-import { HOUSES } from '../config/houses'
+import { COMMUNITY_HALL, HOUSES } from '../config/houses'
+import { canEnterHall, hallDoorPrompt, isCommunityHall } from '../systems/community-hall'
+import { hasAccount } from '../../lib/player-identity'
 import { SceneKeys } from '../config/SceneKeys'
 import { TownMap } from '../maps/TownMap'
 import { createCollisionObjects } from '../maps/collision-objects'
@@ -37,8 +39,8 @@ import { gameAudio } from '../../audio'
 import { stepSound, townSurfaceAt } from '../../audio/footsteps'
 import type { Rect } from '../../lib/geometry'
 
-/** One entrance per enterable house, derived once from the town layout. */
-const ENTRANCES: readonly Entrance[] = buildEntrances(HOUSES, STRUCTURES)
+/** One entrance per enterable house, and the church's door to the Community Hall, derived once from the town layout. */
+const ENTRANCES: readonly Entrance[] = buildEntrances([...HOUSES, COMMUNITY_HALL], STRUCTURES)
 
 export class TownScene extends Phaser.Scene {
   private player!: Player
@@ -170,6 +172,8 @@ export class TownScene extends Phaser.Scene {
       // door in the interior must not reopen this one.
       if (event.repeat) return
       const entrance = this.nearby
+      // The Hall is shared by a town's members: without an account it stays closed (the prompt says so).
+      if (entrance && isCommunityHall(entrance.id) && !canEnterHall(hasAccount())) return
       if (!entrance || !this.lock.tryBegin(performance.now())) return
       this.enterHouse(entrance)
     }
@@ -187,7 +191,7 @@ export class TownScene extends Phaser.Scene {
     this.nearby = entrance
 
     if (entrance) {
-      this.prompt.show(entrance.promptX, entrance.promptY, PROMPT_ENTER_TEXT)
+      this.prompt.show(entrance.promptX, entrance.promptY, isCommunityHall(entrance.id) ? hallDoorPrompt(hasAccount()) : PROMPT_ENTER_TEXT)
     } else {
       this.prompt.hide()
     }
@@ -213,7 +217,8 @@ export class TownScene extends Phaser.Scene {
     // A layout that cannot be used is replaced by the standard room (and a copy
     // kept) rather than costing the player the visit; a failed load is handed to
     // the interior as absent, which opens the standard room as well.
-    const layoutLoad = houseLayouts.loadWithRecovery(entrance.id).catch(
+    // The Hall has no stored furniture: its room is the same for everyone.
+    const layoutLoad: Promise<LoadedLayout | undefined> = isCommunityHall(entrance.id) ? Promise.resolve(undefined) : houseLayouts.loadWithRecovery(entrance.id).catch(
       (error: unknown): LoadedLayout | undefined => {
         console.error(`[TownScene] could not load the layout for "${entrance.id}"`, error)
         return undefined
@@ -226,6 +231,7 @@ export class TownScene extends Phaser.Scene {
         const data: InteriorSceneData = {
           houseId: entrance.id,
           interiorId: entrance.interiorId,
+          ...(isCommunityHall(entrance.id) ? { place: 'hall' as const } : {}),
           ...(loaded ? { layout: loaded.layout } : {}),
           ...(loaded?.recovered ? { recovered: true } : {}),
         }

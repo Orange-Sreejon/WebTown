@@ -7,8 +7,8 @@
 export type Facing = 'up' | 'down' | 'left' | 'right'
 export type EmoteKind = 'wave' | 'heart' | 'laugh' | 'surprise'
 
-/** Where a player is: the town, or inside the house on a map slot. */
-export type SceneId = 'town' | `house:${string}`
+/** Where a player is: the town, the Community Hall, or inside the house on a map slot. */
+export type SceneId = 'town' | 'hall' | `house:${string}`
 
 /** Presence: who is connected, and where they last stood. Key = `s`. */
 export interface PresenceMeta {
@@ -64,7 +64,7 @@ export const MAX_MESSAGE_BYTES = 512
 const FACINGS: readonly Facing[] = ['up', 'down', 'left', 'right']
 const EMOTES: readonly EmoteKind[] = ['wave', 'heart', 'laugh', 'surprise']
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-const SCENE = /^(town|house:[a-z0-9-]{1,40})$/
+const SCENE = /^(town|hall|house:[a-z0-9-]{1,40})$/
 
 export const isSessionId = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
 export const isScene = (v: unknown): v is SceneId => typeof v === 'string' && SCENE.test(v)

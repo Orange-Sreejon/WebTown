@@ -6,7 +6,8 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
 - [x] **CH-00** Audit and spec (this folder). Owner decisions Q1-Q4 recorded in `requirements.md` (church; former members' content kept; members edit the draft; strokes without approval).
 
 - [x] **CH-01 Hall foundation (database only)** - done: migration `20261210090000_community_hall_core.sql`,
-  `src/cloud/community.ts`, tests `community-hall-schema.test.ts` (13) and `community.test.ts` (4); suite 1615 green;
+  `src/cloud/community.ts`; its 17 tests live in `src/cloud/database/multiplayer-schema.test.ts` (sharing that file's PGlite:
+  a separate PGlite made unrelated tests time out intermittently under full-suite load);
   dry run on the test project lists only this migration. **Not yet applied remotely** (waits for the owner).
   - In: migration `…_community_hall_core.sql`: `community_halls` (PK `world_id`), `after insert` trigger on
     `worlds` and backfill; `world_moderators`; `community_moderation_log` (append-only); `private.is_hall_moderator`,
@@ -18,8 +19,14 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
   - Out: any Phaser, React or UI change; canvas and website tables; Storage; Realtime client code.
   - Done when: the migration applies on PGlite and passes `db push --dry-run` on the test project (if one exists),
     every new test passes, the full suite is green.
-- [ ] **CH-02 Enter the Hall** - church entrance, `InteriorScene` place (house | hall), Hall template with kiosk and
-  easel placeholders, scene id `hall` in the multiplayer protocol, device-only notice; house regression.
+- [x] **CH-02 Enter the Hall** - done: church door (`COMMUNITY_HALL`, not in `HOUSES`), `InteriorScene` `place: 'hall'`
+  (standard room, editing off, welcome line), the computer desk and notebook table as kiosk and easel placeholders
+  ("will open here soon"), scene id `hall` in the protocol, closed without an account, `?owner=community-hall`
+  refused; also fixed a pre-existing bug that cleared every room notice before it was shown. Tests:
+  `src/game/systems/community-hall.test.ts` (8), `tests/multiplayer/hall.spec.mjs`, `tests/e2e/community-hall.spec.mjs`.
+  Dedicated kiosk and easel art: later (new roles when the art exists).
+- [ ] **Test load** - before CH-03 adds more database tests: run PGlite tests as their own, less parallel Vitest group
+  instead of packing them into one file.
 - [ ] **CH-03 Canvas data** - migration `…_community_canvas.sql`, stroke encoding, functions, PGlite tests.
 - [ ] **CH-04 Canvas app** - React canvas (pan, zoom, tools, chunk loader, undo/redo), `hall-session` on
   `hall:<uuid>` (previews, op catch-up), H5 verified on the test project; two-browser tests.

@@ -16,6 +16,9 @@ export function setPlayerHouse(house: PlayerHouse | null): void {
   current = house ? { ownedSlot: house.ownedSlot } : null
 }
 
+/** True while a signed-in account is playing (shared spaces like the Community Hall need one). */
+export const hasAccount = (): boolean => current !== null
+
 export function playerHouse(): PlayerHouse | null {
   return current ? { ownedSlot: current.ownedSlot } : null
 }
