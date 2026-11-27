@@ -8,7 +8,7 @@
 | H2 | Halls are created by an **`after insert` trigger on `worlds`** and **backfilled** in the migration. | Every world, past and future, has exactly one, without changing `bootstrap_player`. Rejected: lazy creation on first visit (races, a function that writes on read). |
 | H3 | **Moderators**: `world_moderators` rows, plus the owner implicitly (`private.is_hall_moderator`). Only the owner grants or revokes. | The owner can never be locked out; a moderator is always a member (FK to `world_members`, cascade on removal). |
 | H4 | **A second private channel per world, `hall:<uuid>`**, for Hall content only, authorised by a new `private.realtime_hall_member`. | The brief forbids reusing the movement channel; a different topic also avoids supabase-js channel reuse. Rejected: a channel per feature (more sockets' worth of joins, same rule). |
-| H5 | **Committed canvas operations are announced by the database** (a trigger calling `realtime.send` on `hall:<uuid>`); clients broadcast only *in-progress* stroke previews. | The author of a durable change is stamped by the server, so it can't be forged; clients can't announce something that wasn't stored. Fallback if `realtime.send` is unavailable on the project: clients broadcast `{opId}` and everyone fetches by id (same safety: the content comes from the database). Verify on the test project (CH-04). |
+| H5 | **Committed canvas operations are announced by the database** (`realtime.send` from the canvas functions, as `{ seq, kind }` on `hall:<uuid>`); clients broadcast only *in-progress* stroke previews. | Members may also broadcast on `hall:<uuid>` (the CH-01 send policy allows it, and Realtime checks a channel at join, not per message), so an announcement is **only a hint**: clients read what changed with `canvas_ops_since`, whose content and authorship come from the database. A forged hint costs one catch-up call. If `realtime.send` fails or is unavailable the change is still stored (best effort, tested); clients also catch up on (re)join. Verify delivery on the test project (CH-04). |
 | H6 | **Canvas = vector strokes with a `box` bounding box and a GiST index**, loaded by viewport. | Built into PostgreSQL (no PostGIS); verified on PGlite. Rejected: tiles of pixels (heavy, lossy), PostGIS (extension, overkill). |
 | H7 | **Website = one shared draft with compare-and-swap + immutable revisions + a published pointer.** | Fits the existing `save_website` CAS and the Studio's conflict UI; publishing and rollback become pointer moves. Rejected: live co-editing (CRDT dependency; out of scope). |
 | H8 | **Reuse the Studio and the sandbox through a `SiteTarget` abstraction** (house or hall), not a copy. | One editor, one sanitiser, one security review. |
@@ -146,17 +146,19 @@ new roles `kiosk` and `easel`. Multiplayer scene id `'hall'` added to the protoc
 simply drop those messages. Device-only mode: the door says the Hall opens online.
 
 ### 4.2 Canvas (CH-03, CH-04)
-- **Coordinates:** integer world units; stored points are `int32` start then `int16` deltas (a stroke never jumps
-  more than 32,767 units between points; longer jumps start a new stroke). Points simplified client-side
-  (RDP, 0.5 px at the drawing zoom) and capped at 2,000.
+- **Coordinates:** integer world units within +-1,000,000; stored points are a flat `int[]` (x0, y0, x1, y1, ...),
+  1 to 2,000 points (CH-03). Points simplified client-side (RDP, 0.5 px at the drawing zoom) in CH-04.
+- **Limits (CH-03):** 60 strokes a minute and 1,500 a day per member (erased ones count, which bounds what one member
+  can store), 20,000 visible strokes per Hall. Hidden strokes are kept (so they can be restored) and visible only to
+  their author and moderators; a retention purge for old hidden strokes is a later task.
 - **Viewport loading:** the view is divided into chunks of 1,024 x 1,024 units. Chunks overlapping the viewport plus
   one ring are loaded with one `canvas_strokes_in` per batch of chunks; strokes are kept in a client-side grid index;
   chunks two rings away are unloaded (LRU, at most ~20,000 strokes in memory). Zoomed far out (more than 16 chunks
   across), only a sampled level of detail is drawn and new loads wait for zoom-in.
 - **Live:** while drawing, the client broadcasts `{ v, s, id, points-delta, tool, color, width }` previews on
   `hall:<uuid>` at most 15 times a second (same validators style as `protocol.ts`; others draw them faded).
-  On pen-up: `add_canvas_stroke`; the database trigger announces `{ seq, kind: 'add', stroke }` (H5); everyone
-  replaces the preview with the stored stroke. Previews older than 5 s without a commit vanish.
+  On pen-up: `add_canvas_stroke`; the database announces `{ seq, kind }` (H5); everyone fetches the
+  op with `canvas_ops_since` and replaces the preview with the stored stroke. Previews older than 5 s without a commit vanish.
 - **Ordering and reconnect:** each client keeps the highest `seq` seen; on (re)join it calls `canvas_ops_since`
   until caught up, then applies live ops, ignoring any `seq` already applied. Gaps (a missed `seq`) trigger a catch-up.
 - **Offline strokes:** kept in memory with their client id and retried with backoff; the id makes retries

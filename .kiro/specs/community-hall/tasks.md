@@ -25,9 +25,12 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
   refused; also fixed a pre-existing bug that cleared every room notice before it was shown. Tests:
   `src/game/systems/community-hall.test.ts` (8), `tests/multiplayer/hall.spec.mjs`, `tests/e2e/community-hall.spec.mjs`.
   Dedicated kiosk and easel art: later (new roles when the art exists).
-- [ ] **Test load** - before CH-03 adds more database tests: run PGlite tests as their own, less parallel Vitest group
-  instead of packing them into one file.
-- [ ] **CH-03 Canvas data** - migration `…_community_canvas.sql`, stroke encoding, functions, PGlite tests.
+- [x] **Test load** - Vitest projects `unit` then `database` (`vitest.config.ts`); the PGlite files are listed in
+  `vitest.database-tests.ts`, and `src/test-groups.test.ts` fails if one is missing.
+- [x] **CH-03 Canvas data** - migration `20261215090000_community_canvas.sql` (strokes, op log, add/hide/restore/
+  clear/lock, viewport and catch-up reads, `{ seq, kind }` announcements as hints), client `src/cloud/canvas.ts`
+  (validation, strict parsing), tests `src/cloud/database/canvas-schema.test.ts` (21, mutation-checked) and
+  `src/cloud/canvas.test.ts` (7); shim gains `realtime.send`. Not applied remotely.
 - [ ] **CH-04 Canvas app** - React canvas (pan, zoom, tools, chunk loader, undo/redo), `hall-session` on
   `hall:<uuid>` (previews, op catch-up), H5 verified on the test project; two-browser tests.
 - [ ] **CH-05a SiteTarget** - mechanical change from `houseId` to a target in `site-project`, house path unchanged,
