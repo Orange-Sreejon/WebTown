@@ -40,9 +40,15 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
   two-browser `tests/multiplayer/canvas.spec.mjs`.
   - [ ] **Still open:** H5 on the real project (does Supabase deliver `realtime.send` on `hall:<uuid>` to
     subscribers?). Needs two signed-in guests in the project; moved to CH-08 unless asked sooner.
-- [ ] **CH-05a SiteTarget** - mechanical change from `houseId` to a target in `site-project`, house path unchanged,
-  full suite green before anything else.
-- [ ] **CH-05 Website data** - migration `…_community_website.sql`, bucket, functions, PGlite tests.
+- [x] **CH-05a SiteTarget** - `SiteStudio` takes a `target` (`site-project/site-target.ts`); records keep `houseId`
+  as the site key (`community-hall` for the Hall), so no data migration; Hall wording for shared draft and conflicts.
+  House path unchanged: full suite 1702 green twice, Studio and code-editor e2e (Chromium) 10/10. Tests:
+  `site-target.test.ts` (4), Hall cases in `SiteStudio.test.tsx` (3).
+- [x] **CH-05 Website data** - `20261225090000_community_website.sql` (draft CAS by revision number, revisions kept
+  30 + 10 published, publish/rollback logged, draft lock, `community-assets` bucket and policies, hints on the Hall
+  channel; not applied remotely). Client `src/cloud/community-website.ts` (load draft/published/revision with images,
+  `CommunityDraftWriter` for the Studio, publish, list, announcement parser). Tests: 16 on PGlite (13 mutations
+  caught). Was: migration `…_community_website.sql`, bucket, functions, PGlite tests.
 - [ ] **CH-06 Website app** - Studio in Hall mode, draft CAS, kiosk viewer, publish and rollback, editing presence.
 - [ ] **CH-07 Moderation UI** - moderators panel, hide/restore, clear region, locks, audit log view.
 - [ ] **CH-08 Live verification** - stand-in and real-project two-player runs, docs (`docs/COMMUNITY-HALL.md`).

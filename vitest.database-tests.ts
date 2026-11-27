@@ -7,6 +7,7 @@
 export const DATABASE_TEST_FILES = [
   'src/cloud/cloud-repositories.test.ts',
   'src/cloud/database/canvas-schema.test.ts',
+  'src/cloud/database/community-website-schema.test.ts',
   'src/cloud/database/multiplayer-schema.test.ts',
   'src/cloud/database/schema.test.ts',
   'src/cloud/local-import.test.ts',

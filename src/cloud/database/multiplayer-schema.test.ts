@@ -251,7 +251,7 @@ describe('private functions (stabilization S4)', () => {
     const rows = await db.superuser<{ proname: string }>(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'private' and has_function_privilege('authenticated', p.oid, 'execute') order by 1`)
     expect(rows.map(r => r.proname)).toEqual([
-      'can_view_house', 'house_folder', 'house_path_allows', 'is_hall_moderator', 'is_world_member', 'iso', 'owns_house',
+      'can_view_house', 'community_path_allows', 'house_folder', 'house_path_allows', 'is_hall_moderator', 'is_world_member', 'iso', 'owns_house',
       'realtime_hall_member', 'realtime_world_member', 'shares_world', 'touch_updated_at',
     ])
     const anon = await db.superuser<{ proname: string }>(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace

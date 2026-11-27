@@ -131,10 +131,16 @@ All tables: RLS on, **no client write grants** (writes only through security-def
 | `hide_canvas_stroke(p_world, p_id, p_reason)` | author (`erased`/`undone`), moderator (`moderated`, logged) | `restore_canvas_stroke` for redo / moderator undo |
 | `clear_canvas_region(p_world, p_box, p_reason)` | moderator | soft-hides everything in the box; logged |
 | `set_hall_lock(p_world, p_what, p_locked)` | moderator | logged |
-| `get_community_website(p_world, p_which)` | member | `'draft'` or `'published'` |
-| `save_community_draft(p_world, p_base_revision, p_site)` | member (not while draft locked) | CAS on `draft_revision` (`WTCON`), same validation as `save_website`, inserts a revision |
-| `publish_community_website(p_world, p_revision_number)` | moderator | publishes exactly the revision the moderator reviewed; logged |
-| `list_community_revisions(p_world, ...)` | member | number, author, time (no content) |
+| `get_community_website(p_world, p_which, p_number)` | member | `'draft'`, `'published'` or `'revision'` (a kept one); null if none |
+| `save_community_draft(p_world, p_base_number, p_site)` | member (not while draft locked, except moderators) | CAS on the draft's revision number (`WTCON`), same rules as `save_website` plus at most 3 MB stored, inserts revision N+1, records new images, returns unused image paths |
+| `publish_community_website(p_world, p_number, p_note)` | moderator | publishes exactly the revision the moderator reviewed; older than the published one = `rollback`; logged |
+| `list_community_revisions(p_world, p_before, p_limit)` | member | number, author, time, draft/published flags (no content) |
+
+As built (CH-05, `20261225090000_community_website.sql`): the draft's number is the CAS value (no separate
+counter); revisions are kept by number (newest 30) plus the 10 most recently published, and foreign keys make the
+draft and the published version impossible to drop. Images: `community-assets`, `{world}/{image id}`; members of the
+town add new files (never replace) and read them; removal only after a save marks a file unused. Saves and publishes
+announce `{ kind, number }` on `hall:<uuid>` (event `website`), a hint only. No direct table access at all.
 
 ## 4. Workflows
 
@@ -173,8 +179,11 @@ simply drop those messages. Device-only mode: the door says the Hall opens onlin
   members may erase their own only; moderators any (logged).
 
 ### 4.3 Website (CH-05, CH-06)
-- `SiteTarget = { kind: 'house'; houseId } | { kind: 'hall'; worldId }`. `site-project` types gain a target instead
-  of a bare `houseId` (a mechanical change with the house path unchanged). The Studio receives a `writer` and a
+- `SiteTarget = { kind: 'house'; houseId } | { kind: 'hall'; worldId }` (`site-project/site-target.ts`, CH-05a), given
+  to the Studio instead of a bare `houseId`. Stored records keep their `houseId` field as the site's key, so nothing
+  already saved changes shape (no IndexedDB or cloud migration): a house's key is its slot, the Community Website's is
+  `community-hall` (= `COMMUNITY_HALL_ID`, which `ownership.ts` refuses as a house). The Studio's single-owner wording
+  (conflict "another tab", "visitors see the saved version") comes from the target. The Studio receives a `writer` and a
   `reload` as today; for the Hall, `CommunityDraftWriter` calls `save_community_draft` with the base revision.
 - Conflict: `WTCON` -> the Studio's existing "Saved somewhere else" dialog (keep editing, load theirs, save mine).
 - Presence on `hall:<uuid>`: `{ editing: 'draft' }` shows "Ada is editing the draft" in the Studio header.

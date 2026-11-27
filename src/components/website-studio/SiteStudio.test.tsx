@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { ConflictError, ValidationError } from '../../personal-spaces/errors'
 import { startStudio } from '../../personal-spaces/site-project/studio-state'
 import { blankProject, classicProject } from '../../personal-spaces/site-project/templates'
+import { COMMUNITY_SITE_KEY, hallTarget, houseTarget, type SiteTarget } from '../../personal-spaces/site-project/site-target'
 import { GIF_ANIMATED, PNG_1PX } from '../../personal-spaces/site-project/test-images.test-support'
 import type { SiteProject, SiteSave } from '../../personal-spaces/site-project/types'
 import type { WebsiteState } from '../../personal-spaces/site-project-storage/resolve-website'
@@ -35,7 +36,7 @@ interface Setup {
   onClose: Mock<() => void>
 }
 
-function mount(initial = unsavedStudio(blankProject('house-a', NOW)), overrides: Partial<Setup> = {}): Setup {
+function mount(initial = unsavedStudio(blankProject('house-a', NOW)), overrides: Partial<Setup> = {}, target: SiteTarget = houseTarget('house-a')): Setup {
   const setup: Setup = {
     writer: { save: vi.fn(async (save: SiteSave): Promise<SiteProject> => ({ ...save.project, revision: save.baseRevision + 1, updatedAt: NOW })) },
     reload: vi.fn(async (): Promise<WebsiteState> => ({ kind: 'none' })),
@@ -46,7 +47,7 @@ function mount(initial = unsavedStudio(blankProject('house-a', NOW)), overrides:
   act(() =>
     root.render(
       <SiteStudio
-        houseId="house-a"
+        target={target}
         initial={initial}
         writer={setup.writer}
         reload={setup.reload}
@@ -216,15 +217,16 @@ describe('pages', () => {
   })
 })
 
-describe('images', () => {
-  const file = (name: string, bytes: ArrayBuffer, mime = 'image/gif'): File => new File([bytes], name, { type: mime })
+const file = (name: string, bytes: ArrayBuffer, mime = 'image/gif'): File => new File([bytes], name, { type: mime })
 
-  async function upload(...files: File[]): Promise<void> {
-    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
-    Object.defineProperty(input, 'files', { value: files, configurable: true })
-    act(() => { input.dispatchEvent(new Event('change', { bubbles: true })) })
-    await flush()
-  }
+async function upload(...files: File[]): Promise<void> {
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+  Object.defineProperty(input, 'files', { value: files, configurable: true })
+  act(() => { input.dispatchEvent(new Event('change', { bubbles: true })) })
+  await flush()
+}
+
+describe('images', () => {
 
   it('uploads a GIF under a predictable name and saves it with the website', async () => {
     const { writer } = mount()
@@ -413,5 +415,46 @@ describe('a save that conflicts with another tab', () => {
     expect(second.baseRevision).toBe(5)
     expect(second.project.pages[0]!.html).toBe('mine')
     expect(container.querySelector('.ws-status')!.textContent).toBe('Saved')
+  })
+})
+
+describe('for the Community Website (a Hall target, CH-05a)', () => {
+  const WORLD = '0b6c1c4e-8f0e-4c7e-9d7a-000000000001'
+  const hall = (): SiteTarget => hallTarget(WORLD)
+  const draft = () => unsavedStudio(blankProject(COMMUNITY_SITE_KEY, NOW))
+
+  it("stamps the town's key, never a house's, on images and new starting points", async () => {
+    const { writer } = mount(draft(), {}, hall())
+    await upload(file('Poster.png', PNG_1PX(), 'image/png'))
+    click(button('Save'))
+    await flush()
+    const save = writer.save.mock.calls[0]![0] as SiteSave
+    expect(save.project.houseId).toBe(COMMUNITY_SITE_KEY)
+    expect(save.putAssets.map(a => a.houseId)).toEqual([COMMUNITY_SITE_KEY])
+    click(button('Start over'))
+    click(button('Classic personal homepage'))
+    click(button('Save'))
+    await flush()
+    expect((writer.save.mock.calls[1]![0] as SiteSave).project.houseId).toBe(COMMUNITY_SITE_KEY)
+  })
+
+  it('says the draft is shared and published by moderators, and that someone else saved it', async () => {
+    const setup = mount(draft(), {}, hall())
+    expect(text()).toContain('Everyone in town can edit this draft. Visitors see the Community Website only once a moderator publishes it.')
+    expect(text()).not.toContain('Visitors to your town see the saved version')
+    setup.writer.save.mockRejectedValueOnce(new ConflictError())
+    setup.reload.mockResolvedValue({ kind: 'project', snapshot: { project: { ...blankProject(COMMUNITY_SITE_KEY, NOW), revision: 3 }, assets: [] }, skipped: [] })
+    click(button('Save'))
+    await flush()
+    expect(text()).toContain('Someone else in town saved the draft after you opened it.')
+    expect(text()).not.toContain('another tab')
+    click(button('Load the other version'))
+    await flush()
+    expect(text()).toContain('Showing the draft as it was last saved.')
+  })
+
+  it('keeps the house wording for a house', () => {
+    mount()
+    expect(text()).toMatch(/Visitors (on this device|to your town) see the saved version\./)
   })
 })

@@ -3,6 +3,7 @@ import type { OwnerWebsiteAccess } from '../../personal-spaces/composition'
 import { NOT_SAVED_NOTICE, savedLabel } from '../../personal-spaces/labels'
 import { startStudio, type StudioState } from '../../personal-spaces/site-project/studio-state'
 import { blankProject, classicProject } from '../../personal-spaces/site-project/templates'
+import { houseTarget } from '../../personal-spaces/site-project/site-target'
 import { WindowFrame } from '../apps/WindowFrame'
 import { HouseWebsite } from '../website/HouseWebsite'
 import { useWebsiteState } from '../website/useWebsiteState'
@@ -51,7 +52,7 @@ export function OwnerWebsiteWindow({ access, persistent, onClose, Editor, now = 
   if (studio !== null) {
     return (
       <SiteStudio
-        houseId={access.houseId}
+        target={houseTarget(access.houseId)}
         initial={studio}
         writer={access.writer}
         reload={access.open}
