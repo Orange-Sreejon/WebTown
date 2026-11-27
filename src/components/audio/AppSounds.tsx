@@ -30,9 +30,9 @@ export function AppSounds(): null {
     const stopApp = onAppState(view => {
       const next = view.open
       if (next === open) return
-      if (open === 'website') gameAudio.play('computer-off')
+      if (open === 'website' || open === 'community-website') gameAudio.play('computer-off')
       if (open === 'paint') gameAudio.play('book-close')
-      if (next === 'website') gameAudio.play('computer-on')
+      if (next === 'website' || next === 'community-website') gameAudio.play('computer-on')
       if (next === 'paint') gameAudio.play('page-turn')
       open = next
       drawing = false

@@ -49,7 +49,14 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
   channel; not applied remotely). Client `src/cloud/community-website.ts` (load draft/published/revision with images,
   `CommunityDraftWriter` for the Studio, publish, list, announcement parser). Tests: 16 on PGlite (13 mutations
   caught). Was: migration `…_community_website.sql`, bucket, functions, PGlite tests.
-- [ ] **CH-06 Website app** - Studio in Hall mode, draft CAS, kiosk viewer, publish and rollback, editing presence.
+- [x] **CH-06 Website app** - the kiosk opens the Community Website (`src/components/community-website/`, loaded on
+  demand from `MultiplayerHost`; the Studio a further chunk): published / draft / any kept version, "Edit the draft"
+  (Site Studio with the Hall target and `CommunityDraftWriter`; refused while locked except moderators), Versions
+  list, moderators' "Publish this version" with what changes and a rollback warning and a log note. Hall channel
+  (`src/community-website/website-channel.ts`): who is editing (presence), save/publish hints that reload what is
+  shown or warn of a newer draft in the Studio. Studio gains a `banner` slot. Tests: unit 6 (diff, channel), window
+  on PGlite 6 (7 mutations caught), two-browser `tests/multiplayer/community-website.spec.mjs`; `hall.spec.mjs`
+  now opens the kiosk. No migration.
 - [ ] **CH-07 Moderation UI** - moderators panel, hide/restore, clear region, locks, audit log view.
 - [ ] **CH-08 Live verification** - stand-in and real-project two-player runs, docs (`docs/COMMUNITY-HALL.md`).
 - [ ] **CH-09 Noticeboard** - later milestone, specified separately.

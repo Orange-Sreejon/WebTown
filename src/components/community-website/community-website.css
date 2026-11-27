@@ -1,0 +1,109 @@
+/* The Community Website window at the Hall's kiosk (CH-06). */
+.cw {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+.cw-body {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+.cw-site {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cw-actions,
+.cw-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.cw-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #e8e2d6;
+  font-size: 12px;
+}
+.cw-pill--live {
+  background: #cfe8d5;
+}
+.cw-publish {
+  font-weight: bold;
+}
+.cw-empty {
+  padding: 24px;
+}
+.cw-versions {
+  width: 240px;
+  overflow: auto;
+  border-left: 1px solid #d6cfc2;
+  padding-left: 8px;
+}
+.cw-versions h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.cw-versions ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cw-version {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 6px;
+  border: 1px solid #d6cfc2;
+  border-radius: 4px;
+  background: #faf7f0;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cw-version[aria-current='true'] {
+  outline: 2px solid #2364aa;
+}
+.cw-small {
+  font-size: 12px;
+  color: #6b645a;
+}
+.cw-confirm {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 90%);
+  padding: 16px;
+  border: 1px solid #b9b2a6;
+  border-radius: 6px;
+  background: #fffdf8;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cw-confirm h3,
+.cw-confirm p,
+.cw-confirm ul {
+  margin: 0;
+}
+.cw-confirm-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
