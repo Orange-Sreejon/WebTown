@@ -9,7 +9,7 @@ import { STRUCTURES, doorColumn } from '../maps/town-layout'
 import { rectContains, rectsOverlap } from '../../lib/geometry'
 import { parseMove, parsePresence } from '../../multiplayer/protocol'
 import {
-  COMMUNITY_HALL_ID, HALL_SCENE, canEnterHall, hallDoorPrompt, hallObjectPrompt, hallObjectSoon, isCommunityHall,
+  COMMUNITY_HALL_ID, HALL_SCENE, canEnterHall, hallDoorPrompt, hallObjectApp, hallObjectPrompt, hallObjectSoon, isCommunityHall,
 } from './community-hall'
 import { buildEntrances, findNearbyTarget } from './interaction'
 import { playerBodyRect } from './return-position'
@@ -70,7 +70,8 @@ describe('inside the Community Hall', () => {
     expect(apps).toEqual(['website', 'paint'])
     expect(apps.map(hallObjectPrompt)).toEqual(['E: Community Website', 'E: Community Canvas'])
     expect(hallObjectSoon('website')).toMatch(/Community Website/)
-    expect(hallObjectSoon('paint')).toMatch(/canvas/)
+    // The easel opens the shared canvas (CH-04); the kiosk opens nothing yet.
+    expect(apps.map(hallObjectApp)).toEqual([null, 'canvas'])
   })
 
   it('belongs to nobody: not even the developer ?owner= switch can make it editable', () => {

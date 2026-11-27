@@ -31,8 +31,15 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
   clear/lock, viewport and catch-up reads, `{ seq, kind }` announcements as hints), client `src/cloud/canvas.ts`
   (validation, strict parsing), tests `src/cloud/database/canvas-schema.test.ts` (21, mutation-checked) and
   `src/cloud/canvas.test.ts` (7); shim gains `realtime.send`. Not applied remotely.
-- [ ] **CH-04 Canvas app** - React canvas (pan, zoom, tools, chunk loader, undo/redo), `hall-session` on
-  `hall:<uuid>` (previews, op catch-up), H5 verified on the test project; two-browser tests.
+- [x] **CH-04 Canvas app** - the easel opens the Community Canvas (`src/components/community-canvas/`, loaded on
+  demand from `MultiplayerHost`): pen, marker, eraser, move, palette, sizes, zoom, undo/redo, unsaved-close warning.
+  `src/community-canvas/`: geometry (RDP, chunks, view), store (consistency rule), previews (validated, capped,
+  15 Hz), session (one read at a time, hint-only announcements throttled to 4/s, outbox with backoff and refusal
+  rollback). Migration `20261220090000_community_canvas_order.sql` (ops commit in seq order; not applied remotely).
+  Stand-in delivers `realtime.send` rows. Tests: unit 31, session on PGlite 11 (mutation-checked), window 10,
+  two-browser `tests/multiplayer/canvas.spec.mjs`.
+  - [ ] **Still open:** H5 on the real project (does Supabase deliver `realtime.send` on `hall:<uuid>` to
+    subscribers?). Needs two signed-in guests in the project; moved to CH-08 unless asked sooner.
 - [ ] **CH-05a SiteTarget** - mechanical change from `houseId` to a target in `site-project`, house path unchanged,
   full suite green before anything else.
 - [ ] **CH-05 Website data** - migration `…_community_website.sql`, bucket, functions, PGlite tests.

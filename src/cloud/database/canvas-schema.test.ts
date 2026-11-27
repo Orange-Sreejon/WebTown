@@ -322,6 +322,27 @@ describe('who may use the canvas', () => {
 })
 
 describe('announcements on the Hall channel', () => {
+  it('come from changes committed one at a time per Hall, in sequence order (20261220090000)', async () => {
+    // PGlite has one connection, so concurrency can't be run here; instead every writer must take the Hall's row
+    // lock before touching a stroke (same order everywhere: no deadlock), and canvas_record must insist on it.
+    const LOCK = /perform 1 from public\.community_halls h where h\.world_id = p_world for update;/
+    for (const fn of ['public.add_canvas_stroke', 'public.hide_canvas_stroke', 'public.restore_canvas_stroke', 'public.clear_canvas_region', 'private.canvas_record']) {
+      const [{ full }] = await db.superuser<{ full: string }>(`select pg_get_functiondef('${fn}'::regproc) as full`)
+      const def = full!.slice(full!.search(/^begin$/m)) // the body, after the declarations
+      const lockAt = def.search(LOCK)
+      expect(lockAt, fn).toBeGreaterThan(0)
+      const firstStrokeTouch = def.search(/public\.canvas_strokes|public\.canvas_ops \(/)
+      expect(lockAt, `${fn} locks the Hall before touching strokes or ops`).toBeLessThan(firstStrokeTouch)
+    }
+    // create or replace kept the grants.
+    const rows = await db.superuser<{ proname: string; auth: boolean; anon: boolean }>(`select p.proname,
+        has_function_privilege('authenticated', p.oid, 'execute') as auth, has_function_privilege('anon', p.oid, 'execute') as anon
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname in ('hide_canvas_stroke', 'clear_canvas_region') order by 1`)
+    expect(rows).toEqual([{ proname: 'clear_canvas_region', auth: true, anon: false }, { proname: 'hide_canvas_stroke', auth: true, anon: false }])
+    const [{ granted }] = await db.superuser<{ granted: boolean }>("select has_function_privilege('authenticated', 'private.canvas_record(uuid, text, uuid, box, uuid[])', 'execute') as granted")
+    expect(granted).toBe(false)
+  })
   const sent = (world: string) => db.superuser<{ payload: Record<string, unknown>; event: string; extension: string; private: boolean }>(
     "select payload, event, extension, private from realtime.messages where topic = $1 order by id", [`hall:${world}`])
 

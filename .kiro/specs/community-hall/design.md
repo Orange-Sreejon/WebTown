@@ -152,9 +152,15 @@ simply drop those messages. Device-only mode: the door says the Hall opens onlin
   can store), 20,000 visible strokes per Hall. Hidden strokes are kept (so they can be restored) and visible only to
   their author and moderators; a retention purge for old hidden strokes is a later task.
 - **Viewport loading:** the view is divided into chunks of 1,024 x 1,024 units. Chunks overlapping the viewport plus
-  one ring are loaded with one `canvas_strokes_in` per batch of chunks; strokes are kept in a client-side grid index;
-  chunks two rings away are unloaded (LRU, at most ~20,000 strokes in memory). Zoomed far out (more than 16 chunks
-  across), only a sampled level of detail is drawn and new loads wait for zoom-in.
+  one ring are loaded with one `canvas_strokes_in` per batch of chunks; chunks two rings away are unloaded with their
+  strokes (never this client's unsaved ones). Strokes in memory are scanned by bounding box (at most 20,000 visible per
+  Hall, so a grid index is not needed yet). Zoomed far out (more than 16 chunks across) new loads wait for zoom-in and
+  the status line says so; what is loaded is still drawn (no sampled level of detail yet).
+- **Consistency (CH-04):** reads run one at a time; each load returns the newest `seq`, never older than anything the
+  client has seen, because a Hall's operations commit in sequence order (every writer takes the Hall row lock first,
+  migration `20261220090000_community_canvas_order.sql`). After a load the client catches up from its `seq`; applying
+  an operation twice is harmless and operations at or below `seq` are ignored. A catch-up longer than 5 pages
+  (2,500 operations) reloads the view instead. Own changes are shown at once and never advance `seq`.
 - **Live:** while drawing, the client broadcasts `{ v, s, id, points-delta, tool, color, width }` previews on
   `hall:<uuid>` at most 15 times a second (same validators style as `protocol.ts`; others draw them faded).
   On pen-up: `add_canvas_stroke`; the database announces `{ seq, kind }` (H5); everyone fetches the

@@ -10,8 +10,8 @@ import { emit, off, on } from './event-bus'
  * arrive as `unknown` and are narrowed by guards. Same pattern as `editor-bridge`.
  */
 
-/** Which application is on screen. */
-export type AppId = 'website' | 'paint'
+/** Which application is on screen. canvas: the Community Hall's shared canvas (CH-04), shown by CommunityCanvasHost. */
+export type AppId = 'website' | 'paint' | 'canvas'
 
 /**
  * Whether the local player may edit this house's content.
@@ -41,7 +41,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export function isAppView(value: unknown): value is AppView {
   return isRecord(value) &&
-    (value['open'] === null || value['open'] === 'website' || value['open'] === 'paint') &&
+    (value['open'] === null || value['open'] === 'website' || value['open'] === 'paint' || value['open'] === 'canvas') &&
     typeof value['houseId'] === 'string' &&
     (value['mode'] === 'owner' || value['mode'] === 'visitor')
 }

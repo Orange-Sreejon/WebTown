@@ -28,7 +28,7 @@ import { RemotePlayers } from '../entities/RemotePlayers'
 import { isAvatar } from '../systems/avatars'
 import { playerLook } from '../../lib/player-identity'
 import { gameAudio } from '../../audio'
-import { HALL_SCENE, HALL_WELCOME, hallObjectPrompt, hallObjectSoon } from '../systems/community-hall'
+import { COMMUNITY_HALL_ID, HALL_SCENE, HALL_WELCOME, hallObjectApp, hallObjectPrompt, hallObjectSoon } from '../systems/community-hall'
 import { addStaticRects } from '../maps/collision-objects'
 import { getTemplate } from '../maps/house/default-interior'
 import { EditorSession, type EditorMode } from '../maps/house/editor-session'
@@ -753,9 +753,10 @@ export class InteriorScene extends Phaser.Scene {
   /** Opens the website or Paint for the object the player stands at. */
   private openApp(target: ObjectTarget): void {
     if (this.isHall) {
-      // Placeholders until the Community Website (CH-06) and the canvas (CH-04) exist: say so, open nothing.
-      this.showNotice(hallObjectSoon(target.app))
-      this.lock.release(performance.now())
+      // The easel opens the shared canvas; the kiosk is a placeholder until the Community Website (CH-06) exists.
+      const app = hallObjectApp(target.app)
+      if (!app) this.showNotice(hallObjectSoon(target.app))
+      if (!app || !this.appSession?.open(app, COMMUNITY_HALL_ID)) this.lock.release(performance.now())
       return
     }
     if (!this.appSession?.open(target.app, this.houseId)) {
