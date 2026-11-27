@@ -3,8 +3,8 @@ import type { AppId } from '../../lib/app-bridge'
 /**
  * The Community Hall in the game (CH-02; .kiro/specs/community-hall/design.md 4.1): the church's door leads into a
  * shared room for the whole town. It is not a house: it has no owner, no furniture editing and no slot in `HOUSES`
- * (so the seven houses and the seven-member limit are unchanged). Its kiosk and easel are placeholders until the
- * Community Website (CH-06) and the canvas (CH-04) exist. Pure: no Phaser.
+ * (so the seven houses and the seven-member limit are unchanged). Its easel opens the Community Canvas (CH-04); the
+ * kiosk is a placeholder until the Community Website (CH-06) exists. Pure: no Phaser.
  */
 
 /** The id the Hall uses where houses use their slot (scenes, transitions, the return position). */
@@ -29,7 +29,12 @@ export function hallObjectPrompt(app: AppId): string {
   return app === 'website' ? 'E: Community Website' : 'E: Community Canvas'
 }
 
-/** Said when a placeholder is used, until the real thing exists. */
+/** What a Hall object opens: the easel the shared canvas; the kiosk nothing yet (null). */
+export function hallObjectApp(app: AppId): AppId | null {
+  return app === 'paint' ? 'canvas' : null
+}
+
+/** Said when the kiosk is used, until the Community Website exists. */
 export function hallObjectSoon(app: AppId): string {
   return app === 'website'
     ? 'The Community Website will open here soon.'

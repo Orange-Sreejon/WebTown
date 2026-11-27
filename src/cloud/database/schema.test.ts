@@ -39,7 +39,7 @@ describe('migrations', () => {
     const rows = await db.superuser<{ relname: string; relrowsecurity: boolean }>(
       `select c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r'`)
-    expect(rows.length).toBe(14) // + community_halls, world_moderators, community_moderation_log (Community Hall)
+    expect(rows.length).toBe(19) // + community_halls, world_moderators, community_moderation_log, canvas_strokes, canvas_ops, community_websites, community_website_revisions, community_website_assets (Community Hall)
     for (const row of rows) expect(row.relrowsecurity, row.relname).toBe(true)
   })
 
@@ -51,9 +51,9 @@ describe('migrations', () => {
     expect((await rejection(db.query(ANON, 'select private.owns_house(gen_random_uuid())'))).code).toBe('42501')
   })
 
-  it('creates the two private buckets with size and type limits', async () => {
+  it('creates the private buckets with size and type limits (community-assets: CH-05)', async () => {
     const buckets = await db.superuser<{ id: string; public: boolean; file_size_limit: string; allowed_mime_types: string[] }>('select * from storage.buckets order by id')
-    expect(buckets.map(b => [b.id, b.public, Number(b.file_size_limit)])).toEqual([['artworks', false, 5000000], ['website-assets', false, 5000000]])
+    expect(buckets.map(b => [b.id, b.public, Number(b.file_size_limit)])).toEqual([['artworks', false, 5000000], ['community-assets', false, 5000000], ['website-assets', false, 5000000]])
     expect(buckets[0]!.allowed_mime_types).toEqual(['image/png'])
   })
 })

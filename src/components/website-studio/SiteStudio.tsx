@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ComponentType } from 'react'
 import { ConflictError, PersonalSpacesError, ValidationError } from '../../personal-spaces/errors'
-import { NOT_SAVED_NOTICE, savedLabel, storageWhere } from '../../personal-spaces/labels'
+import { NOT_SAVED_NOTICE, savedLabel } from '../../personal-spaces/labels'
 import { assetDataUrl, buildSitePage, findPage, type RenderableSite } from '../../personal-spaces/site-project/builder'
 import { checkCss, checkHtml, type CodeNote } from '../../personal-spaces/site-project/html-check'
 import {
@@ -24,6 +24,7 @@ import {
   type StudioState,
 } from '../../personal-spaces/site-project/studio-state'
 import { blankProject, classicProject } from '../../personal-spaces/site-project/templates'
+import { siteKey, studioWording, type SiteTarget } from '../../personal-spaces/site-project/site-target'
 import {
   ASSET_FOLDER,
   SITE_PROJECT_LIMITS,
@@ -50,7 +51,8 @@ export const PREVIEW_DELAY_MS = 600
 export const PHONE_WIDTH = 375
 
 export interface SiteStudioProps {
-  houseId: string
+  /** Whose website: a house's, or the town's Community Website (CH-05a). */
+  target: SiteTarget
   initial: StudioState
   writer: SiteProjectWriter
   /** Reads what storage holds now; used after a conflict. */
@@ -109,7 +111,9 @@ const describe = (error: unknown): string =>
  * current page or `style.css` in a code editor, and a live preview built by the
  * very same `buildSitePage` visitors get, inside the same sandbox.
  */
-export function SiteStudio({ houseId, initial, writer, reload, persistent, onExit, onClose, Editor = CodeEditor, now = () => new Date().toISOString() }: SiteStudioProps): React.ReactElement {
+export function SiteStudio({ target, initial, writer, reload, persistent, onExit, onClose, Editor = CodeEditor, now = () => new Date().toISOString() }: SiteStudioProps): React.ReactElement {
+  const key = siteKey(target)
+  const wording = studioWording(target)
   const [state, dispatch] = useReducer(studioReducer, initial)
   const stateRef = useRef(state)
   stateRef.current = state
@@ -252,7 +256,7 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
       }
       dispatch({ type: 'reload', snapshot: latest.snapshot })
       refreshNow(latest.snapshot.project)
-      setNotice({ tone: 'info', text: 'Showing the version saved in the other tab.' })
+      setNotice({ tone: 'info', text: wording.reloaded })
       return
     }
     // Save anyway: keep this draft and write it over whatever is stored now.
@@ -306,7 +310,7 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
         refused.push(`A website can have at most ${SITE_PROJECT_LIMITS.totalFiles} files.`)
         continue
       }
-      const asset: SiteAsset = { id: newId(), name, mimeType: check.mimeType, size: bytes.byteLength, houseId, bytes }
+      const asset: SiteAsset = { id: newId(), name, mimeType: check.mimeType, size: bytes.byteLength, houseId: key, bytes }
       const action: StudioAction = { type: 'add-asset', asset }
       current = studioReducer(current, action)
       stateRef.current = current
@@ -480,7 +484,7 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
           </main>
         </div>
 
-        <p className="wt-status">{persistent ? `${savedLabel(true)}. ${storageWhere() === 'device' ? 'Visitors on this device see' : 'Visitors to your town see'} the saved version.` : NOT_SAVED_NOTICE}</p>
+        <p className="wt-status">{persistent ? `${savedLabel(true)}. ${wording.savedFor}` : NOT_SAVED_NOTICE}</p>
 
         {dialog?.kind === 'new-page' && (
           <NameDialog
@@ -544,14 +548,14 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
             extra={{
               label: 'Classic personal homepage',
               onChoose: () => {
-                const project = classicProject(houseId, now())
+                const project = classicProject(key, now())
                 dispatch({ type: 'replace-draft', project: { ...project, assets: state.draft.assets }, assets: [] })
                 refreshNow(project)
                 finishDialog()
               },
             }}
             onConfirm={() => {
-              const project = blankProject(houseId, now())
+              const project = blankProject(key, now())
               dispatch({ type: 'replace-draft', project: { ...project, assets: state.draft.assets }, assets: [] })
               refreshNow(project)
               finishDialog()
@@ -577,7 +581,7 @@ export function SiteStudio({ houseId, initial, writer, reload, persistent, onExi
         {dialog?.kind === 'conflict' && (
           <ConfirmDialog
             title="Saved somewhere else"
-            message={<p>This website was saved in another tab after you opened it. Saving now would replace that version.</p>}
+            message={<p>{wording.conflict}</p>}
             confirmLabel="Save mine anyway"
             cancelLabel="Keep editing"
             extra={{ label: 'Load the other version', onChoose: () => void resolveConflict('reload') }}

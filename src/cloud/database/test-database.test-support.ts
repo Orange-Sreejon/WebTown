@@ -127,7 +127,7 @@ export class TestDatabase {
   async rpc<T = unknown>(caller: Caller, fn: string, args: Record<string, unknown> = {}): Promise<T> {
     if (!/^[a-z_]+$/.test(fn)) throw new Error(`bad function name ${fn}`)
     const names = Object.keys(args)
-    for (const name of names) if (!/^p_[a-z_]+$/.test(name)) throw new Error(`bad argument name ${name}`)
+    for (const name of names) if (!/^p_[a-z0-9_]+$/.test(name)) throw new Error(`bad argument name ${name}`)
     const call = `select public.${fn}(${names.map((n, i) => `${n} => $${i + 1}`).join(', ')}) as result`
     const values = names.map(n => {
       const v = args[n]

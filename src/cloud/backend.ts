@@ -15,7 +15,7 @@ export interface CloudBackend {
   remove(bucket: Bucket, paths: string[]): Promise<void>
 }
 
-export type Bucket = 'website-assets' | 'artworks'
+export type Bucket = 'website-assets' | 'artworks' | 'community-assets'
 
 /** A failure as the backend reported it: a PostgreSQL SQLSTATE (or `network`, `storage`), and its message. */
 export class CloudError extends Error {

@@ -8,6 +8,7 @@ import { blankProject } from '../../personal-spaces/site-project/templates'
 import type { SiteProject, SiteSave } from '../../personal-spaces/site-project/types'
 import { PlainEditor } from './plain-editor.test-support'
 import { SiteStudio } from './SiteStudio'
+import { houseTarget } from '../../personal-spaces/site-project/site-target'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -47,7 +48,7 @@ function mount(save = vi.fn(async (s: SiteSave): Promise<SiteProject> => ({ ...s
   act(() =>
     root.render(
       <SiteStudio
-        houseId="house-a"
+        target={houseTarget('house-a')}
         initial={startStudio({ project, assets: [] }, { stored: true })}
         writer={{ save }}
         reload={async () => ({ kind: 'none' })}

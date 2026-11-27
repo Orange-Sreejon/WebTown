@@ -8,7 +8,7 @@
 | H2 | Halls are created by an **`after insert` trigger on `worlds`** and **backfilled** in the migration. | Every world, past and future, has exactly one, without changing `bootstrap_player`. Rejected: lazy creation on first visit (races, a function that writes on read). |
 | H3 | **Moderators**: `world_moderators` rows, plus the owner implicitly (`private.is_hall_moderator`). Only the owner grants or revokes. | The owner can never be locked out; a moderator is always a member (FK to `world_members`, cascade on removal). |
 | H4 | **A second private channel per world, `hall:<uuid>`**, for Hall content only, authorised by a new `private.realtime_hall_member`. | The brief forbids reusing the movement channel; a different topic also avoids supabase-js channel reuse. Rejected: a channel per feature (more sockets' worth of joins, same rule). |
-| H5 | **Committed canvas operations are announced by the database** (a trigger calling `realtime.send` on `hall:<uuid>`); clients broadcast only *in-progress* stroke previews. | The author of a durable change is stamped by the server, so it can't be forged; clients can't announce something that wasn't stored. Fallback if `realtime.send` is unavailable on the project: clients broadcast `{opId}` and everyone fetches by id (same safety: the content comes from the database). Verify on the test project (CH-04). |
+| H5 | **Committed canvas operations are announced by the database** (`realtime.send` from the canvas functions, as `{ seq, kind }` on `hall:<uuid>`); clients broadcast only *in-progress* stroke previews. | Members may also broadcast on `hall:<uuid>` (the CH-01 send policy allows it, and Realtime checks a channel at join, not per message), so an announcement is **only a hint**: clients read what changed with `canvas_ops_since`, whose content and authorship come from the database. A forged hint costs one catch-up call. If `realtime.send` fails or is unavailable the change is still stored (best effort, tested); clients also catch up on (re)join. Verify delivery on the test project (CH-04). |
 | H6 | **Canvas = vector strokes with a `box` bounding box and a GiST index**, loaded by viewport. | Built into PostgreSQL (no PostGIS); verified on PGlite. Rejected: tiles of pixels (heavy, lossy), PostGIS (extension, overkill). |
 | H7 | **Website = one shared draft with compare-and-swap + immutable revisions + a published pointer.** | Fits the existing `save_website` CAS and the Studio's conflict UI; publishing and rollback become pointer moves. Rejected: live co-editing (CRDT dependency; out of scope). |
 | H8 | **Reuse the Studio and the sandbox through a `SiteTarget` abstraction** (house or hall), not a copy. | One editor, one sanitiser, one security review. |
@@ -131,10 +131,16 @@ All tables: RLS on, **no client write grants** (writes only through security-def
 | `hide_canvas_stroke(p_world, p_id, p_reason)` | author (`erased`/`undone`), moderator (`moderated`, logged) | `restore_canvas_stroke` for redo / moderator undo |
 | `clear_canvas_region(p_world, p_box, p_reason)` | moderator | soft-hides everything in the box; logged |
 | `set_hall_lock(p_world, p_what, p_locked)` | moderator | logged |
-| `get_community_website(p_world, p_which)` | member | `'draft'` or `'published'` |
-| `save_community_draft(p_world, p_base_revision, p_site)` | member (not while draft locked) | CAS on `draft_revision` (`WTCON`), same validation as `save_website`, inserts a revision |
-| `publish_community_website(p_world, p_revision_number)` | moderator | publishes exactly the revision the moderator reviewed; logged |
-| `list_community_revisions(p_world, ...)` | member | number, author, time (no content) |
+| `get_community_website(p_world, p_which, p_number)` | member | `'draft'`, `'published'` or `'revision'` (a kept one); null if none |
+| `save_community_draft(p_world, p_base_number, p_site)` | member (not while draft locked, except moderators) | CAS on the draft's revision number (`WTCON`), same rules as `save_website` plus at most 3 MB stored, inserts revision N+1, records new images, returns unused image paths |
+| `publish_community_website(p_world, p_number, p_note)` | moderator | publishes exactly the revision the moderator reviewed; older than the published one = `rollback`; logged |
+| `list_community_revisions(p_world, p_before, p_limit)` | member | number, author, time, draft/published flags (no content) |
+
+As built (CH-05, `20261225090000_community_website.sql`): the draft's number is the CAS value (no separate
+counter); revisions are kept by number (newest 30) plus the 10 most recently published, and foreign keys make the
+draft and the published version impossible to drop. Images: `community-assets`, `{world}/{image id}`; members of the
+town add new files (never replace) and read them; removal only after a save marks a file unused. Saves and publishes
+announce `{ kind, number }` on `hall:<uuid>` (event `website`), a hint only. No direct table access at all.
 
 ## 4. Workflows
 
@@ -146,17 +152,25 @@ new roles `kiosk` and `easel`. Multiplayer scene id `'hall'` added to the protoc
 simply drop those messages. Device-only mode: the door says the Hall opens online.
 
 ### 4.2 Canvas (CH-03, CH-04)
-- **Coordinates:** integer world units; stored points are `int32` start then `int16` deltas (a stroke never jumps
-  more than 32,767 units between points; longer jumps start a new stroke). Points simplified client-side
-  (RDP, 0.5 px at the drawing zoom) and capped at 2,000.
+- **Coordinates:** integer world units within +-1,000,000; stored points are a flat `int[]` (x0, y0, x1, y1, ...),
+  1 to 2,000 points (CH-03). Points simplified client-side (RDP, 0.5 px at the drawing zoom) in CH-04.
+- **Limits (CH-03):** 60 strokes a minute and 1,500 a day per member (erased ones count, which bounds what one member
+  can store), 20,000 visible strokes per Hall. Hidden strokes are kept (so they can be restored) and visible only to
+  their author and moderators; a retention purge for old hidden strokes is a later task.
 - **Viewport loading:** the view is divided into chunks of 1,024 x 1,024 units. Chunks overlapping the viewport plus
-  one ring are loaded with one `canvas_strokes_in` per batch of chunks; strokes are kept in a client-side grid index;
-  chunks two rings away are unloaded (LRU, at most ~20,000 strokes in memory). Zoomed far out (more than 16 chunks
-  across), only a sampled level of detail is drawn and new loads wait for zoom-in.
+  one ring are loaded with one `canvas_strokes_in` per batch of chunks; chunks two rings away are unloaded with their
+  strokes (never this client's unsaved ones). Strokes in memory are scanned by bounding box (at most 20,000 visible per
+  Hall, so a grid index is not needed yet). Zoomed far out (more than 16 chunks across) new loads wait for zoom-in and
+  the status line says so; what is loaded is still drawn (no sampled level of detail yet).
+- **Consistency (CH-04):** reads run one at a time; each load returns the newest `seq`, never older than anything the
+  client has seen, because a Hall's operations commit in sequence order (every writer takes the Hall row lock first,
+  migration `20261220090000_community_canvas_order.sql`). After a load the client catches up from its `seq`; applying
+  an operation twice is harmless and operations at or below `seq` are ignored. A catch-up longer than 5 pages
+  (2,500 operations) reloads the view instead. Own changes are shown at once and never advance `seq`.
 - **Live:** while drawing, the client broadcasts `{ v, s, id, points-delta, tool, color, width }` previews on
   `hall:<uuid>` at most 15 times a second (same validators style as `protocol.ts`; others draw them faded).
-  On pen-up: `add_canvas_stroke`; the database trigger announces `{ seq, kind: 'add', stroke }` (H5); everyone
-  replaces the preview with the stored stroke. Previews older than 5 s without a commit vanish.
+  On pen-up: `add_canvas_stroke`; the database announces `{ seq, kind }` (H5); everyone fetches the
+  op with `canvas_ops_since` and replaces the preview with the stored stroke. Previews older than 5 s without a commit vanish.
 - **Ordering and reconnect:** each client keeps the highest `seq` seen; on (re)join it calls `canvas_ops_since`
   until caught up, then applies live ops, ignoring any `seq` already applied. Gaps (a missed `seq`) trigger a catch-up.
 - **Offline strokes:** kept in memory with their client id and retried with backoff; the id makes retries
@@ -165,8 +179,11 @@ simply drop those messages. Device-only mode: the door says the Hall opens onlin
   members may erase their own only; moderators any (logged).
 
 ### 4.3 Website (CH-05, CH-06)
-- `SiteTarget = { kind: 'house'; houseId } | { kind: 'hall'; worldId }`. `site-project` types gain a target instead
-  of a bare `houseId` (a mechanical change with the house path unchanged). The Studio receives a `writer` and a
+- `SiteTarget = { kind: 'house'; houseId } | { kind: 'hall'; worldId }` (`site-project/site-target.ts`, CH-05a), given
+  to the Studio instead of a bare `houseId`. Stored records keep their `houseId` field as the site's key, so nothing
+  already saved changes shape (no IndexedDB or cloud migration): a house's key is its slot, the Community Website's is
+  `community-hall` (= `COMMUNITY_HALL_ID`, which `ownership.ts` refuses as a house). The Studio's single-owner wording
+  (conflict "another tab", "visitors see the saved version") comes from the target. The Studio receives a `writer` and a
   `reload` as today; for the Hall, `CommunityDraftWriter` calls `save_community_draft` with the base revision.
 - Conflict: `WTCON` -> the Studio's existing "Saved somewhere else" dialog (keep editing, load theirs, save mine).
 - Presence on `hall:<uuid>`: `{ editing: 'draft' }` shows "Ada is editing the draft" in the Studio header.

@@ -9,7 +9,8 @@
 // - Realtime: the Phoenix v2 WebSocket protocol as realtime-js speaks it (text frames, binary user broadcasts),
 //   private channels authorised by running the real `realtime.messages` policies as the user (a probe row must be
 //   visible for receive, insertable for send), presence (state, diffs, removal on disconnect), broadcast to the
-//   other subscribers of the topic.
+//   other subscribers of the topic, and broadcasts the database itself sends (realtime.send rows) to every
+//   subscriber of their topic, as Realtime delivers them.
 // - Test controls (`/__test/*`): drop a user's sockets (a network cut), refuse their reconnects for a while,
 //   traffic counters, and health.
 import { createServer } from 'node:http'
@@ -50,16 +51,32 @@ async function asUser(tx, userId) {
 function rpc(userId, fn, args) {
   if (!/^[a-z_]+$/.test(fn)) return Promise.reject(Object.assign(new Error('bad function'), { code: 'PGRST202' }))
   const names = Object.keys(args ?? {})
-  for (const n of names) if (!/^p_[a-z_]+$/.test(n)) return Promise.reject(Object.assign(new Error('bad argument'), { code: 'PGRST202' }))
+  for (const n of names) if (!/^p_[a-z0-9_]+$/.test(n)) return Promise.reject(Object.assign(new Error('bad argument'), { code: 'PGRST202' }))
   const values = names.map(n => {
     const v = args[n]
     return v !== null && typeof v === 'object' && !Array.isArray(v) ? JSON.stringify(v) : v
   })
   const sql = `select public.${fn}(${names.map((n, i) => `${n} => $${i + 1}`).join(', ')}) as result`
-  return serial(() => pg.transaction(async tx => {
+  const result = serial(() => pg.transaction(async tx => {
     await asUser(tx, userId)
     return (await tx.query(sql, values)).rows[0]?.result ?? null
   }))
+  // After the transaction committed (a rolled-back one leaves no rows): what it announced with realtime.send.
+  void result.then(deliverDatabaseBroadcasts, () => undefined)
+  return result
+}
+
+/** realtime.send rows not delivered yet (those have an event; channel probes don't, and are rolled back anyway). */
+let deliveredUpTo = 0
+function deliverDatabaseBroadcasts() {
+  return serial(async () => {
+    const { rows } = await pg.query('select id, topic, event, payload from realtime.messages where event is not null and id > $1 order by id', [deliveredUpTo])
+    for (const r of rows) {
+      deliveredUpTo = Math.max(deliveredUpTo, Number(r.id))
+      stats.broadcasts.push({ at: Date.now(), topic: r.topic, user: 'database', event: r.event })
+      for (const s of topics.get(r.topic) ?? []) send(s.socket, [null, null, s.wireTopic, 'broadcast', { type: 'broadcast', event: r.event, payload: r.payload }])
+    }
+  })
 }
 
 const ROLLBACK = Symbol('rollback')

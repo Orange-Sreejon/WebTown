@@ -25,14 +25,30 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
   refused; also fixed a pre-existing bug that cleared every room notice before it was shown. Tests:
   `src/game/systems/community-hall.test.ts` (8), `tests/multiplayer/hall.spec.mjs`, `tests/e2e/community-hall.spec.mjs`.
   Dedicated kiosk and easel art: later (new roles when the art exists).
-- [ ] **Test load** - before CH-03 adds more database tests: run PGlite tests as their own, less parallel Vitest group
-  instead of packing them into one file.
-- [ ] **CH-03 Canvas data** - migration `…_community_canvas.sql`, stroke encoding, functions, PGlite tests.
-- [ ] **CH-04 Canvas app** - React canvas (pan, zoom, tools, chunk loader, undo/redo), `hall-session` on
-  `hall:<uuid>` (previews, op catch-up), H5 verified on the test project; two-browser tests.
-- [ ] **CH-05a SiteTarget** - mechanical change from `houseId` to a target in `site-project`, house path unchanged,
-  full suite green before anything else.
-- [ ] **CH-05 Website data** - migration `…_community_website.sql`, bucket, functions, PGlite tests.
+- [x] **Test load** - Vitest projects `unit` then `database` (`vitest.config.ts`); the PGlite files are listed in
+  `vitest.database-tests.ts`, and `src/test-groups.test.ts` fails if one is missing.
+- [x] **CH-03 Canvas data** - migration `20261215090000_community_canvas.sql` (strokes, op log, add/hide/restore/
+  clear/lock, viewport and catch-up reads, `{ seq, kind }` announcements as hints), client `src/cloud/canvas.ts`
+  (validation, strict parsing), tests `src/cloud/database/canvas-schema.test.ts` (21, mutation-checked) and
+  `src/cloud/canvas.test.ts` (7); shim gains `realtime.send`. Not applied remotely.
+- [x] **CH-04 Canvas app** - the easel opens the Community Canvas (`src/components/community-canvas/`, loaded on
+  demand from `MultiplayerHost`): pen, marker, eraser, move, palette, sizes, zoom, undo/redo, unsaved-close warning.
+  `src/community-canvas/`: geometry (RDP, chunks, view), store (consistency rule), previews (validated, capped,
+  15 Hz), session (one read at a time, hint-only announcements throttled to 4/s, outbox with backoff and refusal
+  rollback). Migration `20261220090000_community_canvas_order.sql` (ops commit in seq order; not applied remotely).
+  Stand-in delivers `realtime.send` rows. Tests: unit 31, session on PGlite 11 (mutation-checked), window 10,
+  two-browser `tests/multiplayer/canvas.spec.mjs`.
+  - [ ] **Still open:** H5 on the real project (does Supabase deliver `realtime.send` on `hall:<uuid>` to
+    subscribers?). Needs two signed-in guests in the project; moved to CH-08 unless asked sooner.
+- [x] **CH-05a SiteTarget** - `SiteStudio` takes a `target` (`site-project/site-target.ts`); records keep `houseId`
+  as the site key (`community-hall` for the Hall), so no data migration; Hall wording for shared draft and conflicts.
+  House path unchanged: full suite 1702 green twice, Studio and code-editor e2e (Chromium) 10/10. Tests:
+  `site-target.test.ts` (4), Hall cases in `SiteStudio.test.tsx` (3).
+- [x] **CH-05 Website data** - `20261225090000_community_website.sql` (draft CAS by revision number, revisions kept
+  30 + 10 published, publish/rollback logged, draft lock, `community-assets` bucket and policies, hints on the Hall
+  channel; not applied remotely). Client `src/cloud/community-website.ts` (load draft/published/revision with images,
+  `CommunityDraftWriter` for the Studio, publish, list, announcement parser). Tests: 16 on PGlite (13 mutations
+  caught). Was: migration `…_community_website.sql`, bucket, functions, PGlite tests.
 - [ ] **CH-06 Website app** - Studio in Hall mode, draft CAS, kiosk viewer, publish and rollback, editing presence.
 - [ ] **CH-07 Moderation UI** - moderators panel, hide/restore, clear region, locks, audit log view.
 - [ ] **CH-08 Live verification** - stand-in and real-project two-player runs, docs (`docs/COMMUNITY-HALL.md`).

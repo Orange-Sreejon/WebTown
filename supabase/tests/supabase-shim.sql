@@ -82,3 +82,10 @@ grant usage on schema realtime to anon, authenticated, service_role;
 grant select, insert on realtime.messages to anon, authenticated, service_role;
 grant usage on sequence realtime.messages_id_seq to anon, authenticated, service_role;
 grant execute on function realtime.topic() to anon, authenticated, service_role;
+
+-- realtime.send (CH-03): how the database itself broadcasts on a channel. Supabase's version writes a broadcast row to
+-- realtime.messages, which Realtime delivers; this one writes the same row, so tests can see what was announced.
+create function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void
+language sql volatile as $$
+  insert into realtime.messages (topic, extension, payload, event, private) values ($3, 'broadcast', $1, $2, $4)
+$$;

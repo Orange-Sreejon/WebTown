@@ -30,7 +30,8 @@ export function AppHost({
 
   useEffect(() => onAppState(setView), [])
 
-  if (view.open === null) return null
+  // The Community Canvas belongs to the town's session (CommunityCanvasHost), never to a house's storage.
+  if (view.open === null || view.open === 'canvas') return null
 
   const close = (): void => sendCommand({ type: 'close' })
 
