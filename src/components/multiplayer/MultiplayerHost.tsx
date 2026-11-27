@@ -10,6 +10,7 @@ import { onEditorState } from '../../lib/editor-bridge'
 import type { RealtimeTransport } from '../../multiplayer/transport'
 import { WorldSession, type SessionStatus } from '../../multiplayer/world-session'
 import { CommunityCanvasHost } from '../community-canvas/CommunityCanvasHost'
+import { CommunityWebsiteHost } from '../community-website/CommunityWebsiteHost'
 import './multiplayer.css'
 
 export interface MultiplayerHostProps {
@@ -131,6 +132,7 @@ export function MultiplayerHost({ transport, backend, player, onGoHome }: Multip
         </div>
       )}
       <CommunityCanvasHost transport={transport} backend={backend} worldId={worldId} userId={userId} />
+      <CommunityWebsiteHost transport={transport} backend={backend} worldId={worldId} userId={userId} />
       {toasts.length > 0 && !covered && (
         <div className="mp-toasts" aria-live="polite">
           {toasts.map(t => <div key={t.id} className="mp-toast">{t.text}</div>)}

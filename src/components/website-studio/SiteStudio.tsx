@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ComponentType } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { ConflictError, PersonalSpacesError, ValidationError } from '../../personal-spaces/errors'
 import { NOT_SAVED_NOTICE, savedLabel } from '../../personal-spaces/labels'
 import { assetDataUrl, buildSitePage, findPage, type RenderableSite } from '../../personal-spaces/site-project/builder'
@@ -53,6 +53,8 @@ export const PHONE_WIDTH = 375
 export interface SiteStudioProps {
   /** Whose website: a house's, or the town's Community Website (CH-05a). */
   target: SiteTarget
+  /** A line under the toolbar (the Community Website: who else is editing, a newer draft). */
+  banner?: ReactNode
   initial: StudioState
   writer: SiteProjectWriter
   /** Reads what storage holds now; used after a conflict. */
@@ -111,7 +113,7 @@ const describe = (error: unknown): string =>
  * current page or `style.css` in a code editor, and a live preview built by the
  * very same `buildSitePage` visitors get, inside the same sandbox.
  */
-export function SiteStudio({ target, initial, writer, reload, persistent, onExit, onClose, Editor = CodeEditor, now = () => new Date().toISOString() }: SiteStudioProps): React.ReactElement {
+export function SiteStudio({ target, banner, initial, writer, reload, persistent, onExit, onClose, Editor = CodeEditor, now = () => new Date().toISOString() }: SiteStudioProps): React.ReactElement {
   const key = siteKey(target)
   const wording = studioWording(target)
   const [state, dispatch] = useReducer(studioReducer, initial)
@@ -383,6 +385,8 @@ export function SiteStudio({ target, initial, writer, reload, persistent, onExit
           <button type="button" className="wt-tool ws-small" aria-pressed={theme === 'dark'} onClick={switchTheme} title="Light or dark Studio. Your website's own colours are not changed.">Dark mode</button>
           <button type="button" className="wt-tool" onClick={() => leave('exit')}>Exit</button>
         </div>
+
+        {banner && <div className="wt-notice ws-banner" role="status">{banner}</div>}
 
         {notice && (
           <div className={`wt-notice ${notice.tone === 'problem' ? 'wt-notice--problem' : notice.tone === 'good' ? 'wt-notice--good' : ''}`} role={notice.tone === 'problem' ? 'alert' : 'status'}>

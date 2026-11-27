@@ -1,6 +1,6 @@
 // CH-02 with two real players (Chromium owner, Firefox resident) on the Supabase stand-in: the church's door opens
-// the Community Hall; players inside see each other and players outside don't; the kiosk and easel are
-// placeholders; there is no furniture editing; leaving brings you back to the church door; houses work as before.
+// the Community Hall; players inside see each other and players outside don't; the kiosk opens the Community
+// Website (CH-06; its own test: community-website.spec.mjs); there is no furniture editing; leaving brings you back to the church door; houses work as before.
 import { test, expect } from '@playwright/test'
 import {
   createInvite, drawn, enterHouse, feet, joinWithLink, launchPlayer, me, quietly, sleep, startGuest, walkUntil,
@@ -57,7 +57,7 @@ test('the church is the Community Hall: shared, placeholder objects, no editing,
     const bAt = await feet(b.page)
     await expect.poll(async () => (await drawn(a.page, 'InteriorScene'))[0]).toMatchObject({ x: bAt.x, y: bAt.y })
 
-    // The kiosk: its own prompt; E says "soon" and opens no window.
+    // The kiosk: its own prompt; E opens the Community Website window, and closing it gives the game back.
     await a.page.evaluate(() => {
       const i = window.__wtGame.scene.getScene('InteriorScene')
       const targets = i.currentObjectTargets()
@@ -70,9 +70,12 @@ test('the church is the Community Hall: shared, placeholder objects, no editing,
       return i.prompt?.label?.visible ? i.prompt.label.text : null
     })).toBe('E: Community Website')
     await a.page.keyboard.press('e')
-    await expect.poll(() => notice(a.page)).toBe('The Community Website will open here soon.')
-    await sleep(500)
+    const kiosk = a.page.getByRole('dialog', { name: 'Community Website' })
+    await expect(kiosk).toBeVisible({ timeout: 60_000 })
+    await expect(kiosk.getByText('Nothing has been published yet.')).toBeVisible({ timeout: 60_000 })
+    await kiosk.getByRole('button', { name: 'Close' }).click()
     await expect(a.page.getByRole('dialog')).toHaveCount(0)
+    await expect.poll(() => inHall(a.page)).toBe(true)
 
     // A leaves: back in the town at the church; B still inside sees A go.
     await a.page.evaluate(() => {

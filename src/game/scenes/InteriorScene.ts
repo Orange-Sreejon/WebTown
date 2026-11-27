@@ -753,7 +753,7 @@ export class InteriorScene extends Phaser.Scene {
   /** Opens the website or Paint for the object the player stands at. */
   private openApp(target: ObjectTarget): void {
     if (this.isHall) {
-      // The easel opens the shared canvas; the kiosk is a placeholder until the Community Website (CH-06) exists.
+      // The easel opens the shared canvas, the kiosk the Community Website.
       const app = hallObjectApp(target.app)
       if (!app) this.showNotice(hallObjectSoon(target.app))
       if (!app || !this.appSession?.open(app, COMMUNITY_HALL_ID)) this.lock.release(performance.now())

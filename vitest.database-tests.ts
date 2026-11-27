@@ -12,5 +12,6 @@ export const DATABASE_TEST_FILES = [
   'src/cloud/database/schema.test.ts',
   'src/cloud/local-import.test.ts',
   'src/community-canvas/session.test.ts',
+  'src/components/community-website/CommunityWebsiteApp.test.tsx',
   'src/components/multiplayer/worlds-gate.test.tsx',
 ] as const

@@ -70,8 +70,8 @@ describe('inside the Community Hall', () => {
     expect(apps).toEqual(['website', 'paint'])
     expect(apps.map(hallObjectPrompt)).toEqual(['E: Community Website', 'E: Community Canvas'])
     expect(hallObjectSoon('website')).toMatch(/Community Website/)
-    // The easel opens the shared canvas (CH-04); the kiosk opens nothing yet.
-    expect(apps.map(hallObjectApp)).toEqual([null, 'canvas'])
+    // The kiosk opens the Community Website (CH-06), the easel the shared canvas (CH-04).
+    expect(apps.map(hallObjectApp)).toEqual(['community-website', 'canvas'])
   })
 
   it('belongs to nobody: not even the developer ?owner= switch can make it editable', () => {
