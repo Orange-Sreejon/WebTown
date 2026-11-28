@@ -1,0 +1,91 @@
+/* The Community Hall's moderation panel (CH-07), over the canvas or the kiosk. */
+.mod-panel {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(420px, calc(100% - 16px));
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #b9b2a6;
+  border-radius: 6px;
+  background: #fffdf8;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  color: #2b2620;
+}
+.mod-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mod-head h3 {
+  margin: 0;
+  font-size: 15px;
+  flex: 1;
+}
+.mod-tabs {
+  display: flex;
+  gap: 4px;
+}
+.mod-tabs [aria-selected='true'] {
+  outline: 2px solid #2364aa;
+}
+.mod-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mod-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mod-log,
+.mod-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mod-log li,
+.mod-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid #e3dccf;
+  border-radius: 4px;
+  background: #faf7f0;
+}
+.mod-log li > span:first-child {
+  flex-basis: 100%;
+}
+.mod-list li > span {
+  flex: 1;
+}
+.mod-meta {
+  color: #6b645a;
+  font-size: 12px;
+  margin: 0;
+}
+.mod-lock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}
+.mod-body h4 {
+  margin: 4px 0 0;
+  font-size: 13px;
+}

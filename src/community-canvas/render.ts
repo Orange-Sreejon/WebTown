@@ -1,4 +1,4 @@
-import type { CanvasTool } from '../cloud/canvas'
+import type { CanvasBox, CanvasTool } from '../cloud/canvas'
 import { viewBox, type Size, type View } from './geometry'
 import type { Preview } from './preview'
 import type { CanvasStore } from './store'
@@ -46,6 +46,8 @@ export interface Scene {
   size: Size
   /** Device pixels per CSS pixel. */
   dpr: number
+  /** A moderator's "Clear area" rectangle being dragged (world units). */
+  selection?: CanvasBox | null
 }
 
 /** Paints everything in view. */
@@ -74,5 +76,16 @@ export function paint(ctx: CanvasRenderingContext2D, scene: Scene): void {
   for (const s of scene.store.inBox(box)) line(ctx, s, alphaFor(s.tool, false))
   for (const p of scene.previews) line(ctx, p, alphaFor(p.tool, true))
   if (scene.current) line(ctx, scene.current, alphaFor(scene.current.tool, false))
+  if (scene.selection) {
+    const s = scene.selection
+    ctx.globalAlpha = 1
+    ctx.fillStyle = 'rgba(215, 38, 61, 0.08)'
+    ctx.strokeStyle = '#d7263d'
+    ctx.lineWidth = 1.5 / view.zoom
+    ctx.setLineDash([6 / view.zoom, 4 / view.zoom])
+    ctx.fillRect(s.x1, s.y1, s.x2 - s.x1, s.y2 - s.y1)
+    ctx.strokeRect(s.x1, s.y1, s.x2 - s.x1, s.y2 - s.y1)
+    ctx.setLineDash([])
+  }
   ctx.globalAlpha = 1
 }

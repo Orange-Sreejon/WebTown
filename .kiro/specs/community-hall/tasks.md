@@ -57,6 +57,12 @@ the owner's approval; each migration reviewed and dry-run before it is applied r
   shown or warn of a newer draft in the Studio. Studio gains a `banner` slot. Tests: unit 6 (diff, channel), window
   on PGlite 6 (7 mutations caught), two-browser `tests/multiplayer/community-website.spec.mjs`; `hall.spec.mjs`
   now opens the kiosk. No migration.
-- [ ] **CH-07 Moderation UI** - moderators panel, hide/restore, clear region, locks, audit log view.
+- [x] **CH-07 Moderation UI** - "Moderation" in the canvas and kiosk windows (moderators only):
+  `src/components/community-moderation/ModerationPanel.tsx` with the log in words (`src/community-moderation/log-text.ts`,
+  "Bring back" for drawings a moderator removed, paging), locks (canvas, draft, optional note) and moderators (the owner
+  appoints and removes; moderators see the list). Canvas "Clear area" tool for moderators (drag, confirm with a note).
+  Migration `20261228090000_community_lock_hints.sql`: lock changes are announced (`lock`, a hint), so open canvas and
+  kiosk windows show a lock at once. Tests: unit 4 + 4 (log text, canvas tools), panel on PGlite 6, session 2, kiosk 1,
+  10 mutations caught. Undoing a whole clear at once (not one drawing at a time) is not built.
 - [ ] **CH-08 Live verification** - stand-in and real-project two-player runs, docs (`docs/COMMUNITY-HALL.md`).
 - [ ] **CH-09 Noticeboard** - later milestone, specified separately.

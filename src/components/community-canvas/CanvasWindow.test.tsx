@@ -20,22 +20,33 @@ import { CommunityCanvasHost } from './CommunityCanvasHost'
 const WORLD = '0b6c1c4e-8f0e-4c7e-9d7a-000000000001'
 const ME = '0b6c1c4e-8f0e-4c7e-9d7a-000000000002'
 
-interface Fake extends CloudBackend { calls: Array<{ fn: string; args: Record<string, unknown> }>; locked: boolean; offline: boolean }
+interface Fake extends CloudBackend { calls: Array<{ fn: string; args: Record<string, unknown> }>; locked: boolean; offline: boolean; role: 'member' | 'owner' }
 function fakeBackend(): Fake {
   let seq = 0
+  const strokes = new Map<string, number[]>()
   const b: Fake = {
-    calls: [], locked: false, offline: false,
+    calls: [], locked: false, offline: false, role: 'member',
     rpc: async <T,>(fn: string, args: Record<string, unknown> = {}): Promise<T> => {
       b.calls.push({ fn, args })
       if (b.offline) throw new CloudError('network', 'Failed to fetch')
       const at = '2026-12-20T09:00:00.000Z'
       switch (fn) {
-        case 'hall_context': return { worldId: WORLD, name: 'Community Hall', canvasLocked: b.locked, draftLocked: false, role: 'member' } as T
+        case 'hall_context': return { worldId: WORLD, name: 'Community Hall', canvasLocked: b.locked, draftLocked: false, role: b.role } as T
+        case 'clear_canvas_region': {
+          if (b.role === 'member') throw new CloudError('42501', 'Only moderators can clear part of the canvas.')
+          const [x1, y1, x2, y2] = ['p_x1', 'p_y1', 'p_x2', 'p_y2'].map(k => args[k] as number) as [number, number, number, number]
+          const hit = [...strokes].filter(([, p]) => p.some((v, i) => i % 2 === 0 && v >= x1 && v <= x2 && p[i + 1]! >= y1 && p[i + 1]! <= y2)).map(([id]) => id)
+          for (const id of hit) strokes.delete(id)
+          if (hit.length === 0) return null as T
+          seq++
+          return { seq, kind: 'clear', strokeId: null, actorId: ME, createdAt: at, region: { x1, y1, x2, y2 }, strokeIds: hit } as T
+        }
         case 'canvas_strokes_in': return { seq, strokes: [], truncated: false } as T
         case 'canvas_ops_since': return { ops: [], more: false } as T
         case 'add_canvas_stroke': {
           if (b.locked) throw new CloudError('22023', 'The canvas is locked by a moderator for now.')
           seq++
+          strokes.set(args['p_id'] as string, args['p_points'] as number[])
           const stroke = { id: args['p_id'], authorId: ME, authorName: 'Me', tool: args['p_tool'], color: args['p_color'], width: args['p_width'], points: args['p_points'], createdAt: at, hidden: false }
           return { seq, kind: 'add', strokeId: args['p_id'], actorId: ME, createdAt: at, stroke } as T
         }
@@ -76,6 +87,8 @@ afterEach(() => {
 const settle = async (): Promise<void> => {
   for (let i = 0; i < 8; i++) await act(async () => { await new Promise(r => setTimeout(r, 0)) })
 }
+const findButton = (name: string): HTMLButtonElement | undefined =>
+  [...container.querySelectorAll('button')].find(b => b.textContent === name || b.getAttribute('aria-label') === name)
 const button = (name: string): HTMLButtonElement =>
   [...container.querySelectorAll('button')].find(b => b.textContent === name || b.getAttribute('aria-label') === name)!
 const canvas = (): HTMLCanvasElement => container.querySelector('canvas')!
@@ -183,6 +196,81 @@ describe('CanvasWindow', () => {
     await settle()
     expect(container.querySelector('[role="alert"]')!.textContent).toMatch(/locked/)
     expect(session.store.size).toBe(0)
+  })
+})
+
+describe('moderator tools on the canvas (CH-07)', () => {
+  it('are not offered to members', async () => {
+    await openWindow()
+    expect(findButton('Clear area')).toBeUndefined()
+    expect(findButton('Moderation')).toBeUndefined()
+  })
+
+  it('clear a dragged area after asking, with a note, and say what was cleared', async () => {
+    const backend = fakeBackend()
+    backend.role = 'owner'
+    const { session } = await openWindow(backend)
+    // Two strokes: one inside the area dragged below, one outside it.
+    pointer('pointerdown', 400, 300)
+    pointer('pointerup', 400, 300)
+    pointer('pointerdown', 700, 500)
+    pointer('pointerup', 700, 500)
+    await settle()
+    expect(session.store.size).toBe(2)
+    act(() => button('Clear area').click())
+    pointer('pointerdown', 380, 280)
+    pointer('pointermove', 450, 350)
+    pointer('pointerup', 450, 350)
+    const dialog = (): Element | null => container.querySelector('[role="alertdialog"]')
+    expect(dialog()!.textContent).toContain('1 drawing shown here')
+    const noteInput = dialog()!.querySelector('input')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(noteInput, 'Spam')
+      noteInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => button('Clear').click())
+    await settle()
+    const call = backend.calls.find(c => c.fn === 'clear_canvas_region')!
+    expect(call.args).toEqual({ p_world: WORLD, p_x1: -20, p_y1: -20, p_x2: 50, p_y2: 50, p_note: 'Spam' })
+    expect(container.querySelector('.cc-notice')!.textContent).toMatch(/^Cleared 1 drawing\./)
+    expect(session.store.size).toBe(1)
+    expect(dialog()).toBeNull()
+  })
+
+  it('drop the area on Escape or Cancel, and ignore a click without a drag', async () => {
+    const backend = fakeBackend()
+    backend.role = 'owner'
+    await openWindow(backend)
+    act(() => button('Clear area').click())
+    pointer('pointerdown', 400, 300)
+    pointer('pointerup', 401, 301)
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull()
+    pointer('pointerdown', 380, 280)
+    pointer('pointermove', 450, 350)
+    pointer('pointerup', 450, 350)
+    key('Escape')
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull()
+    pointer('pointerdown', 380, 280)
+    pointer('pointermove', 450, 350)
+    pointer('pointerup', 450, 350)
+    act(() => button('Cancel').click())
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull()
+    expect(backend.calls.filter(c => c.fn === 'clear_canvas_region')).toEqual([])
+  })
+
+  it('open the moderation panel from the toolbar, and close it with Escape before the window', async () => {
+    const backend = fakeBackend()
+    backend.role = 'owner'
+    const session = new CanvasSession({ backend, transport: new MemoryHub().client(ME), worldId: WORLD, userId: ME })
+    await session.start()
+    const onClose = vi.fn()
+    act(() => root.render(<CanvasWindow session={session} onClose={onClose} moderation={close => <div role="dialog" aria-label="Moderation"><button type="button" onClick={close}>Done</button></div>} />))
+    await settle()
+    act(() => button('Moderation').click())
+    expect(container.querySelector('[aria-label="Moderation"]')).not.toBeNull()
+    key('Escape')
+    expect(container.querySelector('[aria-label="Moderation"]')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
 

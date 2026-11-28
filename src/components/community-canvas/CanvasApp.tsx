@@ -3,6 +3,7 @@ import { newUuid, type CloudBackend } from '../../cloud/backend'
 import type { RealtimeTransport } from '../../multiplayer/transport'
 import { CanvasSession } from '../../community-canvas/session'
 import { CanvasWindow } from './CanvasWindow'
+import { ModerationPanel } from '../community-moderation/ModerationPanel'
 
 export interface CanvasAppProps {
   transport: RealtimeTransport
@@ -36,6 +37,9 @@ export function CanvasApp({ transport, backend, worldId, userId, onClosed }: Can
       session={session}
       onClose={requestClose}
       confirming={confirming === null ? null : { count: confirming, keep: () => setConfirming(null), discard: onClosed }}
+      moderation={close => (
+        <ModerationPanel backend={backend} worldId={worldId} userId={userId} onClose={close} onLocksChanged={() => void session.refreshHall()} />
+      )}
     />
   )
 }

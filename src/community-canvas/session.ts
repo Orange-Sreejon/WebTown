@@ -1,9 +1,9 @@
 import { newUuid, type CloudBackend } from '../cloud/backend'
 import {
-  CANVAS_LIMITS, addCanvasStroke, canvasOpsSince, canvasStrokesIn, hideCanvasStroke, parseCanvasAnnouncement,
-  restoreCanvasStroke, validateStroke, type CanvasOp, type CanvasTool, type HideReason, type StrokeInput,
+  CANVAS_LIMITS, addCanvasStroke, canvasOpsSince, canvasStrokesIn, clearCanvasRegion, hideCanvasStroke, parseCanvasAnnouncement,
+  restoreCanvasStroke, validateStroke, type CanvasBox, type CanvasOp, type CanvasTool, type HideReason, type StrokeInput,
 } from '../cloud/canvas'
-import { hallContext } from '../cloud/community'
+import { hallContext, parseLockAnnouncement } from '../cloud/community'
 import { PersonalSpacesError } from '../personal-spaces/errors'
 import type { RealtimeChannel, RealtimeTransport } from '../multiplayer/transport'
 import { chunkBox, chunksFor, simplify, tooFarOut, unionBox, viewBox, type Size, type View } from './geometry'
@@ -104,17 +104,9 @@ export class CanvasSession {
   // ── Lifecycle ────────────────────────────────────────────────────────────────────────────────────────────────
 
   async start(): Promise<void> {
-    try {
-      const hall = await hallContext(this.options.backend, this.options.worldId)
-      this.moderator = hall.role !== 'member'
-      this.locked = hall.canvasLocked
-    } catch (error) {
-      if (this.stopped) return
-      if (error instanceof PersonalSpacesError && error.code === 'permission') return this.setStatus('removed')
-      // Not reachable yet: carry on; reads retry, and the database still decides.
-    }
-    if (this.stopped) return
-    this.channel = this.options.transport.open(`hall:${this.options.worldId}`, this.options.sessionId ?? newUuid(), ['canvas', PREVIEW_EVENT], {
+    await this.refreshHall()
+    if (this.stopped || this.status === 'removed') return
+    this.channel = this.options.transport.open(`hall:${this.options.worldId}`, this.options.sessionId ?? newUuid(), ['canvas', PREVIEW_EVENT, 'lock'], {
       onStatus: (status, detail) => {
         if (status === 'joined') {
           this.setStatus('live')
@@ -132,6 +124,24 @@ export class CanvasSession {
     })
     this.ticker = setInterval(() => this.tick(), TICK_MS)
     this.pump()
+  }
+
+  /**
+   * Reads this player's role and the canvas lock again (at start, after a `lock` hint, after a moderator changed it
+   * here). A failure other than "not in this town" keeps what was known: the database still decides.
+   */
+  async refreshHall(): Promise<void> {
+    try {
+      const hall = await hallContext(this.options.backend, this.options.worldId)
+      if (this.stopped) return
+      const changed = this.moderator !== (hall.role !== 'member') || this.locked !== hall.canvasLocked
+      this.moderator = hall.role !== 'member'
+      this.locked = hall.canvasLocked
+      if (changed) this.changed()
+    } catch (error) {
+      if (this.stopped) return
+      if (error instanceof PersonalSpacesError && error.code === 'permission') this.setStatus('removed')
+    }
   }
 
   stop(): void {
@@ -205,6 +215,8 @@ export class CanvasSession {
           this.requestCatchUp()
         }, wait)
       }
+    } else if (event === 'lock') {
+      if (parseLockAnnouncement(payload)?.what === 'canvas') void this.refreshHall()
     } else if (event === PREVIEW_EVENT) {
       const m = parsePreview(payload)
       // Never a preview for a stroke already here (a late message after the stored one arrived).
@@ -404,6 +416,20 @@ export class CanvasSession {
   }
 
   // ── Undo and redo ────────────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Moderators: hides every visible stroke touching `area` (CH-07). Online only, not queued: the moderator sees the
+   * result or the refusal at once. Returns how many strokes it hid. Strokes go from the screen at once; `seq`
+   * moves on with the catch-up that follows, as for any change.
+   */
+  async clearArea(area: CanvasBox, note?: string): Promise<number> {
+    const op = await clearCanvasRegion(this.options.backend, this.options.worldId, area, note)
+    if (!op || op.kind !== 'clear') return 0
+    for (const id of op.strokeIds) this.store.remove(id)
+    this.requestCatchUp()
+    this.changed()
+    return op.strokeIds.length
+  }
 
   get canUndo(): boolean {
     return this.undoStack.length > 0

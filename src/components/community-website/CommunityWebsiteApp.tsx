@@ -19,6 +19,7 @@ import { WindowFrame } from '../apps/WindowFrame'
 import { HouseWebsite } from '../website/HouseWebsite'
 import type { WebsiteLoad } from '../website/useWebsiteState'
 import type { CodeEditorProps } from '../website-studio/editor-types'
+import { ModerationPanel } from '../community-moderation/ModerationPanel'
 import './community-website.css'
 
 /** The Studio and the code editor, downloaded only when someone edits the draft. */
@@ -75,7 +76,14 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
   const [editors, setEditors] = useState<string[]>([])
   const [newerDraft, setNewerDraft] = useState<number | null>(null)
+  const [moderating, setModerating] = useState(false)
+  // The newest draft's number when nothing is shown that says it (for "there is a draft" on an empty Published tab).
+  const [latestDraft, setLatestDraft] = useState<number | null>(null)
+  // The draft version this player saved in the Studio just now, for the line shown after leaving it.
+  const [justSaved, setJustSaved] = useState<number | null>(null)
   const mine = useRef<number>(0) // the newest draft number this player saved or opened
+  const saving = useRef(0) // saves of this player under way
+  const heldHints = useRef<number[]>([]) // draft hints that arrived during one of them
 
   const channel = useMemo(() => new WebsiteChannel({ transport, worldId, userId, sessionId: newUuid() }), [transport, worldId, userId])
   const moderator = ctx !== null && ctx.role !== 'member'
@@ -101,6 +109,17 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
     return () => { live = false }
   }, [backend, worldId, showing, attempt])
 
+  const refreshLatest = useCallback((): void => {
+    listCommunityRevisions(backend, worldId, { limit: 1 }).then(r => setLatestDraft(r[0]?.number ?? null), () => undefined)
+  }, [backend, worldId])
+  useEffect(() => { refreshLatest() }, [refreshLatest])
+
+  /** A draft hint is about someone else's save only if it is newer than anything this player saved or opened. */
+  const judgeHints = useCallback((numbers: number[]): void => {
+    const newer = numbers.filter(n => n > mine.current)
+    if (newer.length > 0) setNewerDraft(d => Math.max(d ?? 0, ...newer))
+  }, [])
+
   const refreshVersions = useCallback((): void => {
     listCommunityRevisions(backend, worldId, { limit: 50 }).then(setVersions, (error: unknown) => setNotice({ tone: 'problem', text: message(error) }))
   }, [backend, worldId])
@@ -115,12 +134,21 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
   showingRef.current = showing
   const versionsOpen = versions !== null
   useEffect(() => channel.onHint(hint => {
+    if (hint.kind === 'lock') {
+      hallContext(backend, worldId).then(setCtx, () => undefined)
+      return
+    }
     const s = showingRef.current
-    if (hint.kind === 'draft' && hint.number > mine.current) setNewerDraft(n => Math.max(n ?? 0, hint.number))
+    if (hint.kind === 'draft') {
+      // During this player's own save, the hint may be about that save: decide once its number is known.
+      if (saving.current > 0) heldHints.current.push(hint.number)
+      else judgeHints([hint.number])
+      refreshLatest()
+    }
     if ((hint.kind === 'draft' && s.which === 'draft') || (hint.kind === 'published' && s.which === 'published')) setAttempt(n => n + 1)
     if (versionsOpen) refreshVersions()
     if (hint.kind === 'published') hallContext(backend, worldId).then(setCtx, () => undefined)
-  }), [channel, versionsOpen, refreshVersions, backend, worldId])
+  }), [channel, versionsOpen, refreshVersions, refreshLatest, judgeHints, backend, worldId])
   useEffect(() => { channel.setEditing(studio !== null) }, [channel, studio])
 
   // ── Editing ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -158,6 +186,7 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
   const leaveStudio = (): void => {
     setStudio(null)
     setNewerDraft(null)
+    refreshLatest()
     setShowing({ which: 'draft' })
     setAttempt(n => n + 1)
   }
@@ -215,7 +244,20 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
           worldId={worldId}
           initial={studio}
           reload={loadDraftState}
-          onSaved={n => { mine.current = Math.max(mine.current, n); setNewerDraft(d => (d !== null && d <= n ? null : d)) }}
+          onSaveStart={() => { saving.current++ }}
+          onSaveEnd={n => {
+            saving.current = Math.max(0, saving.current - 1)
+            if (n !== null) {
+              mine.current = Math.max(mine.current, n)
+              setJustSaved(n)
+              setNewerDraft(d => (d !== null && d <= n ? null : d))
+            }
+            if (saving.current === 0) {
+              const held = heldHints.current
+              heldHints.current = []
+              judgeHints(held)
+            }
+          }}
           banner={editorNames.length > 0 || newerDraft !== null ? banner : undefined}
           onExit={leaveStudio}
           onClose={onClosed}
@@ -230,6 +272,12 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
 
   const info = shown.info
   const isPublished = info !== null && info.number === info.publishedNumber
+  // The newest of what the shown version said and what the last check of the versions said (a hint may be newer).
+  const draftNo = Math.max(info?.draftNumber ?? 0, latestDraft ?? 0) || null
+  const publishedNo = info !== null ? info.publishedNumber : showing.which === 'published' ? null : undefined
+  const draftIsNewer = draftNo !== null && publishedNo !== undefined && (publishedNo === null || draftNo > publishedNo)
+  const visitorsSee = (p: number | null | undefined): string => (p ? `version ${p}` : 'nothing yet')
+  const showDraft = <button type="button" className="wt-tool ws-small" onClick={() => setShowing({ which: 'draft' })}>Show the draft</button>
   const status = info === null ? ''
     : `${showing.which === 'published' ? 'Published' : isPublished ? 'Published' : 'Not published'}: version ${info.number}, saved by ${displayNameOr(info.authorName)} on ${when(info.savedAt)}.`
   const editButton = (
@@ -242,7 +290,10 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
     <span className="cw-actions">
       <span className="cw-group" role="group" aria-label="Version">
         <button type="button" className="wt-tool ws-small" aria-pressed={showing.which === 'published'} onClick={() => setShowing({ which: 'published' })}>Published</button>
-        <button type="button" className="wt-tool ws-small" aria-pressed={showing.which === 'draft'} onClick={() => setShowing({ which: 'draft' })}>Draft</button>
+        <button type="button" className="wt-tool ws-small" aria-pressed={showing.which === 'draft'} onClick={() => setShowing({ which: 'draft' })}
+          aria-label="Draft" title={draftIsNewer ? 'The draft has changes visitors do not see yet' : undefined}>
+          Draft{draftIsNewer && <span className="cw-pill cw-pill--new">not published</span>}
+        </button>
         {showing.which === 'revision' && <span className="cw-pill">Version {showing.number}</span>}
       </span>
       {editButton}
@@ -250,13 +301,18 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
       {moderator && info !== null && !isPublished && shown.load.status === 'ready' && shown.load.website.kind === 'project' && (
         <button type="button" className="wt-tool cw-publish" onClick={() => void askPublish()}>Publish this version</button>
       )}
+      {moderator && (
+        <button type="button" className="wt-tool" aria-pressed={moderating} onClick={() => setModerating(m => !m)}>Moderation</button>
+      )}
     </span>
   )
 
   const empty = showing.which === 'published' ? (
     <div className="cw-empty">
       <p>Nothing has been published yet.</p>
-      <p>Everyone in town can work on the draft; a moderator publishes it when it is ready.</p>
+      {latestDraft !== null
+        ? <p>There is a draft (version {latestDraft}) that visitors don't see yet. {showDraft}</p>
+        : <p>Everyone in town can work on the draft; a moderator publishes it when it is ready.</p>}
       <p>{actions}</p>
     </div>
   ) : showing.which === 'draft' ? (
@@ -271,6 +327,20 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
         {ctx?.draftLocked && <p className="wt-notice" role="status">A moderator has locked the draft{moderator ? ': only moderators can save it.' : ' for now.'}</p>}
         {notice && <p className={`wt-notice ${notice.tone === 'problem' ? 'wt-notice--problem' : 'wt-notice--good'}`} role={notice.tone === 'problem' ? 'alert' : 'status'}>{notice.text}</p>}
         {editorNames.length > 0 && <p className="wt-notice" role="status">{editorNames.join(', ')} {editorNames.length === 1 ? 'is' : 'are'} editing the draft.</p>}
+        {justSaved !== null && showing.which === 'draft' && info !== null && info.number === justSaved && !isPublished && (
+          <p className="wt-notice wt-notice--good" role="status">
+            Saved as draft version {justSaved}. Visitors still see {visitorsSee(info.publishedNumber)} until a moderator publishes it
+            {moderator ? ': use "Publish this version".' : '.'}
+          </p>
+        )}
+        {showing.which === 'published' && info !== null && draftIsNewer && (
+          <p className="wt-notice" role="status">
+            There is a newer draft (version {draftNo}) that visitors don't see yet.{moderator ? ' You can publish it from the draft.' : ''} {showDraft}
+          </p>
+        )}
+        {showing.which === 'draft' && info !== null && !isPublished && justSaved !== info.number && (
+          <p className="wt-notice" role="status">Visitors don't see this draft yet: they see {visitorsSee(info.publishedNumber)} until a moderator publishes it.</p>
+        )}
 
         {starting ? (
           <div className="wt-start">
@@ -335,6 +405,10 @@ export function CommunityWebsiteApp({ transport, backend, worldId, userId, onClo
           </div>
         )}
 
+        {moderating && (
+          <ModerationPanel backend={backend} worldId={worldId} userId={userId} onClose={() => setModerating(false)} initialTab="locks"
+            onLocksChanged={() => hallContext(backend, worldId).then(setCtx, () => undefined)} />
+        )}
         {confirm && (
           <div className="cw-confirm" role="alertdialog" aria-label={`Publish version ${confirm.number}?`}>
             <h3>Publish version {confirm.number}?</h3>

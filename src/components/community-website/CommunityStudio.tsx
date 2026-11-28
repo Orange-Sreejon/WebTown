@@ -14,8 +14,12 @@ export interface CommunityStudioProps {
   initial: StudioState
   /** The draft as stored now; used after a conflict. */
   reload: () => Promise<WebsiteState>
-  /** Told the number of every draft this Studio saved, so a hint about it is not shown as someone else's. */
-  onSaved: (number: number) => void
+  /**
+   * Told when a save starts and how it ended (the draft number it made, or null when it failed), so the database's
+   * announcement of this very save, which can arrive before the answer, is never shown as someone else's.
+   */
+  onSaveStart: () => void
+  onSaveEnd: (number: number | null) => void
   banner?: ReactNode
   onExit: () => void
   onClose: () => void
@@ -28,16 +32,22 @@ export interface CommunityStudioProps {
  * a writer that saves to the Community Hall. Loaded on demand, so viewing the Community Website never downloads the
  * Studio or the code editor.
  */
-export function CommunityStudio({ backend, worldId, initial, reload, onSaved, banner, onExit, onClose, Editor, now }: CommunityStudioProps): React.ReactElement {
-  const savedRef = useRef(onSaved)
-  savedRef.current = onSaved
+export function CommunityStudio({ backend, worldId, initial, reload, onSaveStart, onSaveEnd, banner, onExit, onClose, Editor, now }: CommunityStudioProps): React.ReactElement {
+  const told = useRef({ onSaveStart, onSaveEnd })
+  told.current = { onSaveStart, onSaveEnd }
   const writer = useMemo<SiteProjectWriter>(() => {
     const inner = new CommunityDraftWriter(backend, worldId, now)
     return {
       save: async save => {
-        const project = await inner.save(save)
-        savedRef.current(project.revision)
-        return project
+        told.current.onSaveStart()
+        let number: number | null = null
+        try {
+          const project = await inner.save(save)
+          number = project.revision
+          return project
+        } finally {
+          told.current.onSaveEnd(number)
+        }
       },
     }
   }, [backend, worldId, now])
