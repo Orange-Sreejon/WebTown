@@ -36,6 +36,10 @@
 .cw-pill--live {
   background: #cfe8d5;
 }
+.cw-pill--new {
+  margin-left: 4px;
+  background: #f6dfb4;
+}
 .cw-publish {
   font-weight: bold;
 }

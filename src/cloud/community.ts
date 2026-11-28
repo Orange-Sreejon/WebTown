@@ -47,6 +47,17 @@ export interface ModerationEntry {
 export const FORMER_MEMBER = 'a former member'
 export const displayNameOr = (name: string | null): string => name ?? FORMER_MEMBER
 
+/**
+ * A `lock` message on the Hall channel (CH-07), as a hint only (anyone in the town can send one): which lock may have
+ * changed. Callers read the real state again with `hallContext`.
+ */
+export function parseLockAnnouncement(payload: unknown): { what: 'canvas' | 'draft'; locked: boolean } | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const p = payload as Record<string, unknown>
+  if ((p['what'] !== 'canvas' && p['what'] !== 'draft') || typeof p['locked'] !== 'boolean') return null
+  return { what: p['what'], locked: p['locked'] }
+}
+
 const bad = (): never => {
   throw new StorageError('WebTown sent back something it should not have. Please try again.')
 }

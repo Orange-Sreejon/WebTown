@@ -1,4 +1,5 @@
 import { isUuid, newUuid } from '../cloud/backend'
+import { parseLockAnnouncement } from '../cloud/community'
 import { parseWebsiteAnnouncement } from '../cloud/community-website'
 import type { RealtimeChannel, RealtimeTransport } from '../multiplayer/transport'
 
@@ -11,7 +12,7 @@ import type { RealtimeChannel, RealtimeTransport } from '../multiplayer/transpor
 
 export const WEBSITE_EVENT = 'website'
 
-export type WebsiteHint = { kind: 'draft' | 'published'; number: number }
+export type WebsiteHint = { kind: 'draft' | 'published'; number: number } | { kind: 'lock' }
 
 export interface WebsiteChannelOptions {
   transport: RealtimeTransport
@@ -45,7 +46,7 @@ export class WebsiteChannel {
   start(): void {
     if (this.channel) return
     const { transport, worldId, userId } = this.options
-    this.channel = transport.open(`hall:${worldId}`, this.options.sessionId ?? newUuid(), [WEBSITE_EVENT], {
+    this.channel = transport.open(`hall:${worldId}`, this.options.sessionId ?? newUuid(), [WEBSITE_EVENT, 'lock'], {
       onStatus: () => undefined,
       onPresence: state => {
         const next = editorsIn(state, userId)
@@ -54,8 +55,9 @@ export class WebsiteChannel {
         for (const l of [...this.editorListeners]) l(next)
       },
       onBroadcast: (event, payload) => {
-        if (event !== WEBSITE_EVENT) return
-        const hint = parseWebsiteAnnouncement(payload)
+        // A lock of the draft (CH-07): only that something may have changed; the caller reads it again.
+        const hint: WebsiteHint | null = event === WEBSITE_EVENT ? parseWebsiteAnnouncement(payload)
+          : event === 'lock' && parseLockAnnouncement(payload)?.what === 'draft' ? { kind: 'lock' } : null
         if (hint) for (const l of [...this.hintListeners]) l(hint)
       },
     })

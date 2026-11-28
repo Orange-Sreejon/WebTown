@@ -220,6 +220,11 @@ describe('clearing and locking', () => {
     expect((await rejection(lock(owner, world, 'website', true))).code).toBe('22023')
     expect((await rejection(db.rpc(owner, 'set_hall_lock', { p_world: world, p_what: 'canvas', p_locked: null }))).code).toBe('22023')
     expect(await logActions(world)).toEqual(['lock_canvas', 'lock_draft', 'unlock_draft'])
+    // Each real change is announced on the Hall channel as a hint (20261228090000); the repeat is not.
+    const sent = await db.superuser<{ payload: unknown }>("select payload from realtime.messages where topic = $1 and event = 'lock' order by id", [`hall:${world}`])
+    expect(sent.map(s => s.payload)).toEqual([{ what: 'canvas', locked: true }, { what: 'draft', locked: true }, { what: 'draft', locked: false }])
+    const [{ granted }] = await db.superuser<{ granted: boolean }>("select has_function_privilege('anon', 'public.set_hall_lock(uuid, text, boolean, text)', 'execute') as granted")
+    expect(granted).toBe(false)
   })
 })
 

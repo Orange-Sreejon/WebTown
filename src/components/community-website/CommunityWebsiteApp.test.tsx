@@ -61,13 +61,23 @@ async function town(): Promise<{ owner: User; a: User; b: User; world: string }>
 }
 
 const files = new FileStore()
-async function open(me: User, world: string): Promise<Window> {
+async function open(me: User, world: string, slowSave = 0): Promise<Window> {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
   const onClosed = vi.fn()
+  const backend = testBackend(db, me, files)
+  if (slowSave > 0) {
+    // The answer to a draft save comes late, so the database's announcement of it arrives first.
+    const rpc = backend.rpc.bind(backend)
+    backend.rpc = async <T,>(fn: string, args?: Record<string, unknown>): Promise<T> => {
+      const result = await rpc<T>(fn, args)
+      if (fn === 'save_community_draft') await new Promise(r => setTimeout(r, slowSave))
+      return result
+    }
+  }
   act(() => root.render(
-    <CommunityWebsiteApp transport={hub.client(me.id)} backend={testBackend(db, me, files)} worldId={world} userId={me.id} onClosed={onClosed} Editor={PlainEditor} now={() => NOW} />,
+    <CommunityWebsiteApp transport={hub.client(me.id)} backend={backend} worldId={world} userId={me.id} onClosed={onClosed} Editor={PlainEditor} now={() => NOW} />,
   ))
   const w = { container, root, onClosed }
   windows.push(w)
@@ -125,6 +135,7 @@ describe('the Community Website window', { timeout: 30_000 }, () => {
     expect(text(ada)).toContain('Everyone in town can edit this draft.')
     await click(ada, 'Exit')
     await until(() => expect(text(ada)).toContain('Not published: version 1, saved by Ada'))
+    expect(text(ada)).toContain('Saved as draft version 1. Visitors still see nothing yet until a moderator publishes it.')
     expect(button(ada, 'Draft').getAttribute('aria-pressed')).toBe('true')
     // A member can look at the unpublished draft but is not offered to publish it.
     expect(findButton(ada, 'Publish this version')).toBeUndefined()
@@ -179,9 +190,52 @@ describe('the Community Website window', { timeout: 30_000 }, () => {
     await until(() => expect(text(ada)).not.toContain('Bo is editing'))
   })
 
+  it("never takes the announcement of the player's own save for someone else's", async () => {
+    const { a, world } = await town()
+    const ada = await open(a, world, 400)
+    await startAndSave(ada, 'mine')
+    type(editor(ada), 'mine again')
+    const before = relayed
+    act(() => button(ada, 'Save').click())
+    // While the answer is held back, the announcement arrives: it must not be shown, even for a moment.
+    const seen: string[] = []
+    for (let i = 0; i < 25; i++) {
+      await act(async () => { await new Promise(r => setTimeout(r, 20)) })
+      seen.push(text(ada))
+    }
+    expect(relayed).toBeGreaterThan(before)
+    expect(seen.filter(s => s.includes('Someone saved a newer draft'))).toEqual([])
+    await until(() => expect(ada.container.querySelector('.ws-status')!.textContent).toBe('Saved'))
+    expect(text(ada)).not.toContain('Someone saved a newer draft')
+    expect(await draftNumber(world)).toBe(2)
+  })
+
+  it('says on the Published tab when there is a draft visitors do not see yet', async () => {
+    const { owner, a, world } = await town()
+    const ada = await open(a, world)
+    await startAndSave(ada, 'v1')
+    await click(ada, 'Exit')
+    await click(ada, 'Published')
+    await until(() => expect(text(ada)).toContain("There is a draft (version 1) that visitors don't see yet."))
+    expect(button(ada, 'Draft').textContent).toContain('not published')
+    await db.rpc(owner, 'publish_community_website', { p_world: world, p_number: 1 })
+    await until(() => expect(text(ada)).toContain('Published: version 1'))
+    expect(button(ada, 'Draft').textContent).not.toContain('not published')
+    // A newer draft: said on the Published tab, with a way to it.
+    await db.rpc(a, 'save_community_draft', { p_world: world, p_base_number: 1, p_site: { title: 'T', homePage: 'index.html', css: '', pages: [{ name: 'index.html', html: 'v2' }], assets: [] } })
+    await until(() => expect(text(ada)).toContain("There is a newer draft (version 2) that visitors don't see yet."))
+    await click(ada, 'Show the draft')
+    await until(() => expect(text(ada)).toContain("Visitors don't see this draft yet: they see version 1 until a moderator publishes it."))
+  })
+
   it('keeps members out of a locked draft, but not moderators', async () => {
     const { owner, a, world } = await town()
+    // Locked while Ada has the kiosk open: she sees it without reopening (the lock hint, CH-07).
+    const early = await open(a, world)
+    await until(() => expect(button(early, 'Edit the draft').disabled).toBe(false))
     await db.rpc(owner, 'set_hall_lock', { p_world: world, p_what: 'draft', p_locked: true })
+    await until(() => expect(text(early)).toContain('A moderator has locked the draft for now.'))
+    expect(button(early, 'Edit the draft').disabled).toBe(true)
     const ada = await open(a, world)
     await until(() => expect(text(ada)).toContain('A moderator has locked the draft for now.'))
     expect(button(ada, 'Edit the draft').disabled).toBe(true)

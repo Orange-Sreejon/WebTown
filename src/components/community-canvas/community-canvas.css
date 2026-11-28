@@ -115,6 +115,16 @@
 .cc-confirm p {
   margin: 0;
 }
+.cc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.cc-field input {
+  font: inherit;
+  padding: 4px 6px;
+}
 .cc-confirm div {
   display: flex;
   gap: 8px;

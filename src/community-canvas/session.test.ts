@@ -24,12 +24,12 @@ beforeAll(async () => {
   hub = new MemoryHub()
   // What Realtime does with realtime.send: deliver each new broadcast row to the topic's subscribers.
   relay = setInterval(() => {
-    void db.superuser<{ id: number; topic: string; payload: unknown }>(
-      "select id, topic, payload from realtime.messages where event = 'canvas' and id > $1 order by id", [relayed],
+    void db.superuser<{ id: number; topic: string; event: string; payload: unknown }>(
+      "select id, topic, event, payload from realtime.messages where event in ('canvas', 'lock') and id > $1 order by id", [relayed],
     ).then(rows => {
       for (const r of rows) {
         relayed = Math.max(relayed, r.id)
-        hub.inject(r.topic, 'canvas', r.payload)
+        hub.inject(r.topic, r.event, r.payload)
       }
     })
   }, 15)
@@ -74,7 +74,7 @@ async function open(me: User, world: string): Promise<Open> {
 const until = (check: () => void, timeout = 4000) => vi.waitFor(check, { timeout, interval: 10 })
 /** Every announcement so far has been relayed (so one can't arrive late and stand in for a catch-up). */
 async function relayDone(): Promise<void> {
-  const [{ last }] = await db.superuser<{ last: number }>("select coalesce(max(id), 0)::int as last from realtime.messages where event = 'canvas'")
+  const [{ last }] = await db.superuser<{ last: number }>("select coalesce(max(id), 0)::int as last from realtime.messages where event in ('canvas', 'lock')")
   await until(() => expect(relayed).toBeGreaterThanOrEqual(last!))
 }
 
@@ -234,6 +234,35 @@ describe('when things go wrong', () => {
     await new Promise(r => setTimeout(r, 300))
     // However slow this machine is right now: at most one per 250 ms that passed, plus the first and a trailing one.
     expect(bo.backend.calls.length - before).toBeLessThanOrEqual(Math.ceil((Date.now() - started) / ANNOUNCE_GAP_MS) + 2)
+  })
+
+  it('learns at once when a moderator locks or unlocks the canvas (CH-07), and ignores forged lock hints', async () => {
+    const { owner, a, world } = await town()
+    const ada = await open(a, world)
+    expect(ada.session.canDraw).toBe(true)
+    await db.rpc(owner, 'set_hall_lock', { p_world: world, p_what: 'canvas', p_locked: true })
+    await until(() => expect(ada.session.locked).toBe(true))
+    expect(ada.session.canDraw).toBe(false)
+    // A forged hint only makes it read the real state again.
+    hub.inject(`hall:${world}`, 'lock', { what: 'canvas', locked: false })
+    await new Promise(r => setTimeout(r, 200))
+    expect(ada.session.locked).toBe(true)
+    await db.rpc(owner, 'set_hall_lock', { p_world: world, p_what: 'canvas', p_locked: false })
+    await until(() => expect(ada.session.locked).toBe(false))
+  })
+
+  it('lets a moderator clear an area, gone for everyone at once', async () => {
+    const { owner, a, world } = await town()
+    const ada = await open(a, world)
+    const boss = await open(owner, world)
+    const inside = draw(ada.session, [[10, 10], [20, 20]])
+    const outside = draw(ada.session, [[500, 500]])
+    await until(() => expect(ids(boss.session).sort()).toEqual([inside, outside].sort()))
+    expect(await boss.session.clearArea({ x1: 0, y1: 0, x2: 50, y2: 50 }, 'Tidy')).toBe(1)
+    expect(ids(boss.session)).toEqual([outside])
+    await until(() => expect(ids(ada.session)).toEqual([outside]))
+    await expect(ada.session.clearArea({ x1: 400, y1: 400, x2: 600, y2: 600 })).rejects.toThrow(/Only moderators/)
+    expect(ids(ada.session)).toEqual([outside])
   })
 
   it('stops when the player is no longer in the town', async () => {
